@@ -1,9 +1,14 @@
 import 'package:flutter/material.dart';
 import 'UserProfile.dart';
 import 'RideSearch.dart';
+import 'UserOffer.dart';
+import 'UserActivity.dart';
+import 'UserServices.dart';
 
 class UniRideHomePage extends StatelessWidget {
   const UniRideHomePage({super.key});
+
+  final int offerCount = 0;
 
   @override
   Widget build(BuildContext context) {
@@ -30,6 +35,56 @@ class UniRideHomePage extends StatelessWidget {
             ),
           ],
         ),
+        actions: [
+          Padding(
+            padding: const EdgeInsets.only(right: 16),
+            child: Stack(
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.notifications_none,
+                      color: Colors.black),
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const OffersPage(),
+                      ),
+                    );
+                  },
+                ),
+
+                // 🔴 Notification Badge
+                offerCount > 0
+                    ? Positioned(
+                  right: 5,
+                  top: 5,
+                  child: Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: const BoxDecoration(
+                      color: Colors.red,
+                      shape: BoxShape.circle,
+                    ),
+                    constraints: const BoxConstraints(
+                      minWidth: 18,
+                      minHeight: 18,
+                    ),
+                    child: Center(
+                      child: Text(
+                        offerCount.toString(),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+                )
+                    : const SizedBox(),
+              ],
+            ),
+          ),
+        ],
       ),
 
       // ================= BODY =================
@@ -50,7 +105,8 @@ class UniRideHomePage extends StatelessWidget {
                   );
                 },
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 15),
+                  padding:
+                  const EdgeInsets.symmetric(horizontal: 15),
                   height: 55,
                   decoration: BoxDecoration(
                     color: Colors.grey.shade200,
@@ -68,7 +124,9 @@ class UniRideHomePage extends StatelessWidget {
                   ),
                 ),
               ),
+
               const SizedBox(height: 25),
+
               const Text(
                 "Suggestions",
                 style: TextStyle(
@@ -76,11 +134,13 @@ class UniRideHomePage extends StatelessWidget {
                   fontWeight: FontWeight.bold,
                 ),
               ),
+
               const SizedBox(height: 15),
 
               // 3 Options
               Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                mainAxisAlignment:
+                MainAxisAlignment.spaceBetween,
                 children: const [
                   _SuggestionBox(
                     icon: Icons.directions_car,
@@ -107,11 +167,31 @@ class UniRideHomePage extends StatelessWidget {
         selectedItemColor: Colors.black,
         unselectedItemColor: Colors.grey,
         onTap: (index) {
+          if (index == 1) {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (context) => ServicesPage()),
+            );
+          }
+          if (index == 2) {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (context) => const ActivityPage()),
+            );
+          }
           if (index == 4) {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (context) => const UniRideProfilePage(),
+              ),
+            );
+          }
+
+          if (index == 3) {
             Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (context) => const UniRideProfilePage(),
+                builder: (context) => const OffersPage(),
               ),
             );
           }
@@ -120,13 +200,17 @@ class UniRideHomePage extends StatelessWidget {
           BottomNavigationBarItem(
               icon: Icon(Icons.home), label: "Home"),
           BottomNavigationBarItem(
-              icon: Icon(Icons.grid_view), label: "Services"),
+              icon: Icon(Icons.grid_view),
+              label: "Services"),
           BottomNavigationBarItem(
-              icon: Icon(Icons.receipt_long), label: "Activity"),
+              icon: Icon(Icons.receipt_long),
+              label: "Activity"),
           BottomNavigationBarItem(
-              icon: Icon(Icons.local_offer), label: "Offers"),
+              icon: Icon(Icons.local_offer),
+              label: "Offers"),
           BottomNavigationBarItem(
-              icon: Icon(Icons.person), label: "Account"),
+              icon: Icon(Icons.person),
+              label: "Account"),
         ],
       ),
     );

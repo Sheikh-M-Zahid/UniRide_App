@@ -1,46 +1,116 @@
 import 'package:flutter/material.dart';
+import 'RideSelection.dart';
+import 'UserHome.dart';
 
-class ConfirmationPage extends StatelessWidget {
+class ConfirmationPage extends StatefulWidget {
   const ConfirmationPage({super.key});
+
+  @override
+  State<ConfirmationPage> createState() => _ConfirmationPageState();
+}
+
+class _ConfirmationPageState extends State<ConfirmationPage> {
+
+  // 0 = Nothing selected
+  // 1 = Rider
+  // 2 = Passenger
+  int selectedRole = 0;
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
-      // AppBar থেকে ব্যাক বাটন এবং টাইটেল নিয়ন্ত্রণ করা হয়েছে
+
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
-        leading: BackButton(color: Colors.black),
+        leading: const BackButton(color: Colors.black),
+        centerTitle: true,
         title: const Text(
           "Confirmation",
           style: TextStyle(color: Colors.black),
         ),
       ),
+
       body: Padding(
         padding: const EdgeInsets.all(24.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+
             const Text(
               "How would you like to use UniRide?",
-              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+              style: TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+              ),
             ),
+
             const SizedBox(height: 30),
-            // Ride Sharer অপশন
-            _selectionCard(
-              context,
-              Icons.directions_car,
-              "Ride Sharer",
-              "I want to share my bike/car with others.",
+
+            /// ================= Rider Option =================
+            _buildSelectionCard(
+              index: 1,
+              icon: Icons.directions_car,
+              title: "Ride Sharer",
+              subtitle: "I want to share my bike/car with others.",
             ),
+
             const SizedBox(height: 20),
-            // Passenger অপশন
-            _selectionCard(
-              context,
-              Icons.person_pin_circle,
-              "Passenger",
-              "I am looking for a ride to campus.",
+
+            /// ================= Passenger Option =================
+            _buildSelectionCard(
+              index: 2,
+              icon: Icons.person_pin_circle,
+              title: "Passenger",
+              subtitle: "I am looking for a ride to campus.",
+            ),
+
+            const Spacer(),
+
+            /// ================= NEXT BUTTON =================
+            SizedBox(
+              width: double.infinity,
+              height: 55,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor:
+                  selectedRole == 0 ? Colors.grey : Colors.black,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+                onPressed: selectedRole == 0
+                    ? null
+                    : () {
+
+                  if (selectedRole == 1) {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) =>
+                        const UniRideSelectionScreen(),
+                      ),
+                    );
+                  }
+
+                  if (selectedRole == 2) {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) =>
+                        const UniRideHomePage(),
+                      ),
+                    );
+                  }
+                },
+                child: const Text(
+                  "Next",
+                  style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 18),
+                ),
+              ),
             ),
           ],
         ),
@@ -48,48 +118,87 @@ class ConfirmationPage extends StatelessWidget {
     );
   }
 
-  // কার্ড ডিজাইনের জন্য হেল্পার ফাংশন
-  Widget _selectionCard(BuildContext context, IconData icon, String title, String sub) {
-    return InkWell( // ক্লিক করার সুবিধা যোগ করা হয়েছে
+  /// ================= Selection Card =================
+  Widget _buildSelectionCard({
+    required int index,
+    required IconData icon,
+    required String title,
+    required String subtitle,
+  }) {
+
+    bool isSelected = selectedRole == index;
+
+    return GestureDetector(
       onTap: () {
-        // এখানে আপনার লজিক দিন (যেমন: হোম পেজে যাওয়া)
-        print("$title selected");
+        setState(() {
+          selectedRole = index;
+        });
       },
-      borderRadius: BorderRadius.circular(15),
+
       child: Container(
         padding: const EdgeInsets.all(20),
+
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(15),
-          border: Border.all(color: Colors.grey[300]!),
+          border: Border.all(
+            color: isSelected ? Colors.black : Colors.grey.shade300,
+            width: isSelected ? 2.5 : 1,
+          ),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withOpacity(0.05),
               blurRadius: 10,
               offset: const Offset(0, 5),
-            )
+            ),
           ],
         ),
+
         child: Row(
           children: [
-            Icon(icon, size: 40, color: Colors.black),
+
+            Icon(
+              icon,
+              size: 40,
+              color: isSelected
+                  ? Colors.black
+                  : Colors.grey,
+            ),
+
             const SizedBox(width: 20),
+
             Expanded(
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+                crossAxisAlignment:
+                CrossAxisAlignment.start,
                 children: [
+
                   Text(
                     title,
-                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
+
+                  const SizedBox(height: 5),
+
                   Text(
-                    sub,
-                    style: const TextStyle(color: Colors.grey, fontSize: 14),
+                    subtitle,
+                    style: const TextStyle(
+                      color: Colors.grey,
+                      fontSize: 14,
+                    ),
                   ),
                 ],
               ),
             ),
-            const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey),
+
+            if (isSelected)
+              const Icon(
+                Icons.check_circle,
+                color: Colors.black,
+              ),
           ],
         ),
       ),

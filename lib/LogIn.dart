@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
-import 'RegistrationPage.dart'; // রেজিস্ট্রেশন ফাইল ইমপোর্ট নিশ্চিত করুন
+import 'RegistrationPage.dart';// রেজিস্ট্রেশন ফাইল ইমপোর্ট নিশ্চিত করুন
 import 'dart:io' show Platform;
 import 'package:flutter/foundation.dart' show kIsWeb; // ওয়েব সাপোর্ট চেকের জন্য
 import 'LoginCheck.dart';
@@ -71,7 +71,7 @@ class _UniRideLoginState extends State<UniRideLogin> {
               const SizedBox(height: 20),
               _switchPageLink("Don't have an account? ", "Sign up", () {
                 // এখান থেকে 'const' সরানো হয়েছে এরর দূর করতে
-                Navigator.push(context, MaterialPageRoute(builder: (context) => RegistrationPage()));
+                Navigator.push(context, MaterialPageRoute(builder: (context) => PersonalInfoForm()));
               }),
 
               const SizedBox(height: 25),

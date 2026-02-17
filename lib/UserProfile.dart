@@ -1,5 +1,10 @@
 import 'package:flutter/material.dart';
 import 'UserHome.dart';
+import 'UserSetting.dart';
+import 'UserOffer.dart';
+import 'UserActivity.dart';
+import 'UserServices.dart';
+import 'PersonalInfo.dart';
 
 void main() => runApp(
   const MaterialApp(
@@ -26,7 +31,29 @@ class _UniRideProfilePageState extends State<UniRideProfilePage> {
         context,
         MaterialPageRoute(builder: (context) => const UniRideHomePage()),
       );
-    } else {
+    }
+    else if (index == 1) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => ServicesPage()),
+      );
+    }
+    else if (index == 2) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => const ActivityPage()),
+      );
+    }
+
+    else if (index == 3) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (context) => const OffersPage(),
+        ),
+      );
+    }
+    else {
       setState(() {
         _selectedIndex = index;
       });
@@ -112,8 +139,28 @@ class _UniRideProfilePageState extends State<UniRideProfilePage> {
                   scrollDirection: Axis.horizontal,
                   padding: const EdgeInsets.symmetric(horizontal: 15),
                   children: [
-                    _buildSquareTile(Icons.settings, "Settings"),
-                    _buildSquareTile(Icons.person, "Personal info"),
+                    GestureDetector(
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const SettingsPage(),
+                          ),
+                        );
+                      },
+                      child: _buildSquareTile(Icons.settings, "Settings"),
+                    ),
+                    GestureDetector(
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const PersonalInformationPage(),
+                          ),
+                        );
+                      },
+                      child: _buildSquareTile(Icons.person, "Personal info"),
+                    ),
                     _buildSquareTile(Icons.security, "Security"),
                     _buildSquareTile(Icons.lock, "Privacy & data"),
                     _buildSquareTile(Icons.help, "Help"),

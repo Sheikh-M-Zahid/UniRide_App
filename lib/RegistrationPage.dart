@@ -1,184 +1,184 @@
 import 'package:flutter/material.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
-import 'LogIn.dart';
-import 'main.dart'; // UniRideLogin ক্লাসটি পাওয়ার জন্য
+import 'ConfirmationPage.dart';
 
-class RegistrationPage extends StatelessWidget {
-  const RegistrationPage({super.key});
+void main() {
+  runApp(MaterialApp(
+    debugShowCheckedModeBanner: false,
+    home: PersonalInfoForm(),
+  ));
+}
+
+class PersonalInfoForm extends StatefulWidget {
+  @override
+  _PersonalInfoFormState createState() => _PersonalInfoFormState();
+}
+
+class _PersonalInfoFormState extends State<PersonalInfoForm> {
+  // ১. ভেরিয়েবল এবং কন্ট্রোলার ডিক্লেয়ারেশন
+  bool _isObscure = true;
+  bool _isObscureConfirm = true;
+  String? selectedBloodGroup;
+
+  final _formKey = GlobalKey<FormState>();
+  final TextEditingController _passwordController = TextEditingController();
+  final TextEditingController _confirmPasswordController = TextEditingController();
+
+  // ২. মেমোরি লিক রোধ করতে ডিসপোজ মেথড
+  @override
+  void dispose() {
+    _passwordController.dispose();
+    _confirmPasswordController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
-      body: SafeArea(
-        child: SingleChildScrollView( // স্ক্রিন ছোট হলে যাতে স্ক্রল করা যায়
-          padding: const EdgeInsets.symmetric(horizontal: 24.0),
+      appBar: AppBar(
+        title: const Text('Personal Information', style: TextStyle(color: Colors.white)),
+        centerTitle: true,
+        backgroundColor: Colors.black,
+      ),
+
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(15),
+        child: Form(
+          key: _formKey, // ফর্ম ভ্যালিডেশনের জন্য দরকার
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              const SizedBox(height: 50),
-
-              // UniRide Logo Box (Arrow ছাড়া)
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
-                decoration: BoxDecoration(
-                    color: Colors.black,
-                    borderRadius: BorderRadius.circular(12)
-                ),
-                child: const Text(
-                    'UniRide',
-                    style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold
-                    )
-                ),
-              ),
-
-              const SizedBox(height: 30),
-              const Text(
-                'Get started with UniRide',
-                style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black,
-                ),
-              ),
-
-              const SizedBox(height: 30),
-
-              const Align(
-                alignment: Alignment.centerLeft,
-                child: Text('University Email', style: TextStyle(fontWeight: FontWeight.w600)),
-              ),
-              const SizedBox(height: 10),
-
-              // Mobile/Email Input Field (main.dart এর স্টাইল অনুযায়ী)
-              TextField(
+              // ফার্স্ট নেম
+              TextFormField(
                 decoration: InputDecoration(
-                  hintText: 'Enter Your University Email',
-                  filled: true,
-                  fillColor: const Color(0xFFF3F3F3),
-                  prefixIcon: const Icon(Icons.person_outline, color: Colors.black),
-                  suffixIcon: const Icon(Icons.qr_code_scanner, color: Colors.black),
-                  border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(10),
-                      borderSide: BorderSide.none
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                  labelText: "First Name",
+                  hintText: "Enter Your First Name",
+                  prefixIcon: const Icon(Icons.person),
+                ),
+                validator: (value) => (value == null || value.isEmpty) ? 'First Name is required' : null,
+              ),
+              const SizedBox(height: 15),
+
+              TextFormField(
+                decoration: InputDecoration(
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                  labelText: "Last Name",
+                  hintText: "Enter Your Last Name",
+                  prefixIcon: const Icon(Icons.person),
+                ),
+              ),
+              const SizedBox(height: 15),
+
+              // ফোন নাম্বার
+              TextFormField(
+                keyboardType: TextInputType.phone,
+                decoration: InputDecoration(
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                  labelText: "Phone Number",
+                  hintText: "Enter Your Phone Number",
+                  prefixIcon: const Icon(Icons.phone),
+                ),
+                validator: (value) => (value == null || value.isEmpty) ? 'Phone number is required' : null,
+              ),
+              const SizedBox(height: 15),
+
+              // ব্লাড গ্রুপ ড্রপডাউন
+              DropdownButtonFormField<String>(
+                value: selectedBloodGroup,
+                decoration: InputDecoration(
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                  labelText: "Occupation",
+                  hintText: "Enter Your University Role",
+                  prefixIcon: const Icon(Icons.work, color: Colors.black),
+                ),
+                items: ['Student','Faculty', 'Staff']
+                    .map((group) => DropdownMenuItem(value: group, child: Text(group)))
+                    .toList(),
+                onChanged: (value) {
+                  setState(() {
+                    selectedBloodGroup = value;
+                  });
+                },
+                validator: (value) => value == null ? 'Please select your occupation' : null,
+              ),
+              const SizedBox(height: 15),
+
+              // প্রেজেন্ট এরিয়া
+              TextFormField(
+                decoration: InputDecoration(
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                  labelText: "Present Area",
+                  hintText: "e.g: Narayanganj",
+                  prefixIcon: const Icon(Icons.location_on),
+                ),
+                validator: (value) => (value == null || value.isEmpty) ? 'Address is required' : null,
+              ),
+              const SizedBox(height: 15),
+
+              // পাসওয়ার্ড ফিল্ড
+              TextFormField(
+                controller: _passwordController,
+                obscureText: _isObscure,
+                decoration: InputDecoration(
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                  labelText: "Password",
+                  hintText: "Current Password",
+                  prefixIcon: const Icon(Icons.lock),
+                  suffixIcon: IconButton(
+                    icon: Icon(_isObscure ? Icons.visibility_off : Icons.visibility),
+                    onPressed: () => setState(() => _isObscure = !_isObscure),
                   ),
                 ),
+                validator: (value) => (value != null && value.length < 6) ? 'At least 6 characters' : null,
               ),
+              const SizedBox(height: 15),
 
-              const SizedBox(height: 20),
+              // কনফার্ম পাসওয়ার্ড ফিল্ড
+              TextFormField(
+                controller: _confirmPasswordController,
+                obscureText: _isObscureConfirm,
+                decoration: InputDecoration(
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                  labelText: "Confirm Password",
+                  hintText: "Confirm Password",
+                  prefixIcon: const Icon(Icons.lock_clock),
+                  suffixIcon: IconButton(
+                    icon: Icon(_isObscureConfirm ? Icons.visibility_off : Icons.visibility),
+                    onPressed: () => setState(() => _isObscureConfirm = !_isObscureConfirm),
+                  ),
+                ),
+                validator: (value) {
+                  if (value != _passwordController.text) {
+                    return 'Passwords do not match!';
+                  }
+                  return null;
+                },
+              ),
+              const SizedBox(height: 25),
 
-              // Continue Button
+              // সাবমিট বাটন
               SizedBox(
                 width: double.infinity,
-                height: 58,
+                height: 50,
                 child: ElevatedButton(
-                  onPressed: () {},
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.black,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
-                    ),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                   ),
-                  child: const Text(
-                    'Continue',
-                    style: TextStyle(color: Colors.white, fontSize: 18),
-                  ),
-                ),
-              ),
+                  onPressed: () {
+                    if (_formKey.currentState!.validate()) {
 
-              const SizedBox(height: 20),
-
-              // Already have an account? Log in
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Text("Already have an account? "),
-                  GestureDetector(
-                    onTap: () {
-                      // main.dart এর UniRideLogin পেজে নিয়ে যাবে
                       Navigator.push(
                         context,
-                        MaterialPageRoute(builder: (context) => const UniRideLogin()),
+                        MaterialPageRoute(
+                          builder: (context) => const ConfirmationPage(),
+                        ),
                       );
-                    },
-                    child: const Text(
-                      "Log in",
-                      style: TextStyle(
-                        color: Colors.blue,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
 
-              const SizedBox(height: 25),
-
-              // or Divider
-              const Row(
-                children: [
-                  Expanded(child: Divider()),
-                  Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 10),
-                    child: Text('or', style: TextStyle(color: Colors.grey)),
-                  ),
-                  Expanded(child: Divider()),
-                ],
-              ),
-
-              const SizedBox(height: 25),
-
-              // Continue with Google (main.dart এর social button স্টাইল অনুযায়ী)
-              SizedBox(
-                width: double.infinity,
-                height: 56,
-                child: OutlinedButton(
-                  onPressed: () {},
-                  style: OutlinedButton.styleFrom(
-                    backgroundColor: const Color(0xFFEEEEEE),
-                    side: BorderSide.none,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const FaIcon(FontAwesomeIcons.google, color: Colors.red, size: 22),
-                      const SizedBox(width: 10),
-                      const Text(
-                        'Continue with Google',
-                        style: TextStyle(color: Colors.black, fontSize: 16),
-                      ),
-                    ],
-                  ),
+                    }
+                  },
+                  child: const Text('Submit Information', style: TextStyle(color: Colors.white, fontSize: 16)),
                 ),
               ),
-
-              const SizedBox(height: 20),
-
-              // Find my account
-              TextButton.icon(
-                onPressed: () {},
-                icon: const Icon(Icons.search, color: Colors.grey, size: 20),
-                label: const Text(
-                  'Find my account',
-                  style: TextStyle(color: Colors.grey),
-                ),
-              ),
-
-              const SizedBox(height: 40),
-
-              // Footer Text
-              const Text(
-                'By continuing, you agree to receive calls, including by automated dialer, WhatsApp or texts from UniRide and its affiliates.',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.grey, fontSize: 12),
-              ),
-              const SizedBox(height: 20),
             ],
           ),
         ),
