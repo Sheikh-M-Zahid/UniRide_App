@@ -4,6 +4,9 @@ import 'RideSearch.dart';
 import 'UserOffer.dart';
 import 'UserActivity.dart';
 import 'UserServices.dart';
+import 'ReserveRide.dart';
+import 'SendItem.dart';
+import 'SharingCaringPage.dart';
 
 class UniRideHomePage extends StatelessWidget {
   const UniRideHomePage({super.key});
@@ -138,24 +141,81 @@ class UniRideHomePage extends StatelessWidget {
               const SizedBox(height: 15),
 
               // 3 Options
-              Row(
-                mainAxisAlignment:
-                MainAxisAlignment.spaceBetween,
-                children: const [
-                  _SuggestionBox(
-                    icon: Icons.directions_car,
-                    title: "Ride",
-                  ),
-                  _SuggestionBox(
-                    icon: Icons.calendar_today,
-                    title: "Reserve",
-                  ),
-                  _SuggestionBox(
-                    icon: Icons.local_shipping,
-                    title: "Send Item",
-                  ),
-                ],
-              ),
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+
+                    GestureDetector(
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => PlanYourRidePage(),
+                          ),
+                        );
+                      },
+                      child: const _SuggestionBox(
+                        icon: Icons.directions_car,
+                        title: "Ride",
+                      ),
+                    ),
+
+                    const SizedBox(width: 15),
+
+                    GestureDetector(
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const ReserveRide(),
+                          ),
+                        );
+                      },
+                      child: const _SuggestionBox(
+                        icon: Icons.calendar_today,
+                        title: "Reserve",
+                      ),
+                    ),
+
+                    const SizedBox(width: 15),
+
+                    // ✅ Send Item
+                    GestureDetector(
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const SendItemForm(),
+                          ),
+                        );
+                      },
+                      child: const _SuggestionBox(
+                        icon: Icons.inventory,
+                        title: "Send Item",
+                      ),
+                    ),
+
+                    const SizedBox(width: 15),
+
+                    // ✅ Co Ride
+                    GestureDetector(
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const SharingCaringPage(),
+                          ),
+                        );
+                      },
+                      child: const _SuggestionBox(
+                        icon: Icons.volunteer_activism,
+                        title: "Co Ride",
+                      ),
+                    ),
+                  ],
+                ),
+              )
             ],
           ),
         ),

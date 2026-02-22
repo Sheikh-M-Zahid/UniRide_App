@@ -1,35 +1,69 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'ConfirmationPage.dart';
+import 'RegistrationPage.dart';
 
 class OTPVerificationPage extends StatefulWidget {
   final String email;
-  const OTPVerificationPage({super.key, required this.email});
+  final String generatedOtp;
+
+  const OTPVerificationPage({
+    super.key,
+    required this.email,
+    required this.generatedOtp,
+  });
 
   @override
   State<OTPVerificationPage> createState() => _OTPVerificationPageState();
 }
 
 class _OTPVerificationPageState extends State<OTPVerificationPage> {
+
   // ৪টি ঘরের জন্য ৪টি কন্ট্রোলার
-  final List<TextEditingController> _controllers = List.generate(4, (_) => TextEditingController());
+  final List<TextEditingController> _controllers =
+  List.generate(4, (_) => TextEditingController());
+
   bool _isButtonActive = false;
 
   @override
   void initState() {
     super.initState();
-    // প্রত্যেকটি কন্ট্রোলারের ইনপুট চেক করার জন্য লিসেনার অ্যাড করা
+
+    // প্রত্যেকটি কন্ট্রোলারের ইনপুট চেক করার জন্য লিসেনার অ্যাড
     for (var controller in _controllers) {
       controller.addListener(_checkOtpComplete);
     }
   }
 
-  // ৪টি ঘরই পূরণ হয়েছে কিনা তা চেক করার ফাংশন
+  // ৪টি ঘর পূরণ হয়েছে কিনা চেক
   void _checkOtpComplete() {
     bool isComplete = _controllers.every((c) => c.text.isNotEmpty);
+
     setState(() {
       _isButtonActive = isComplete;
     });
+  }
+
+  // 🔥 OTP Verify Function
+  void _verifyOtp() {
+    String enteredOtp = _controllers.map((c) => c.text).join();
+
+    if (enteredOtp == widget.generatedOtp) {
+
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (context) => PersonalInfoForm(),
+        ),
+      );
+
+    } else {
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Invalid OTP"),
+        ),
+      );
+    }
   }
 
   @override
@@ -42,8 +76,13 @@ class _OTPVerificationPageState extends State<OTPVerificationPage> {
 
   @override
   Widget build(BuildContext context) {
+
     String displayName = widget.email.split('@')[0];
-    displayName = displayName[0].toUpperCase() + displayName.substring(1);
+
+    if (displayName.isNotEmpty) {
+      displayName =
+          displayName[0].toUpperCase() + displayName.substring(1);
+    }
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -53,73 +92,104 @@ class _OTPVerificationPageState extends State<OTPVerificationPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+
               const SizedBox(height: 20),
+
               Text(
-                'Welcome back, $displayName.',
-                style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold),
+                'Welcome, $displayName.',
+                style: const TextStyle(
+                    fontSize: 26,
+                    fontWeight: FontWeight.bold),
               ),
+
               const SizedBox(height: 15),
+
               Text(
                 'Enter the 4-digit code sent to you at:\n${widget.email}',
-                style: const TextStyle(fontSize: 16, color: Colors.black87),
+                style: const TextStyle(
+                    fontSize: 16,
+                    color: Colors.black87),
               ),
+
               const SizedBox(height: 30),
 
               // OTP Input Row
               Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: List.generate(4, (index) => _otpBox(index)),
+                mainAxisAlignment:
+                MainAxisAlignment.spaceBetween,
+                children: List.generate(
+                    4,
+                        (index) => _otpBox(index)),
               ),
 
               const SizedBox(height: 15),
+
               const Text(
                 'Tip: Be sure to check your inbox and spam folders',
-                style: TextStyle(color: Colors.grey, fontSize: 13),
+                style: TextStyle(
+                    color: Colors.grey,
+                    fontSize: 13),
               ),
+
               const SizedBox(height: 30),
 
               _actionButton('Resend'),
+
               const SizedBox(height: 12),
+
               _actionButton('Send code by SMS'),
 
               const Spacer(),
 
               Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                mainAxisAlignment:
+                MainAxisAlignment.spaceBetween,
                 children: [
+
                   FloatingActionButton(
                     heroTag: 'back_otp',
                     onPressed: () => Navigator.pop(context),
                     backgroundColor: Colors.grey[200],
                     elevation: 0,
-                    child: const Icon(Icons.arrow_back, color: Colors.black),
+                    child: const Icon(
+                      Icons.arrow_back,
+                      color: Colors.black,
+                    ),
                   ),
 
-                  // Next Button Logic
+                  // Next Button
                   GestureDetector(
-                    onTap: _isButtonActive
-                        ? () => Navigator.push(context, MaterialPageRoute(builder: (context) => const ConfirmationPage()))
-                        : null, // বাটন একটিভ না থাকলে ক্লিক কাজ করবে না
+                    onTap:
+                    _isButtonActive ? _verifyOtp : null,
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 15),
+                      padding:
+                      const EdgeInsets.symmetric(
+                          horizontal: 30,
+                          vertical: 15),
                       decoration: BoxDecoration(
-                        // বাটন একটিভ থাকলে কালো, না থাকলে হালকা ধুসর
-                        color: _isButtonActive ? Colors.black : Colors.grey[300],
-                        borderRadius: BorderRadius.circular(30),
+                        color: _isButtonActive
+                            ? Colors.black
+                            : Colors.grey[300],
+                        borderRadius:
+                        BorderRadius.circular(30),
                       ),
                       child: Row(
                         children: [
                           Text(
-                              'Next',
-                              style: TextStyle(
-                                  fontSize: 18,
-                                  color: _isButtonActive ? Colors.white : Colors.grey[600]
-                              )
+                            'Next',
+                            style: TextStyle(
+                              fontSize: 18,
+                              color: _isButtonActive
+                                  ? Colors.white
+                                  : Colors.grey[600],
+                            ),
                           ),
                           const SizedBox(width: 5),
                           Icon(
-                              Icons.arrow_forward,
-                              color: _isButtonActive ? Colors.white : Colors.grey[600]
+                            Icons.arrow_forward,
+                            color: _isButtonActive
+                                ? Colors.white
+                                : Colors.grey[600],
                           ),
                         ],
                       ),
@@ -127,6 +197,7 @@ class _OTPVerificationPageState extends State<OTPVerificationPage> {
                   ),
                 ],
               ),
+
               const SizedBox(height: 20),
             ],
           ),
@@ -145,20 +216,38 @@ class _OTPVerificationPageState extends State<OTPVerificationPage> {
         textAlign: TextAlign.center,
         keyboardType: TextInputType.number,
         maxLength: 1,
-        style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-        inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+        style: const TextStyle(
+            fontSize: 24,
+            fontWeight: FontWeight.bold),
+        inputFormatters: [
+          FilteringTextInputFormatter.digitsOnly
+        ],
         decoration: InputDecoration(
           counterText: "",
           filled: true,
           fillColor: Colors.grey[100],
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-          focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Colors.black, width: 2)),
+          border: OutlineInputBorder(
+            borderRadius:
+            BorderRadius.circular(12),
+            borderSide: BorderSide.none,
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius:
+            BorderRadius.circular(12),
+            borderSide: const BorderSide(
+                color: Colors.black,
+                width: 2),
+          ),
         ),
         onChanged: (value) {
-          if (value.length == 1 && index < 3) {
-            FocusScope.of(context).nextFocus();
-          } else if (value.isEmpty && index > 0) {
-            FocusScope.of(context).previousFocus();
+          if (value.length == 1 &&
+              index < 3) {
+            FocusScope.of(context)
+                .nextFocus();
+          } else if (value.isEmpty &&
+              index > 0) {
+            FocusScope.of(context)
+                .previousFocus();
           }
         },
       ),
@@ -169,9 +258,20 @@ class _OTPVerificationPageState extends State<OTPVerificationPage> {
     return InkWell(
       onTap: () {},
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-        decoration: BoxDecoration(color: Colors.grey[100], borderRadius: BorderRadius.circular(20)),
-        child: Text(title, style: const TextStyle(fontWeight: FontWeight.w500)),
+        padding:
+        const EdgeInsets.symmetric(
+            horizontal: 20,
+            vertical: 10),
+        decoration: BoxDecoration(
+          color: Colors.grey[100],
+          borderRadius:
+          BorderRadius.circular(20),
+        ),
+        child: Text(
+          title,
+          style: const TextStyle(
+              fontWeight: FontWeight.w500),
+        ),
       ),
     );
   }

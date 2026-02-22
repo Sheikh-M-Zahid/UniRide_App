@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
-import 'RegistrationPage.dart';// রেজিস্ট্রেশন ফাইল ইমপোর্ট নিশ্চিত করুন
 import 'dart:io' show Platform;
 import 'package:flutter/foundation.dart' show kIsWeb; // ওয়েব সাপোর্ট চেকের জন্য
 import 'LoginCheck.dart';
+import 'GmailConfirm.dart';
+import 'FindAccount.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 
 void main() {
   runApp(const MaterialApp(
@@ -20,9 +22,28 @@ class UniRideLogin extends StatefulWidget {
 }
 
 class _UniRideLoginState extends State<UniRideLogin> {
+  final GoogleSignIn _googleSignIn = GoogleSignIn();
   final TextEditingController emailController = TextEditingController();
   final TextEditingController passwordController = TextEditingController();
 
+  Future<void> _handleGoogleSignIn() async {
+    try {
+      final GoogleSignInAccount? account =
+      await _googleSignIn.signIn();
+
+      if (account != null) {
+
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => const LoginCheck(),
+          ),
+        );
+      }
+    } catch (error) {
+      print(error);
+    }
+  }
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -71,7 +92,7 @@ class _UniRideLoginState extends State<UniRideLogin> {
               const SizedBox(height: 20),
               _switchPageLink("Don't have an account? ", "Sign up", () {
                 // এখান থেকে 'const' সরানো হয়েছে এরর দূর করতে
-                Navigator.push(context, MaterialPageRoute(builder: (context) => PersonalInfoForm()));
+                Navigator.push(context, MaterialPageRoute(builder: (context) => GmailconfirmPage()));
               }),
 
               const SizedBox(height: 25),
@@ -83,6 +104,13 @@ class _UniRideLoginState extends State<UniRideLogin> {
                 _socialButton(FontAwesomeIcons.apple, 'Continue with Apple', onTap: () {}),
                 const SizedBox(height: 12),
               ],
+
+              _socialButton(
+                FontAwesomeIcons.google,
+                'Continue with Google',
+                onTap: _handleGoogleSignIn,
+              ),
+              const SizedBox(height: 12),
 
               const SizedBox(height: 20),
               _findAccountButton(),
@@ -148,5 +176,13 @@ class _UniRideLoginState extends State<UniRideLogin> {
     ),
   );
 
-  Widget _findAccountButton() => TextButton.icon(onPressed: () {}, icon: const Icon(Icons.search, color: Colors.grey, size: 20), label: const Text('Find my account', style: TextStyle(color: Colors.grey)));
+  Widget _findAccountButton() => TextButton.icon(
+      onPressed: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => const FindAccount(),
+          ),
+        );
+      }, icon: const Icon(Icons.search, color: Colors.grey, size: 20), label: const Text('Find my account', style: TextStyle(color: Colors.grey)));
 }
