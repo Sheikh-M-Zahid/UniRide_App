@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:uni_ride/LogIn.dart';
 
-import 'UserProfile.dart';
+import 'RiderProfile.dart';
 import 'app_storage.dart';
 import 'saved_places_page.dart';
 import 'ride_history_page.dart';
@@ -12,8 +12,9 @@ import 'PersonalInfo.dart';
 import 'upcoming_reserve_page.dart';
 import 'help_support_page.dart';
 import 'report_problem_page.dart';
-import 'theme_settings_page.dart';
 import 'RideSelection.dart';
+import 'RegisteredVehicles.dart';
+
 
 class AppColors {
   static const Color primary = Color(0xFF14B8A6);
@@ -25,12 +26,12 @@ class AppColors {
   static const Color mutedText = Color(0xFF6B7280);
 }
 
-class SettingsPage extends StatefulWidget {
+class RiderSettingsPage extends StatefulWidget {
   final String? userName;
   final String? userEmail;
   final String? userPhotoUrl;
 
-  const SettingsPage({
+  const RiderSettingsPage({
     super.key,
     this.userName,
     this.userEmail,
@@ -38,10 +39,10 @@ class SettingsPage extends StatefulWidget {
   });
 
   @override
-  State<SettingsPage> createState() => _SettingsPageState();
+  State<RiderSettingsPage> createState() => _RiderSettingsPageState();
 }
 
-class _SettingsPageState extends State<SettingsPage> {
+class _RiderSettingsPageState extends State<RiderSettingsPage> {
   final GoogleSignIn _googleSignIn = GoogleSignIn();
 
   String displayName = "User Name";
@@ -140,7 +141,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 await Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (context) => UniRideProfilePage(
+                    builder: (context) => RiderProfile(
                       userName: displayName,
                       userRating: userRating,
                     ),
@@ -245,14 +246,28 @@ class _SettingsPageState extends State<SettingsPage> {
             ),
 
             _buildSettingItem(
-              icon: Icons.badge_outlined,
-              title: "Sign up as a rider",
-              subtitle: "Register as a rider from your profile",
+              icon: Icons.directions_bike_outlined,
+              title: "Add another vehicle",
+              subtitle: "Register a new vehicle as rider",
               onTap: () {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
                     builder: (context) => const UniRideSelectionScreen(),
+                  ),
+                );
+              },
+            ),
+
+            _buildSettingItem(
+              icon: Icons.two_wheeler_outlined,
+              title: "See Registered Vehicle",
+              subtitle: "View your registered vehicles",
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const RegisteredVehiclesPage(),
                   ),
                 );
               },
@@ -323,20 +338,6 @@ class _SettingsPageState extends State<SettingsPage> {
                   context,
                   MaterialPageRoute(
                     builder: (context) => const ReportProblemPage(),
-                  ),
-                );
-              },
-            ),
-
-            _buildSettingItem(
-              icon: Icons.palette_outlined,
-              title: "Theme settings",
-              subtitle: "Customize your app theme",
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const ThemeSettingsPage(),
                   ),
                 );
               },

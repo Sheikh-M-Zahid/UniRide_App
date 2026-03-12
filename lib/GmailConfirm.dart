@@ -53,7 +53,7 @@ class _GmailconfirmPageState extends State<GmailconfirmPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: const Color(0xFFF9FAFB),
       body: SafeArea(
         child: Padding(
           padding:
@@ -71,6 +71,7 @@ class _GmailconfirmPageState extends State<GmailconfirmPage> {
                   style: TextStyle(
                     fontSize: 28,
                     fontWeight: FontWeight.bold,
+                    color: Color(0xFF14B8A6),
                   ),
                 ),
               ),
@@ -82,6 +83,7 @@ class _GmailconfirmPageState extends State<GmailconfirmPage> {
                 style: TextStyle(
                   fontSize: 22,
                   fontWeight: FontWeight.bold,
+                  color: Color(0xFF1F2937),
                 ),
               ),
 
@@ -89,7 +91,10 @@ class _GmailconfirmPageState extends State<GmailconfirmPage> {
 
               const Text(
                 "University Email",
-                style: TextStyle(fontSize: 16),
+                style: TextStyle(
+                  fontSize: 16,
+                  color: Color(0xFF1F2937),
+                ),
               ),
 
               const SizedBox(height: 8),
@@ -98,7 +103,7 @@ class _GmailconfirmPageState extends State<GmailconfirmPage> {
                 padding: const EdgeInsets.symmetric(
                     horizontal: 12),
                 decoration: BoxDecoration(
-                  color: Colors.grey[200],
+                  color: Colors.white,
                   borderRadius:
                   BorderRadius.circular(10),
                 ),
@@ -106,7 +111,9 @@ class _GmailconfirmPageState extends State<GmailconfirmPage> {
                   children: [
 
                     const Icon(
-                        Icons.email_outlined),
+                      Icons.email_outlined,
+                      color: Color(0xFF0F766E),
+                    ),
 
                     const SizedBox(width: 10),
 
@@ -121,6 +128,12 @@ class _GmailconfirmPageState extends State<GmailconfirmPage> {
                           border: InputBorder.none,
                           hintText:
                           "Enter Your University Email",
+                          hintStyle: TextStyle(
+                            color: Colors.grey,
+                          ),
+                        ),
+                        style: const TextStyle(
+                          color: Color(0xFF1F2937),
                         ),
                       ),
                     ),
@@ -138,7 +151,7 @@ class _GmailconfirmPageState extends State<GmailconfirmPage> {
                   style:
                   ElevatedButton.styleFrom(
                     backgroundColor:
-                    Colors.black,
+                    const Color(0xFF14B8A6),
                   ),
                   child: const Text(
                     "Continue",
@@ -151,7 +164,14 @@ class _GmailconfirmPageState extends State<GmailconfirmPage> {
 
               const SizedBox(height: 30),
 
-              const Center(child: Text("or")),
+              const Center(
+                child: Text(
+                  "or",
+                  style: TextStyle(
+                    color: Color(0xFF1F2937),
+                  ),
+                ),
+              ),
 
               const SizedBox(height: 20),
 
@@ -165,7 +185,7 @@ class _GmailconfirmPageState extends State<GmailconfirmPage> {
                   style:
                   ElevatedButton.styleFrom(
                     backgroundColor:
-                    Colors.grey[200],
+                    Colors.white,
                   ),
                   icon: Image.network(
                     "https://developers.google.com/identity/images/g-logo.png",
@@ -174,7 +194,8 @@ class _GmailconfirmPageState extends State<GmailconfirmPage> {
                   label: const Text(
                     "Continue with Google",
                     style: TextStyle(
-                        color: Colors.black),
+                      color: Color(0xFF1F2937),
+                    ),
                   ),
                 ),
               ),

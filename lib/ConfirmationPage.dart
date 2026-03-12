@@ -19,16 +19,16 @@ class _ConfirmationPageState extends State<ConfirmationPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: const Color(0xFFF9FAFB),
 
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: const Color(0xFFF9FAFB),
         elevation: 0,
-        leading: const BackButton(color: Colors.black),
+        leading: const BackButton(color: Color(0xFF1F2937)),
         centerTitle: true,
         title: const Text(
           "Confirmation",
-          style: TextStyle(color: Colors.black),
+          style: TextStyle(color: Color(0xFF1F2937)),
         ),
       ),
 
@@ -43,6 +43,7 @@ class _ConfirmationPageState extends State<ConfirmationPage> {
               style: TextStyle(
                 fontSize: 24,
                 fontWeight: FontWeight.bold,
+                color: Color(0xFF1F2937),
               ),
             ),
 
@@ -74,8 +75,9 @@ class _ConfirmationPageState extends State<ConfirmationPage> {
               height: 55,
               child: ElevatedButton(
                 style: ElevatedButton.styleFrom(
-                  backgroundColor:
-                  selectedRole == 0 ? Colors.grey : Colors.black,
+                  backgroundColor: selectedRole == 0
+                      ? const Color(0xFFB0BEC5)
+                      : const Color(0xFF14B8A6),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(10),
                   ),
@@ -107,8 +109,9 @@ class _ConfirmationPageState extends State<ConfirmationPage> {
                 child: const Text(
                   "Next",
                   style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 18),
+                    color: Colors.white,
+                    fontSize: 18,
+                  ),
                 ),
               ),
             ),
@@ -142,12 +145,14 @@ class _ConfirmationPageState extends State<ConfirmationPage> {
           color: Colors.white,
           borderRadius: BorderRadius.circular(15),
           border: Border.all(
-            color: isSelected ? Colors.black : Colors.grey.shade300,
+            color: isSelected
+                ? const Color(0xFF14B8A6)
+                : Colors.grey.shade300,
             width: isSelected ? 2.5 : 1,
           ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.05),
+              color: const Color(0xFF1F2937).withOpacity(0.05),
               blurRadius: 10,
               offset: const Offset(0, 5),
             ),
@@ -161,7 +166,7 @@ class _ConfirmationPageState extends State<ConfirmationPage> {
               icon,
               size: 40,
               color: isSelected
-                  ? Colors.black
+                  ? const Color(0xFF0F766E)
                   : Colors.grey,
             ),
 
@@ -173,11 +178,14 @@ class _ConfirmationPageState extends State<ConfirmationPage> {
                 CrossAxisAlignment.start,
                 children: [
 
+                  const SizedBox(),
+
                   Text(
                     title,
                     style: const TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
+                      color: Color(0xFF1F2937),
                     ),
                   ),
 
@@ -197,7 +205,7 @@ class _ConfirmationPageState extends State<ConfirmationPage> {
             if (isSelected)
               const Icon(
                 Icons.check_circle,
-                color: Colors.black,
+                color: Color(0xFF14B8A6),
               ),
           ],
         ),

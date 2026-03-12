@@ -2,6 +2,16 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
+class AppColors {
+  static const Color primary = Color(0xFF14B8A6);
+  static const Color secondary = Color(0xFF0F766E);
+  static const Color background = Color(0xFFF9FAFB);
+  static const Color text = Color(0xFF1F2937);
+  static const Color inputFill = Color(0xFFF1F5F9);
+  static const Color border = Color(0xFFD1D5DB);
+  static const Color mutedText = Color(0xFF6B7280);
+}
+
 class PersonalInformationPage extends StatefulWidget {
   const PersonalInformationPage({super.key});
 
@@ -34,74 +44,102 @@ class _PersonalInformationPageState extends State<PersonalInformationPage> {
 
   String? selectedBloodGroup;
 
-  List<String> bloodGroups = [
-    "A+","A-","B+","B-","AB+","AB-","O+","O-"
+  final List<String> bloodGroups = [
+    "A+",
+    "A-",
+    "B+",
+    "B-",
+    "AB+",
+    "AB-",
+    "O+",
+    "O-"
   ];
+
+  Future<void> _pickImage() async {
+    if (!isEditing) return;
+
+    final pickedFile = await _picker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 85,
+    );
+
+    if (pickedFile != null) {
+      setState(() {
+        _imageFile = File(pickedFile.path);
+        profileImageUrl = "";
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    phoneController.dispose();
+    presentAreaController.dispose();
+    permanentAddressController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    Future<void> _pickImage() async {
-      final pickedFile =
-      await _picker.pickImage(source: ImageSource.gallery);
-
-      if (pickedFile != null) {
-        setState(() {
-          _imageFile = File(pickedFile.path);
-        });
-      }
-    }
     return Scaffold(
-
+      backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: Colors.black,
+        backgroundColor: AppColors.background,
         centerTitle: true,
+        elevation: 0,
         title: const Text(
           "Personal Information",
-          style: TextStyle(color: Colors.white),
+          style: TextStyle(
+            color: AppColors.text,
+            fontWeight: FontWeight.bold,
+          ),
         ),
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          icon: const Icon(Icons.arrow_back, color: AppColors.text),
           onPressed: () => Navigator.pop(context),
         ),
       ),
-
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
-
             /// ================= PROFILE IMAGE =================
             Stack(
               children: [
                 CircleAvatar(
                   radius: 55,
-                  backgroundColor: Colors.grey[300],
-                  backgroundImage: profileImageUrl.isNotEmpty
+                  backgroundColor: AppColors.inputFill,
+                  backgroundImage: _imageFile != null
+                      ? FileImage(_imageFile!)
+                      : (profileImageUrl.isNotEmpty
                       ? NetworkImage(profileImageUrl)
-                      : null,
-                  child: profileImageUrl.isEmpty
-                      ? const Icon(Icons.person,
-                      size: 60, color: Colors.grey)
+                      : null) as ImageProvider?,
+                  child: (_imageFile == null && profileImageUrl.isEmpty)
+                      ? const Icon(
+                    Icons.person,
+                    size: 60,
+                    color: AppColors.mutedText,
+                  )
                       : null,
                 ),
-
                 Positioned(
                   bottom: 0,
                   right: 0,
                   child: GestureDetector(
-                    onTap: () {
-                      if (isEditing) {
-                        // image picker logic later
-                      }
-                    },
+                    onTap: _pickImage,
                     child: Container(
                       padding: const EdgeInsets.all(6),
                       decoration: BoxDecoration(
-                        color: isEditing ? Colors.black : Colors.grey,
+                        color: isEditing
+                            ? AppColors.primary
+                            : AppColors.mutedText,
                         shape: BoxShape.circle,
                       ),
-                      child: const Icon(Icons.edit,
-                          size: 18, color: Colors.white),
+                      child: const Icon(
+                        Icons.edit,
+                        size: 18,
+                        color: Colors.white,
+                      ),
                     ),
                   ),
                 )
@@ -109,7 +147,6 @@ class _PersonalInformationPageState extends State<PersonalInformationPage> {
             ),
 
             const SizedBox(height: 25),
-
 
             /// ================= FULL NAME =================
             _buildReadOnlyField(
@@ -159,15 +196,37 @@ class _PersonalInformationPageState extends State<PersonalInformationPage> {
               value: selectedBloodGroup,
               decoration: InputDecoration(
                 labelText: "Blood Group (Optional)",
-                border: OutlineInputBorder(
+                labelStyle: const TextStyle(color: AppColors.mutedText),
+                filled: true,
+                fillColor:
+                isEditing ? Colors.white : AppColors.inputFill,
+                enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(10),
+                  borderSide: const BorderSide(color: AppColors.border),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: const BorderSide(
+                    color: AppColors.primary,
+                    width: 1.5,
+                  ),
+                ),
+                disabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: const BorderSide(color: AppColors.border),
                 ),
               ),
+              dropdownColor: Colors.white,
               items: bloodGroups
-                  .map((group) => DropdownMenuItem(
-                value: group,
-                child: Text(group),
-              ))
+                  .map(
+                    (group) => DropdownMenuItem(
+                  value: group,
+                  child: Text(
+                    group,
+                    style: const TextStyle(color: AppColors.text),
+                  ),
+                ),
+              )
                   .toList(),
               onChanged: (isEditing && !bloodGroupLocked)
                   ? (value) {
@@ -186,9 +245,11 @@ class _PersonalInformationPageState extends State<PersonalInformationPage> {
               height: 50,
               child: ElevatedButton(
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.black,
+                  backgroundColor: AppColors.primary,
                   shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10)),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  elevation: 1,
                 ),
                 onPressed: () {
                   setState(() {
@@ -201,7 +262,9 @@ class _PersonalInformationPageState extends State<PersonalInformationPage> {
                 child: Text(
                   isEditing ? "Save Changes" : "Edit Information",
                   style: const TextStyle(
-                      color: Colors.white, fontSize: 16),
+                    color: Colors.white,
+                    fontSize: 16,
+                  ),
                 ),
               ),
             ),
@@ -212,15 +275,23 @@ class _PersonalInformationPageState extends State<PersonalInformationPage> {
   }
 
   /// ================= READ ONLY FIELD =================
-  Widget _buildReadOnlyField(
-      {required String label, required String value}) {
+  Widget _buildReadOnlyField({
+    required String label,
+    required String value,
+  }) {
     return TextFormField(
       initialValue: value,
       enabled: false,
+      style: const TextStyle(color: AppColors.text),
       decoration: InputDecoration(
         labelText: label,
-        border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(10)),
+        labelStyle: const TextStyle(color: AppColors.mutedText),
+        filled: true,
+        fillColor: AppColors.inputFill,
+        disabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(color: AppColors.border),
+        ),
       ),
     );
   }
@@ -234,10 +305,27 @@ class _PersonalInformationPageState extends State<PersonalInformationPage> {
     return TextFormField(
       controller: controller,
       enabled: enabled,
+      style: const TextStyle(color: AppColors.text),
       decoration: InputDecoration(
         labelText: label,
-        border:
-        OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+        labelStyle: const TextStyle(color: AppColors.mutedText),
+        filled: true,
+        fillColor: enabled ? Colors.white : AppColors.inputFill,
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(color: AppColors.border),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(
+            color: AppColors.primary,
+            width: 1.5,
+          ),
+        ),
+        disabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(color: AppColors.border),
+        ),
       ),
     );
   }

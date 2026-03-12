@@ -4,6 +4,16 @@ import 'UserHome.dart';
 import 'UserActivity.dart';
 import 'UserServices.dart';
 
+class AppColors {
+  static const Color primary = Color(0xFF14B8A6);
+  static const Color secondary = Color(0xFF0F766E);
+  static const Color background = Color(0xFFF9FAFB);
+  static const Color text = Color(0xFF1F2937);
+  static const Color inputFill = Color(0xFFF1F5F9);
+  static const Color border = Color(0xFFD1D5DB);
+  static const Color mutedText = Color(0xFF6B7280);
+}
+
 class OffersPage extends StatefulWidget {
   const OffersPage({super.key});
 
@@ -15,19 +25,25 @@ class _OffersPageState extends State<OffersPage> {
   final TextEditingController _offerController = TextEditingController();
 
   @override
+  void dispose() {
+    _offerController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: AppColors.background,
         elevation: 0,
-        automaticallyImplyLeading: false, // ব্যাক বাটন সরিয়ে দেওয়া হয়েছে
+        automaticallyImplyLeading: false,
         title: const Padding(
           padding: EdgeInsets.only(left: 8.0, top: 10),
           child: Text(
             "Offers",
             style: TextStyle(
-              color: Colors.black,
+              color: AppColors.text,
               fontSize: 32,
               fontWeight: FontWeight.bold,
             ),
@@ -36,48 +52,54 @@ class _OffersPageState extends State<OffersPage> {
       ),
       body: Column(
         children: [
-          // সার্চ বার (Add offer code)
           Padding(
             padding: const EdgeInsets.all(16.0),
             child: Container(
               decoration: BoxDecoration(
-                color: const Color(0xFFF3F3F3),
+                color: AppColors.inputFill,
                 borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: AppColors.border),
               ),
               child: TextField(
                 controller: _offerController,
+                style: const TextStyle(color: AppColors.text),
                 decoration: const InputDecoration(
                   hintText: "Add offer code",
-                  prefixIcon: Icon(Icons.local_offer_outlined, color: Colors.black),
+                  hintStyle: TextStyle(color: AppColors.mutedText),
+                  prefixIcon: Icon(
+                    Icons.local_offer_outlined,
+                    color: AppColors.secondary,
+                  ),
                   border: InputBorder.none,
                   contentPadding: EdgeInsets.symmetric(vertical: 15),
                 ),
                 onSubmitted: (value) {
                   print("Applying offer code: $value");
-                  // এখানে অফার কোড চেক করার লজিক বসবে
                 },
               ),
             ),
           ),
 
-          // অফার লিস্ট (অ্যাডমিন থেকে আসার জন্য ফাঁকা রাখা হয়েছে)
           const Expanded(
             child: Center(
               child: Text(
                 "No offers available right now",
-                style: TextStyle(color: Colors.grey),
+                style: TextStyle(
+                  color: AppColors.mutedText,
+                  fontSize: 16,
+                ),
               ),
             ),
           ),
         ],
       ),
 
-      // বটম নেভিগেশন বার
       bottomNavigationBar: BottomNavigationBar(
         type: BottomNavigationBarType.fixed,
-        selectedItemColor: Colors.black,
-        unselectedItemColor: Colors.grey,
-        currentIndex: 3, // Offers পেজ সিলেক্টেড থাকবে
+        backgroundColor: Colors.white,
+        selectedItemColor: AppColors.primary,
+        unselectedItemColor: AppColors.mutedText,
+        currentIndex: 3,
         onTap: (index) {
           if (index == 0) {
             Navigator.pushReplacement(
@@ -86,21 +108,17 @@ class _OffersPageState extends State<OffersPage> {
                 builder: (context) => const UniRideHomePage(),
               ),
             );
-          }
-          else if (index == 1) {
+          } else if (index == 1) {
             Navigator.pushReplacement(
               context,
               MaterialPageRoute(builder: (context) => ServicesPage()),
             );
-          }
-          else if (index == 2) {
+          } else if (index == 2) {
             Navigator.pushReplacement(
               context,
               MaterialPageRoute(builder: (context) => const ActivityPage()),
             );
-          }
-
-          else if (index == 4) {
+          } else if (index == 4) {
             Navigator.pushReplacement(
               context,
               MaterialPageRoute(
@@ -110,11 +128,26 @@ class _OffersPageState extends State<OffersPage> {
           }
         },
         items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: "Home"),
-          BottomNavigationBarItem(icon: Icon(Icons.grid_view), label: "Services"),
-          BottomNavigationBarItem(icon: Icon(Icons.receipt_long), label: "Activity"),
-          BottomNavigationBarItem(icon: Icon(Icons.local_offer), label: "Offers"),
-          BottomNavigationBarItem(icon: Icon(Icons.person), label: "Account"),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.home),
+            label: "Home",
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.grid_view),
+            label: "Services",
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.receipt_long),
+            label: "Activity",
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.local_offer),
+            label: "Offers",
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.person),
+            label: "Account",
+          ),
         ],
       ),
     );

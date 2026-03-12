@@ -11,29 +11,29 @@ class LoginCheck extends StatefulWidget {
 }
 
 class _LoginCheckState extends State<LoginCheck> {
-
   String? selectedRole; // User / Rider / Admin
 
   void goNext() {
-
     if (selectedRole == "User") {
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (context) => const UniRideHomePage()),
       );
-    }
-
-    else if (selectedRole == "Rider") {
+    } else if (selectedRole == "Rider") {
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (context) => const RiderDashboard()),
       );
-    }
-
-    else if (selectedRole == "Admin") {
+    } else if (selectedRole == "Admin") {
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (context) => AdminDashboard(),),
+        MaterialPageRoute(builder: (context) => AdminDashboard()),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Please select a role first."),
+        ),
       );
     }
   }
@@ -41,12 +41,12 @@ class _LoginCheckState extends State<LoginCheck> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-
+      backgroundColor: const Color(0xFFF9FAFB),
       appBar: AppBar(
         elevation: 0,
-        backgroundColor: Colors.white,
+        backgroundColor: const Color(0xFFF9FAFB),
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black),
+          icon: const Icon(Icons.arrow_back, color: Color(0xFF1F2937)),
           onPressed: () {
             Navigator.pop(context);
           },
@@ -61,59 +61,78 @@ class _LoginCheckState extends State<LoginCheck> {
                 style: TextStyle(
                   fontSize: 16,
                   color: selectedRole != null
-                      ? Colors.black
+                      ? const Color(0xFF14B8A6)
                       : Colors.grey,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
             ),
           )
         ],
       ),
-
       body: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-
             const SizedBox(height: 30),
-
             const Text(
               "Select Your Role",
               style: TextStyle(
                 fontSize: 22,
                 fontWeight: FontWeight.bold,
+                color: Color(0xFF1F2937),
               ),
             ),
-
             const SizedBox(height: 40),
-
-            CheckboxListTile(
-              title: const Text("User"),
-              value: selectedRole == "User",
+            RadioListTile<String>(
+              title: const Text(
+                "User",
+                style: TextStyle(
+                  color: Color(0xFF1F2937),
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              value: "User",
+              groupValue: selectedRole,
+              activeColor: const Color(0xFF14B8A6),
               onChanged: (value) {
                 setState(() {
-                  selectedRole = "User";
+                  selectedRole = value;
                 });
               },
             ),
-
-            CheckboxListTile(
-              title: const Text("Rider"),
-              value: selectedRole == "Rider",
+            RadioListTile<String>(
+              title: const Text(
+                "Rider",
+                style: TextStyle(
+                  color: Color(0xFF1F2937),
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              value: "Rider",
+              groupValue: selectedRole,
+              activeColor: const Color(0xFF14B8A6),
               onChanged: (value) {
                 setState(() {
-                  selectedRole = "Rider";
+                  selectedRole = value;
                 });
               },
             ),
-
-            CheckboxListTile(
-              title: const Text("Admin"),
-              value: selectedRole == "Admin",
+            RadioListTile<String>(
+              title: const Text(
+                "Admin",
+                style: TextStyle(
+                  color: Color(0xFF1F2937),
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              value: "Admin",
+              groupValue: selectedRole,
+              activeColor: const Color(0xFF14B8A6),
               onChanged: (value) {
                 setState(() {
-                  selectedRole = "Admin";
+                  selectedRole = value;
                 });
               },
             ),

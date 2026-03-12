@@ -55,13 +55,23 @@ class _SendItemFormState extends State<SendItemForm> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: const Color(0xFFF9FAFB),
+
       appBar: AppBar(
-        title: const Text("Send Item"),
+        backgroundColor: const Color(0xFF14B8A6),
+        title: const Text(
+          "Send Item",
+          style: TextStyle(color: Colors.white),
+        ),
+        iconTheme: const IconThemeData(color: Colors.white),
       ),
+
       body: Padding(
         padding: const EdgeInsets.all(16.0),
+
         child: Form(
           key: _formKey,
+
           child: Column(
             children: [
 
@@ -130,12 +140,21 @@ class _SendItemFormState extends State<SendItemForm> {
               SizedBox(
                 width: double.infinity,
                 height: 55,
+
                 child: ElevatedButton(
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.black,
+                    backgroundColor: const Color(0xFF14B8A6),
                   ),
+
                   onPressed: goToLocationPage,
-                  child: const Text("Next"),
+
+                  child: const Text(
+                    "Next",
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                    ),
+                  ),
                 ),
               )
             ],

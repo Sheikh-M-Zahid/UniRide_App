@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'dart:io' show Platform;
-import 'package:flutter/foundation.dart' show kIsWeb; // ওয়েব সাপোর্ট চেকের জন্য
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'LoginCheck.dart';
 import 'GmailConfirm.dart';
 import 'FindAccount.dart';
@@ -14,6 +14,16 @@ void main() {
   ));
 }
 
+class AppColors {
+  static const Color primary = Color(0xFF14B8A6);     // Teal
+  static const Color secondary = Color(0xFF0F766E);   // Dark Teal
+  static const Color background = Color(0xFFF9FAFB);  // Background
+  static const Color text = Color(0xFF1F2937);        // Main text
+  static const Color inputFill = Color(0xFFF1F5F9);   // Input fill
+  static const Color border = Color(0xFFD1D5DB);      // Border
+  static const Color mutedText = Color(0xFF6B7280);   // Sub text
+}
+
 class UniRideLogin extends StatefulWidget {
   const UniRideLogin({super.key});
 
@@ -22,16 +32,37 @@ class UniRideLogin extends StatefulWidget {
 }
 
 class _UniRideLoginState extends State<UniRideLogin> {
-  final GoogleSignIn _googleSignIn = GoogleSignIn();
+  final GoogleSignIn _googleSignIn = GoogleSignIn(
+    scopes: ['email'],
+  );
+
   final TextEditingController emailController = TextEditingController();
   final TextEditingController passwordController = TextEditingController();
 
+  bool _isGoogleLoading = false;
+  bool _isPasswordHidden = true;
+
   Future<void> _handleGoogleSignIn() async {
+    if (_isGoogleLoading) return;
+
+    setState(() {
+      _isGoogleLoading = true;
+    });
+
     try {
-      final GoogleSignInAccount? account =
-      await _googleSignIn.signIn();
+      await _googleSignIn.signOut();
+
+      final GoogleSignInAccount? account = await _googleSignIn.signIn();
 
       if (account != null) {
+        if (!mounted) return;
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Signed in as ${account.email}'),
+            backgroundColor: AppColors.secondary,
+          ),
+        );
 
         Navigator.pushReplacement(
           context,
@@ -39,15 +70,44 @@ class _UniRideLoginState extends State<UniRideLogin> {
             builder: (context) => const LoginCheck(),
           ),
         );
+      } else {
+        if (!mounted) return;
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Google sign-in was cancelled.'),
+          ),
+        );
       }
     } catch (error) {
-      print(error);
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Google sign-in failed: $error'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isGoogleLoading = false;
+        });
+      }
     }
   }
+
+  @override
+  void dispose() {
+    emailController.dispose();
+    passwordController.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppColors.background,
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.symmetric(horizontal: 24.0),
@@ -56,27 +116,51 @@ class _UniRideLoginState extends State<UniRideLogin> {
               const SizedBox(height: 50),
               _logoWidget(),
               const SizedBox(height: 25),
+
               const Text(
                 'Welcome to Intra University\nRide Sharing System',
                 textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 18, color: Colors.black54, fontWeight: FontWeight.w500),
+                style: TextStyle(
+                  fontSize: 18,
+                  color: AppColors.mutedText,
+                  fontWeight: FontWeight.w500,
+                ),
               ),
+
               const SizedBox(height: 30),
-              const Text('Log In', style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold)),
+
+              const Text(
+                'Log In',
+                style: TextStyle(
+                  fontSize: 26,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.text,
+                ),
+              ),
+
               const SizedBox(height: 30),
 
               _inputLabel('Email Address'),
-              _textField(emailController, 'Enter your email', Icons.email_outlined),
+              _textField(
+                emailController,
+                'Enter your email',
+                Icons.email_outlined,
+              ),
+
               const SizedBox(height: 20),
+
               _inputLabel('Password'),
-              _textField(passwordController, 'Enter your password', Icons.lock_outline, isPass: true),
+              _textField(
+                passwordController,
+                'Enter your password',
+                Icons.lock_outline,
+                isPass: true,
+              ),
 
               const SizedBox(height: 30),
+
               _actionButton('Log In', () {
-
-                // এখানে পরে তুমি API login check বসাতে পারবে
-
-                bool loginSuccess = true; // আপাতত ধরে নিচ্ছি login সফল
+                bool loginSuccess = true; // পরে API login check বসাতে পারবে
 
                 if (loginSuccess) {
                   Navigator.pushReplacement(
@@ -86,31 +170,42 @@ class _UniRideLoginState extends State<UniRideLogin> {
                     ),
                   );
                 }
-
               }),
 
               const SizedBox(height: 20),
-              _switchPageLink("Don't have an account? ", "Sign up", () {
-                // এখান থেকে 'const' সরানো হয়েছে এরর দূর করতে
-                Navigator.push(context, MaterialPageRoute(builder: (context) => GmailconfirmPage()));
-              }),
+
+              _switchPageLink(
+                "Don't have an account? ",
+                "Sign up",
+                    () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => GmailconfirmPage(),
+                    ),
+                  );
+                },
+              ),
 
               const SizedBox(height: 25),
               _orDivider(),
               const SizedBox(height: 25),
 
-              // ওয়েব ব্রাউজারে অ্যাপল বাটন এরর এড়াতে kIsWeb চেক করা হয়েছে
               if (!kIsWeb && Platform.isIOS) ...[
-                _socialButton(FontAwesomeIcons.apple, 'Continue with Apple', onTap: () {}),
+                _socialButton(
+                  FontAwesomeIcons.apple,
+                  'Continue with Apple',
+                  onTap: () {},
+                ),
                 const SizedBox(height: 12),
               ],
 
               _socialButton(
                 FontAwesomeIcons.google,
-                'Continue with Google',
-                onTap: _handleGoogleSignIn,
+                _isGoogleLoading ? 'Signing in...' : 'Continue with Google',
+                onTap: _isGoogleLoading ? null : _handleGoogleSignIn,
+                isLoading: _isGoogleLoading,
               ),
-              const SizedBox(height: 12),
 
               const SizedBox(height: 20),
               _findAccountButton(),
@@ -122,67 +217,230 @@ class _UniRideLoginState extends State<UniRideLogin> {
     );
   }
 
-  // হেল্পার উইজেটস (আপনার দেওয়া স্ট্রাকচার ঠিক রাখা হয়েছে)
   Widget _logoWidget() => Container(
     padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
-    decoration: BoxDecoration(color: Colors.black, borderRadius: BorderRadius.circular(12)),
-    child: const Text('UniRide', style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
+    decoration: BoxDecoration(
+      color: AppColors.primary,
+      borderRadius: BorderRadius.circular(12),
+      boxShadow: const [
+        BoxShadow(
+          color: Colors.black12,
+          blurRadius: 10,
+          offset: Offset(0, 4),
+        ),
+      ],
+    ),
+    child: const Text(
+      'UniRide',
+      style: TextStyle(
+        color: Colors.white,
+        fontSize: 22,
+        fontWeight: FontWeight.bold,
+      ),
+    ),
   );
 
-  Widget _inputLabel(String label) => Align(alignment: Alignment.centerLeft, child: Text(label, style: const TextStyle(fontWeight: FontWeight.w600)));
+  Widget _inputLabel(String label) => Align(
+    alignment: Alignment.centerLeft,
+    child: Text(
+      label,
+      style: const TextStyle(
+        fontWeight: FontWeight.w600,
+        color: AppColors.text,
+      ),
+    ),
+  );
 
-  Widget _textField(TextEditingController controller, String hint, IconData icon, {bool isPass = false}) {
+  Widget _textField(
+      TextEditingController controller,
+      String hint,
+      IconData icon, {
+        bool isPass = false,
+      }) {
     return Container(
       margin: const EdgeInsets.only(top: 8),
       child: TextField(
         controller: controller,
-        obscureText: isPass,
+        obscureText: isPass ? _isPasswordHidden : false,
+        style: const TextStyle(color: AppColors.text),
         decoration: InputDecoration(
           hintText: hint,
+          hintStyle: const TextStyle(color: AppColors.mutedText),
           filled: true,
-          fillColor: const Color(0xFFF3F3F3),
-          suffixIcon: Icon(icon),
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
+          fillColor: AppColors.inputFill,
+          suffixIcon: isPass
+              ? IconButton(
+            onPressed: () {
+              setState(() {
+                _isPasswordHidden = !_isPasswordHidden;
+              });
+            },
+            icon: Icon(
+              _isPasswordHidden
+                  ? Icons.visibility_off_outlined
+                  : Icons.visibility_outlined,
+              color: AppColors.secondary,
+            ),
+          )
+              : Icon(
+            icon,
+            color: AppColors.secondary,
+          ),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(10),
+            borderSide: BorderSide.none,
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(10),
+            borderSide: const BorderSide(
+              color: AppColors.border,
+            ),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(10),
+            borderSide: const BorderSide(
+              color: AppColors.primary,
+              width: 1.5,
+            ),
+          ),
         ),
       ),
     );
   }
 
   Widget _actionButton(String title, VoidCallback onPressed) => SizedBox(
-    width: double.infinity, height: 58,
+    width: double.infinity,
+    height: 58,
     child: ElevatedButton(
       onPressed: onPressed,
-      style: ElevatedButton.styleFrom(backgroundColor: Colors.black, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
-      child: Text(title, style: const TextStyle(color: Colors.white, fontSize: 18)),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: AppColors.primary,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(10),
+        ),
+        elevation: 2,
+      ),
+      child: Text(
+        title,
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 18,
+        ),
+      ),
     ),
   );
 
-  Widget _switchPageLink(String text, String linkText, VoidCallback onTap) => Row(
-    mainAxisAlignment: MainAxisAlignment.center,
+  Widget _switchPageLink(
+      String text,
+      String linkText,
+      VoidCallback onTap,
+      ) =>
+      Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Text(
+            text,
+            style: const TextStyle(color: AppColors.text),
+          ),
+          GestureDetector(
+            onTap: onTap,
+            child: Text(
+              linkText,
+              style: const TextStyle(
+                color: AppColors.primary,
+                fontWeight: FontWeight.bold,
+                decoration: TextDecoration.underline,
+              ),
+            ),
+          ),
+        ],
+      );
+
+  Widget _orDivider() => const Row(
     children: [
-      Text(text),
-      GestureDetector(onTap: onTap, child: Text(linkText, style: const TextStyle(color: Colors.blue, fontWeight: FontWeight.bold, decoration: TextDecoration.underline))),
+      Expanded(
+        child: Divider(color: AppColors.border),
+      ),
+      Padding(
+        padding: EdgeInsets.symmetric(horizontal: 10),
+        child: Text(
+          'or',
+          style: TextStyle(color: AppColors.mutedText),
+        ),
+      ),
+      Expanded(
+        child: Divider(color: AppColors.border),
+      ),
     ],
   );
 
-  Widget _orDivider() => const Row(children: [Expanded(child: Divider()), Padding(padding: EdgeInsets.symmetric(horizontal: 10), child: Text('or')), Expanded(child: Divider())]);
-
-  Widget _socialButton(IconData icon, String text, {required VoidCallback onTap}) => SizedBox(
-    width: double.infinity, height: 56,
-    child: OutlinedButton(
-      onPressed: onTap,
-      style: OutlinedButton.styleFrom(backgroundColor: const Color(0xFFEEEEEE), side: BorderSide.none, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
-      child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [FaIcon(icon, color: Colors.black, size: 22), const SizedBox(width: 10), Text(text, style: const TextStyle(color: Colors.black, fontSize: 16))]),
-    ),
-  );
+  Widget _socialButton(
+      IconData icon,
+      String text, {
+        required VoidCallback? onTap,
+        bool isLoading = false,
+      }) =>
+      SizedBox(
+        width: double.infinity,
+        height: 56,
+        child: OutlinedButton(
+          onPressed: onTap,
+          style: OutlinedButton.styleFrom(
+            backgroundColor: Colors.white,
+            side: const BorderSide(color: AppColors.border),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+          ),
+          child: isLoading
+              ? const SizedBox(
+            width: 22,
+            height: 22,
+            child: CircularProgressIndicator(
+              strokeWidth: 2.5,
+              color: AppColors.primary,
+            ),
+          )
+              : Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              FaIcon(
+                icon,
+                color: AppColors.text,
+                size: 22,
+              ),
+              const SizedBox(width: 10),
+              Text(
+                text,
+                style: const TextStyle(
+                  color: AppColors.text,
+                  fontSize: 16,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
 
   Widget _findAccountButton() => TextButton.icon(
-      onPressed: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => const FindAccount(),
-          ),
-        );
-      }, icon: const Icon(Icons.search, color: Colors.grey, size: 20), label: const Text('Find my account', style: TextStyle(color: Colors.grey)));
+    onPressed: () {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => const FindAccount(),
+        ),
+      );
+    },
+    icon: const Icon(
+      Icons.search,
+      color: AppColors.secondary,
+      size: 20,
+    ),
+    label: const Text(
+      'Find my account',
+      style: TextStyle(
+        color: AppColors.secondary,
+      ),
+    ),
+  );
 }

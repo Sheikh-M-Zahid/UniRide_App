@@ -3,6 +3,16 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
 
+class AppColors {
+  static const Color primary = Color(0xFF14B8A6);
+  static const Color secondary = Color(0xFF0F766E);
+  static const Color background = Color(0xFFF9FAFB);
+  static const Color text = Color(0xFF1F2937);
+  static const Color inputFill = Color(0xFFF1F5F9);
+  static const Color border = Color(0xFFD1D5DB);
+  static const Color mutedText = Color(0xFF6B7280);
+}
+
 class PrivateCarRegistration extends StatefulWidget {
   const PrivateCarRegistration({super.key});
 
@@ -72,16 +82,28 @@ class _PrivateCarRegistrationState
         child: Wrap(
           children: [
             ListTile(
-              leading: const Icon(Icons.camera_alt),
-              title: const Text("Camera"),
+              leading: const Icon(
+                Icons.camera_alt,
+                color: AppColors.primary,
+              ),
+              title: const Text(
+                "Camera",
+                style: TextStyle(color: AppColors.text),
+              ),
               onTap: () {
                 Navigator.pop(context);
                 pickFromCamera(onPicked);
               },
             ),
             ListTile(
-              leading: const Icon(Icons.photo),
-              title: const Text("Gallery"),
+              leading: const Icon(
+                Icons.photo,
+                color: AppColors.primary,
+              ),
+              title: const Text(
+                "Gallery",
+                style: TextStyle(color: AppColors.text),
+              ),
               onTap: () {
                 Navigator.pop(context);
                 pickFromGallery(onPicked);
@@ -111,11 +133,12 @@ class _PrivateCarRegistrationState
         margin: const EdgeInsets.only(bottom: 15),
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
+          color: Colors.white,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
             color: file != null
-                ? Colors.green
-                : Colors.grey.shade300,
+                ? AppColors.primary
+                : AppColors.border,
             width: 1.5,
           ),
         ),
@@ -125,16 +148,23 @@ class _PrivateCarRegistrationState
               child: Text(
                 title,
                 style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w500),
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500,
+                  color: AppColors.text,
+                ),
               ),
             ),
             if (file != null)
-              const Icon(Icons.check_circle,
-                  color: Colors.green)
+              const Icon(
+                Icons.check_circle,
+                color: AppColors.primary,
+              )
             else
-              const Icon(Icons.arrow_forward_ios,
-                  size: 16),
+              const Icon(
+                Icons.arrow_forward_ios,
+                size: 16,
+                color: AppColors.mutedText,
+              ),
           ],
         ),
       ),
@@ -144,23 +174,26 @@ class _PrivateCarRegistrationState
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppColors.background,
 
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: AppColors.background,
         elevation: 0,
         title: const Text(
           "UniRide",
           style: TextStyle(
-              color: Colors.black,
-              fontWeight: FontWeight.bold),
+            color: AppColors.text,
+            fontWeight: FontWeight.bold,
+          ),
         ),
         centerTitle: true,
         actions: [
           TextButton(
             onPressed: () {},
-            child: const Text("Help",
-                style: TextStyle(color: Colors.black)),
+            child: const Text(
+              "Help",
+              style: TextStyle(color: AppColors.primary),
+            ),
           )
         ],
       ),
@@ -175,20 +208,40 @@ class _PrivateCarRegistrationState
             const Text(
               "Enter your vehicle information",
               style: TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold),
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+                color: AppColors.text,
+              ),
             ),
 
             const SizedBox(height: 25),
 
             DropdownButtonFormField(
               value: selectedMake,
-              decoration:
-              const InputDecoration(labelText: "Make"),
+              decoration: InputDecoration(
+                labelText: "Make",
+                labelStyle: const TextStyle(color: AppColors.mutedText),
+                filled: true,
+                fillColor: Colors.white,
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: const BorderSide(color: AppColors.border),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: const BorderSide(
+                    color: AppColors.primary,
+                    width: 1.5,
+                  ),
+                ),
+              ),
               items: makes
                   .map((e) => DropdownMenuItem(
                 value: e,
-                child: Text(e),
+                child: const Text(
+                  "",
+                  style: TextStyle(fontSize: 0),
+                ),
               ))
                   .toList(),
               onChanged: (value) {
@@ -196,18 +249,47 @@ class _PrivateCarRegistrationState
                   selectedMake = value;
                 });
               },
+              selectedItemBuilder: (context) => makes
+                  .map(
+                    (e) => const Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    "",
+                    style: TextStyle(fontSize: 0),
+                  ),
+                ),
+              )
+                  .toList(),
             ),
 
             const SizedBox(height: 15),
 
             DropdownButtonFormField(
               value: selectedModel,
-              decoration:
-              const InputDecoration(labelText: "Model"),
+              decoration: InputDecoration(
+                labelText: "Model",
+                labelStyle: const TextStyle(color: AppColors.mutedText),
+                filled: true,
+                fillColor: Colors.white,
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: const BorderSide(color: AppColors.border),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: const BorderSide(
+                    color: AppColors.primary,
+                    width: 1.5,
+                  ),
+                ),
+              ),
               items: models
                   .map((e) => DropdownMenuItem(
                 value: e,
-                child: Text(e),
+                child: Text(
+                  e,
+                  style: const TextStyle(color: AppColors.text),
+                ),
               ))
                   .toList(),
               onChanged: (value) {
@@ -221,12 +303,30 @@ class _PrivateCarRegistrationState
 
             DropdownButtonFormField(
               value: selectedYear,
-              decoration:
-              const InputDecoration(labelText: "Year"),
+              decoration: InputDecoration(
+                labelText: "Year",
+                labelStyle: const TextStyle(color: AppColors.mutedText),
+                filled: true,
+                fillColor: Colors.white,
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: const BorderSide(color: AppColors.border),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: const BorderSide(
+                    color: AppColors.primary,
+                    width: 1.5,
+                  ),
+                ),
+              ),
               items: years
                   .map((e) => DropdownMenuItem(
                 value: e,
-                child: Text(e),
+                child: Text(
+                  e,
+                  style: const TextStyle(color: AppColors.text),
+                ),
               ))
                   .toList(),
               onChanged: (value) {
@@ -240,8 +340,23 @@ class _PrivateCarRegistrationState
 
             TextField(
               controller: numberPlateController,
-              decoration:
-              const InputDecoration(labelText: "Number Plate"),
+              decoration: InputDecoration(
+                labelText: "Number Plate",
+                labelStyle: const TextStyle(color: AppColors.mutedText),
+                filled: true,
+                fillColor: Colors.white,
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: const BorderSide(color: AppColors.border),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: const BorderSide(
+                    color: AppColors.primary,
+                    width: 1.5,
+                  ),
+                ),
+              ),
               onChanged: (_) => setState(() {}),
             ),
 
@@ -250,8 +365,10 @@ class _PrivateCarRegistrationState
             const Text(
               "Upload Documents",
               style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold),
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: AppColors.text,
+              ),
             ),
 
             const SizedBox(height: 15),
@@ -279,15 +396,13 @@ class _PrivateCarRegistrationState
             buildUploadTile(
               "Vehicle Registration",
               vehicleRegistration,
-                  (file) =>
-                  setState(() => vehicleRegistration = file),
+                  (file) => setState(() => vehicleRegistration = file),
             ),
 
             buildUploadTile(
               "Vehicle Tax Token",
               taxToken,
-                  (file) =>
-                  setState(() => taxToken = file),
+                  (file) => setState(() => taxToken = file),
             ),
 
             const SizedBox(height: 30),
@@ -297,10 +412,9 @@ class _PrivateCarRegistrationState
               height: 55,
               child: ElevatedButton(
                 style: ElevatedButton.styleFrom(
-                  backgroundColor:
-                  isFormComplete
-                      ? Colors.black
-                      : Colors.grey,
+                  backgroundColor: isFormComplete
+                      ? AppColors.primary
+                      : AppColors.mutedText,
                 ),
                 onPressed: isFormComplete
                     ? () {
@@ -310,8 +424,9 @@ class _PrivateCarRegistrationState
                 child: const Text(
                   "Continue",
                   style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 18),
+                    color: Colors.white,
+                    fontSize: 18,
+                  ),
                 ),
               ),
             ),

@@ -83,7 +83,6 @@ class _SharingCaringPageState extends State<SharingCaringPage> {
 
   void confirmSharing() async {
 
-    // 🔥 Backend API call এখানে হবে
     print("===== Co Ride =====");
     print(currentLocationController.text);
     print(destinationController.text);
@@ -108,12 +107,18 @@ class _SharingCaringPageState extends State<SharingCaringPage> {
   Widget build(BuildContext context) {
 
     return Scaffold(
+      backgroundColor: const Color(0xFFF9FAFB),
+
       appBar: AppBar(
-        title: const Text("Co Ride"),
+        backgroundColor: const Color(0xFF14B8A6),
+        title: const Text(
+          "Co Ride",
+          style: TextStyle(color: Colors.white),
+        ),
         centerTitle: true,
         actions: [
           IconButton(
-            icon: const Icon(Icons.message),
+            icon: const Icon(Icons.message, color: Colors.white),
             onPressed: () {
               Navigator.push(
                 context,
@@ -125,10 +130,13 @@ class _SharingCaringPageState extends State<SharingCaringPage> {
           ),
         ],
       ),
+
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
+
         child: Form(
           key: _formKey,
+
           child: Column(
             children: [
 
@@ -137,9 +145,14 @@ class _SharingCaringPageState extends State<SharingCaringPage> {
                 textEditingController:
                 currentLocationController,
                 googleAPIKey: "YOUR_GOOGLE_MAPS_API_KEY",
-                inputDecoration: const InputDecoration(
+                inputDecoration: InputDecoration(
                   labelText: "Current Location",
-                  border: OutlineInputBorder(),
+                  filled: true,
+                  fillColor: Colors.white,
+                  prefixIcon: const Icon(Icons.my_location, color: Color(0xFF0F766E)),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                 ),
                 debounceTime: 800,
                 countries: const ["bd"],
@@ -164,9 +177,14 @@ class _SharingCaringPageState extends State<SharingCaringPage> {
                 textEditingController:
                 destinationController,
                 googleAPIKey: "YOUR_GOOGLE_MAPS_API_KEY",
-                inputDecoration: const InputDecoration(
+                inputDecoration: InputDecoration(
                   labelText: "Destination",
-                  border: OutlineInputBorder(),
+                  filled: true,
+                  fillColor: Colors.white,
+                  prefixIcon: const Icon(Icons.location_on, color: Color(0xFF0F766E)),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                 ),
                 debounceTime: 800,
                 countries: const ["bd"],
@@ -188,17 +206,18 @@ class _SharingCaringPageState extends State<SharingCaringPage> {
 
               // DATE
               ListTile(
+                tileColor: Colors.white,
                 shape: RoundedRectangleBorder(
-                    side: const BorderSide(),
+                    side: const BorderSide(color: Color(0xFFE5E7EB)),
                     borderRadius:
-                    BorderRadius.circular(5)),
+                    BorderRadius.circular(12)),
                 title: Text(
                   selectedDate == null
                       ? "Select Date"
                       : "${selectedDate!.day}-${selectedDate!.month}-${selectedDate!.year}",
                 ),
                 trailing:
-                const Icon(Icons.calendar_today),
+                const Icon(Icons.calendar_today, color: Color(0xFF0F766E)),
                 onTap: pickDate,
               ),
 
@@ -206,17 +225,18 @@ class _SharingCaringPageState extends State<SharingCaringPage> {
 
               // TIME
               ListTile(
+                tileColor: Colors.white,
                 shape: RoundedRectangleBorder(
-                    side: const BorderSide(),
+                    side: const BorderSide(color: Color(0xFFE5E7EB)),
                     borderRadius:
-                    BorderRadius.circular(5)),
+                    BorderRadius.circular(12)),
                 title: Text(
                   selectedTime == null
                       ? "Select Time"
                       : selectedTime!
                       .format(context),
                 ),
-                trailing: const Icon(Icons.access_time),
+                trailing: const Icon(Icons.access_time, color: Color(0xFF0F766E)),
                 onTap: pickTime,
               ),
 
@@ -224,9 +244,13 @@ class _SharingCaringPageState extends State<SharingCaringPage> {
 
               // VEHICLE TYPE
               DropdownButtonFormField<String>(
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   labelText: "Vehicle Type",
-                  border: OutlineInputBorder(),
+                  filled: true,
+                  fillColor: Colors.white,
+                  border: OutlineInputBorder(
+                      borderRadius:
+                      BorderRadius.circular(12)),
                 ),
                 value: selectedVehicleType,
                 items: vehicleTypes
@@ -247,9 +271,13 @@ class _SharingCaringPageState extends State<SharingCaringPage> {
               // VEHICLE NUMBER
               TextFormField(
                 controller: vehicleNumberController,
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   labelText: "Vehicle Number",
-                  border: OutlineInputBorder(),
+                  filled: true,
+                  fillColor: Colors.white,
+                  border: OutlineInputBorder(
+                      borderRadius:
+                      BorderRadius.circular(12)),
                 ),
               ),
 
@@ -260,9 +288,13 @@ class _SharingCaringPageState extends State<SharingCaringPage> {
                 controller: availableSeatController,
                 keyboardType:
                 TextInputType.number,
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   labelText: "Available Seat",
-                  border: OutlineInputBorder(),
+                  filled: true,
+                  fillColor: Colors.white,
+                  border: OutlineInputBorder(
+                      borderRadius:
+                      BorderRadius.circular(12)),
                 ),
               ),
 
@@ -270,9 +302,13 @@ class _SharingCaringPageState extends State<SharingCaringPage> {
 
               // PREFERRED GENDER
               DropdownButtonFormField<String>(
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   labelText: "Preferred Gender",
-                  border: OutlineInputBorder(),
+                  filled: true,
+                  fillColor: Colors.white,
+                  border: OutlineInputBorder(
+                      borderRadius:
+                      BorderRadius.circular(12)),
                 ),
                 value: selectedGender,
                 items: genderOptions
@@ -296,10 +332,14 @@ class _SharingCaringPageState extends State<SharingCaringPage> {
                 controller: fareController,
                 keyboardType:
                 TextInputType.number,
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   labelText:
                   "Fare Per Person (BDT)",
-                  border: OutlineInputBorder(),
+                  filled: true,
+                  fillColor: Colors.white,
+                  border: OutlineInputBorder(
+                      borderRadius:
+                      BorderRadius.circular(12)),
                 ),
               ),
 
@@ -314,8 +354,12 @@ class _SharingCaringPageState extends State<SharingCaringPage> {
                   ElevatedButton.styleFrom(
                     backgroundColor:
                     isFormValid
-                        ? Colors.black
+                        ? const Color(0xFF14B8A6)
                         : Colors.grey,
+                    shape: RoundedRectangleBorder(
+                      borderRadius:
+                      BorderRadius.circular(12),
+                    ),
                   ),
                   onPressed:
                   isFormValid
@@ -324,7 +368,9 @@ class _SharingCaringPageState extends State<SharingCaringPage> {
                   child: const Text(
                     "Confirm & Notify",
                     style:
-                    TextStyle(fontSize: 16),
+                    TextStyle(
+                        fontSize: 16,
+                        color: Colors.white),
                   ),
                 ),
               ),

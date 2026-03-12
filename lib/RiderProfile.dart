@@ -3,19 +3,11 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
-import 'UserHome.dart';
-import 'UserSetting.dart';
-import 'UserOffer.dart';
-import 'UserActivity.dart';
-import 'UserServices.dart';
+import 'RiderDashboard.dart';
+import 'RiderActivityPage.dart';
+import 'RiderMap.dart';
+import 'RiderSetting.dart';
 import 'PersonalInfo.dart';
-
-void main() => runApp(
-  const MaterialApp(
-    debugShowCheckedModeBanner: false,
-    home: UniRideProfilePage(),
-  ),
-);
 
 class AppColors {
   static const Color primary = Color(0xFF14B8A6);
@@ -27,21 +19,21 @@ class AppColors {
   static const Color mutedText = Color(0xFF6B7280);
 }
 
-class UniRideProfilePage extends StatefulWidget {
+class RiderProfile extends StatefulWidget {
   final String? userName;
   final double userRating;
 
-  const UniRideProfilePage({
+  const RiderProfile({
     super.key,
     this.userName,
     this.userRating = 5.0,
   });
 
   @override
-  State<UniRideProfilePage> createState() => _UniRideProfilePageState();
+  State<RiderProfile> createState() => _RiderProfileState();
 }
 
-class _UniRideProfilePageState extends State<UniRideProfilePage> {
+class _RiderProfileState extends State<RiderProfile> {
   int _selectedIndex = 4;
   File? _profileImage;
   final ImagePicker _picker = ImagePicker();
@@ -54,6 +46,7 @@ class _UniRideProfilePageState extends State<UniRideProfilePage> {
         status = await Permission.photos.request();
       } else {
         status = await Permission.photos.request();
+
         if (!status.isGranted && !status.isLimited) {
           status = await Permission.storage.request();
         }
@@ -74,7 +67,9 @@ class _UniRideProfilePageState extends State<UniRideProfilePage> {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Gallery permission permanently denied. Please enable it from app settings.'),
+            content: Text(
+              'Gallery permission permanently denied. Please enable it from app settings.',
+            ),
           ),
         );
         await openAppSettings();
@@ -100,12 +95,7 @@ class _UniRideProfilePageState extends State<UniRideProfilePage> {
     if (index == 0) {
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (context) => const UniRideHomePage()),
-      );
-    } else if (index == 1) {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => ServicesPage()),
+        MaterialPageRoute(builder: (context) => const RiderDashboard()),
       );
     } else if (index == 2) {
       Navigator.pushReplacement(
@@ -116,14 +106,26 @@ class _UniRideProfilePageState extends State<UniRideProfilePage> {
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
-          builder: (context) => const OffersPage(),
+          builder: (context) => const MapPage(),
         ),
       );
+    } else if (index == 4) {
+      setState(() {
+        _selectedIndex = index;
+      });
     } else {
       setState(() {
         _selectedIndex = index;
       });
     }
+  }
+
+  void _showComingSoon(String title) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('$title page is not available yet.'),
+      ),
+    );
   }
 
   @override
@@ -226,7 +228,7 @@ class _UniRideProfilePageState extends State<UniRideProfilePage> {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (context) => const SettingsPage(),
+                            builder: (context) => const RiderSettingsPage(),
                           ),
                         );
                       },
@@ -244,12 +246,32 @@ class _UniRideProfilePageState extends State<UniRideProfilePage> {
                       },
                       child: _buildSquareTile(Icons.person, "Personal info"),
                     ),
-                    _buildSquareTile(Icons.security, "Security"),
-                    _buildSquareTile(Icons.lock, "Privacy & data"),
-                    _buildSquareTile(Icons.help, "Help"),
-                    _buildSquareTile(
-                      Icons.account_balance_wallet,
-                      "Wallet",
+                    GestureDetector(
+                      onTap: () {
+                        _showComingSoon("Security");
+                      },
+                      child: _buildSquareTile(Icons.security, "Security"),
+                    ),
+                    GestureDetector(
+                      onTap: () {
+                        _showComingSoon("Privacy & data");
+                      },
+                      child: _buildSquareTile(Icons.lock, "Privacy & data"),
+                    ),
+                    GestureDetector(
+                      onTap: () {
+                        _showComingSoon("Help");
+                      },
+                      child: _buildSquareTile(Icons.help, "Help"),
+                    ),
+                    GestureDetector(
+                      onTap: () {
+                        _showComingSoon("Wallet");
+                      },
+                      child: _buildSquareTile(
+                        Icons.account_balance_wallet,
+                        "Wallet",
+                      ),
                     ),
                   ],
                 ),
@@ -348,8 +370,8 @@ class _UniRideProfilePageState extends State<UniRideProfilePage> {
             label: 'Activity',
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.local_offer),
-            label: 'Offers',
+            icon: Icon(Icons.map),
+            label: 'Map',
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.person_outline),

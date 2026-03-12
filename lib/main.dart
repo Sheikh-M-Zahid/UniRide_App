@@ -8,6 +8,13 @@ void main() {
   runApp(const MyApp());
 }
 
+class AppColors {
+  static const Color primary = Color(0xFF14B8A6);     // Teal
+  static const Color secondary = Color(0xFF0F766E);   // Dark Teal
+  static const Color background = Color(0xFFF9FAFB);  // Light background
+  static const Color text = Color(0xFF1F2937);        // Dark text
+}
+
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
@@ -28,7 +35,6 @@ class SplashScreen extends StatefulWidget {
 }
 
 class _SplashScreenState extends State<SplashScreen> {
-
   String displayText = "";
   final String fullText = "UniRide";
   int index = 0;
@@ -39,13 +45,7 @@ class _SplashScreenState extends State<SplashScreen> {
     checkLocationAndStart();
   }
 
-  // =========================
-  // LOCATION CHECK SYSTEM
-  // =========================
-
   Future<void> checkLocationAndStart() async {
-
-    // 1️⃣ Check Permission
     var permission = await Permission.location.status;
 
     if (permission.isDenied) {
@@ -57,7 +57,6 @@ class _SplashScreenState extends State<SplashScreen> {
       return;
     }
 
-    // 2️⃣ Check Location Service
     bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
 
     if (!serviceEnabled) {
@@ -65,18 +64,12 @@ class _SplashScreenState extends State<SplashScreen> {
       return;
     }
 
-    // 3️⃣ Get Current Location (optional but recommended)
     await Geolocator.getCurrentPosition(
       desiredAccuracy: LocationAccuracy.high,
     );
 
-    // 4️⃣ Start Splash Animation
     startAnimation();
   }
-
-  // =========================
-  // SPLASH ANIMATION
-  // =========================
 
   void startAnimation() {
     Timer.periodic(const Duration(milliseconds: 350), (timer) {
@@ -100,23 +93,28 @@ class _SplashScreenState extends State<SplashScreen> {
     });
   }
 
-  // =========================
-  // UI
-  // =========================
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppColors.background,
       body: Center(
         child: displayText.isEmpty
-            ? const CircularProgressIndicator(color: Colors.black)
+            ? const CircularProgressIndicator(
+          color: AppColors.primary,
+        )
             : Container(
           width: 150,
           height: 90,
           decoration: BoxDecoration(
-            color: Colors.black,
+            color: AppColors.primary,
             borderRadius: BorderRadius.circular(25),
+            boxShadow: const [
+              BoxShadow(
+                color: Colors.black12,
+                blurRadius: 10,
+                offset: Offset(0, 4),
+              ),
+            ],
           ),
           child: Center(
             child: AnimatedSwitcher(

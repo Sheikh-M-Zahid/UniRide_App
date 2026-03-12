@@ -8,6 +8,16 @@ import 'ReserveRide.dart';
 import 'SendItem.dart';
 import 'SharingCaringPage.dart';
 
+class AppColors {
+  static const Color primary = Color(0xFF14B8A6);
+  static const Color secondary = Color(0xFF0F766E);
+  static const Color background = Color(0xFFF9FAFB);
+  static const Color text = Color(0xFF1F2937);
+  static const Color inputFill = Color(0xFFF1F5F9);
+  static const Color border = Color(0xFFD1D5DB);
+  static const Color mutedText = Color(0xFF6B7280);
+}
+
 class UniRideHomePage extends StatelessWidget {
   const UniRideHomePage({super.key});
 
@@ -16,22 +26,25 @@ class UniRideHomePage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppColors.background,
 
-      // ================= APP BAR =================
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: AppColors.background,
         elevation: 0,
         centerTitle: true,
+        iconTheme: const IconThemeData(color: AppColors.text),
         title: Row(
           mainAxisSize: MainAxisSize.min,
           children: const [
-            Icon(Icons.directions_car, color: Colors.black),
+            Icon(
+              Icons.directions_car,
+              color: AppColors.primary,
+            ),
             SizedBox(width: 8),
             Text(
               "UniRide",
               style: TextStyle(
-                color: Colors.black,
+                color: AppColors.text,
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
               ),
@@ -44,8 +57,10 @@ class UniRideHomePage extends StatelessWidget {
             child: Stack(
               children: [
                 IconButton(
-                  icon: const Icon(Icons.notifications_none,
-                      color: Colors.black),
+                  icon: const Icon(
+                    Icons.notifications_none,
+                    color: AppColors.text,
+                  ),
                   onPressed: () {
                     Navigator.push(
                       context,
@@ -55,8 +70,6 @@ class UniRideHomePage extends StatelessWidget {
                     );
                   },
                 ),
-
-                // 🔴 Notification Badge
                 offerCount > 0
                     ? Positioned(
                   right: 5,
@@ -90,14 +103,12 @@ class UniRideHomePage extends StatelessWidget {
         ],
       ),
 
-      // ================= BODY =================
       body: SingleChildScrollView(
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Where to search box
               GestureDetector(
                 onTap: () {
                   Navigator.push(
@@ -108,20 +119,26 @@ class UniRideHomePage extends StatelessWidget {
                   );
                 },
                 child: Container(
-                  padding:
-                  const EdgeInsets.symmetric(horizontal: 15),
+                  padding: const EdgeInsets.symmetric(horizontal: 15),
                   height: 55,
                   decoration: BoxDecoration(
-                    color: Colors.grey.shade200,
+                    color: AppColors.inputFill,
                     borderRadius: BorderRadius.circular(30),
+                    border: Border.all(color: AppColors.border),
                   ),
                   child: const Row(
                     children: [
-                      Icon(Icons.search),
+                      Icon(
+                        Icons.search,
+                        color: AppColors.secondary,
+                      ),
                       SizedBox(width: 10),
                       Text(
                         "Where do you want to go?",
-                        style: TextStyle(fontSize: 16),
+                        style: TextStyle(
+                          fontSize: 16,
+                          color: AppColors.mutedText,
+                        ),
                       ),
                     ],
                   ),
@@ -135,17 +152,16 @@ class UniRideHomePage extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
+                  color: AppColors.text,
                 ),
               ),
 
               const SizedBox(height: 15),
 
-              // 3 Options
               SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
                 child: Row(
                   children: [
-
                     GestureDetector(
                       onTap: () {
                         Navigator.push(
@@ -160,9 +176,7 @@ class UniRideHomePage extends StatelessWidget {
                         title: "Ride",
                       ),
                     ),
-
                     const SizedBox(width: 15),
-
                     GestureDetector(
                       onTap: () {
                         Navigator.push(
@@ -177,10 +191,7 @@ class UniRideHomePage extends StatelessWidget {
                         title: "Reserve",
                       ),
                     ),
-
                     const SizedBox(width: 15),
-
-                    // ✅ Send Item
                     GestureDetector(
                       onTap: () {
                         Navigator.push(
@@ -195,10 +206,7 @@ class UniRideHomePage extends StatelessWidget {
                         title: "Send Item",
                       ),
                     ),
-
                     const SizedBox(width: 15),
-
-                    // ✅ Co Ride
                     GestureDetector(
                       onTap: () {
                         Navigator.push(
@@ -215,17 +223,18 @@ class UniRideHomePage extends StatelessWidget {
                     ),
                   ],
                 ),
-              )
+              ),
             ],
           ),
         ),
       ),
 
-      // ================= BOTTOM NAV =================
       bottomNavigationBar: BottomNavigationBar(
         type: BottomNavigationBarType.fixed,
-        selectedItemColor: Colors.black,
-        unselectedItemColor: Colors.grey,
+        backgroundColor: Colors.white,
+        selectedItemColor: AppColors.primary,
+        unselectedItemColor: AppColors.mutedText,
+        currentIndex: 0,
         onTap: (index) {
           if (index == 1) {
             Navigator.pushReplacement(
@@ -242,11 +251,11 @@ class UniRideHomePage extends StatelessWidget {
           if (index == 4) {
             Navigator.pushReplacement(
               context,
-              MaterialPageRoute(builder: (context) => const UniRideProfilePage(),
+              MaterialPageRoute(
+                builder: (context) => const UniRideProfilePage(),
               ),
             );
           }
-
           if (index == 3) {
             Navigator.push(
               context,
@@ -258,26 +267,31 @@ class UniRideHomePage extends StatelessWidget {
         },
         items: const [
           BottomNavigationBarItem(
-              icon: Icon(Icons.home), label: "Home"),
+            icon: Icon(Icons.home),
+            label: "Home",
+          ),
           BottomNavigationBarItem(
-              icon: Icon(Icons.grid_view),
-              label: "Services"),
+            icon: Icon(Icons.grid_view),
+            label: "Services",
+          ),
           BottomNavigationBarItem(
-              icon: Icon(Icons.receipt_long),
-              label: "Activity"),
+            icon: Icon(Icons.receipt_long),
+            label: "Activity",
+          ),
           BottomNavigationBarItem(
-              icon: Icon(Icons.local_offer),
-              label: "Offers"),
+            icon: Icon(Icons.local_offer),
+            label: "Offers",
+          ),
           BottomNavigationBarItem(
-              icon: Icon(Icons.person),
-              label: "Account"),
+            icon: Icon(Icons.person),
+            label: "Account",
+          ),
         ],
       ),
     );
   }
 }
 
-// ================= Suggestion Box Widget =================
 class _SuggestionBox extends StatelessWidget {
   final IconData icon;
   final String title;
@@ -293,15 +307,33 @@ class _SuggestionBox extends StatelessWidget {
       width: 100,
       height: 100,
       decoration: BoxDecoration(
-        color: Colors.grey.shade200,
+        color: Colors.white,
         borderRadius: BorderRadius.circular(15),
+        border: Border.all(color: AppColors.border),
+        boxShadow: const [
+          BoxShadow(
+            color: Colors.black12,
+            blurRadius: 6,
+            offset: Offset(0, 3),
+          ),
+        ],
       ),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(icon, size: 35),
+          Icon(
+            icon,
+            size: 35,
+            color: AppColors.primary,
+          ),
           const SizedBox(height: 10),
-          Text(title),
+          Text(
+            title,
+            style: const TextStyle(
+              color: AppColors.text,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
         ],
       ),
     );

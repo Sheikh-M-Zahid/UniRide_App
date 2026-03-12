@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
+import 'AddOfferPage.dart';
+import 'AllRiderPage.dart';
+import 'ActiveRiderPage.dart';
 
 void main() {
   runApp(MyApp());
@@ -51,8 +54,7 @@ class _AdminDashboardState extends State<AdminDashboard>
     _slideAnimation = Tween<Offset>(
       begin: Offset(0, 0.15),
       end: Offset.zero,
-    ).animate(CurvedAnimation(
-        parent: _controller, curve: Curves.easeOut));
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOut));
 
     _controller.forward();
   }
@@ -67,12 +69,13 @@ class _AdminDashboardState extends State<AdminDashboard>
   Widget build(BuildContext context) {
     return Scaffold(
 
-      // ===== Drawer =====
+      // ================= DRAWER =================
       drawer: Drawer(
         backgroundColor: Colors.black,
         child: ListView(
           padding: EdgeInsets.zero,
           children: [
+
             DrawerHeader(
               decoration: BoxDecoration(
                 gradient: LinearGradient(
@@ -81,26 +84,56 @@ class _AdminDashboardState extends State<AdminDashboard>
               ),
               child: Align(
                 alignment: Alignment.bottomLeft,
-                child: Text("Menu",
-                    style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold)),
+                child: Text(
+                  "Menu",
+                  style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold),
+                ),
               ),
             ),
+
             drawerItem("Home"),
-            drawerItem("Active Rider"),
-            drawerItem("All Rider"),
+            drawerItem("Add Offer"),
+            ListTile(
+              title: Text("Active Rider",
+                  style: TextStyle(color: Colors.white)),
+              onTap: () {
+                Navigator.pop(context); // Drawer close
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                      builder: (context) => const ActiveRiderPage()),
+                );
+              },
+            ),
+
+            // ✅ All Rider → Separate Page
+            ListTile(
+              title: Text("All Rider",
+                  style: TextStyle(color: Colors.white)),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                      builder: (context) => const AllRiderPage()),
+                );
+              },
+            ),
+
             drawerItem("Passengers"),
             drawerItem("App Stats"),
             drawerItem("Top Location"),
             drawerItem("Income/Expense"),
             drawerItem("Rider Sharing History"),
-            drawerItem("Company Sharing History"),
+            drawerItem("Sharing & Caring History"),
           ],
         ),
       ),
 
+      // ================= APPBAR =================
       appBar: AppBar(
         elevation: 0,
         backgroundColor: Colors.transparent,
@@ -115,24 +148,20 @@ class _AdminDashboardState extends State<AdminDashboard>
                 Text("Admin Name",
                     style: TextStyle(color: Colors.white)),
                 SizedBox(width: 10),
-                GestureDetector(
-                  onTap: () {
-                    // Navigate to profile
-                  },
-                  child: CircleAvatar(
-                    radius: 18,
-                    backgroundImage:
-                    NetworkImage("https://i.pravatar.cc/150?img=3"),
-                  ),
-                )
+                CircleAvatar(
+                  radius: 18,
+                  backgroundImage:
+                  NetworkImage("https://i.pravatar.cc/150?img=3"),
+                ),
               ],
             ),
-          )
+          ),
         ],
       ),
 
       extendBodyBehindAppBar: true,
 
+      // ================= BODY =================
       body: Container(
         decoration: BoxDecoration(
           gradient: LinearGradient(
@@ -148,15 +177,20 @@ class _AdminDashboardState extends State<AdminDashboard>
         child: SafeArea(
           child: selectedPage == "Home"
               ? homePage()
+              : selectedPage == "Add Offer"
+              ? AddOfferPage()
               : Center(
-            child: Text(selectedPage,
-                style: TextStyle(color: Colors.white)),
+            child: Text(
+              selectedPage,
+              style: TextStyle(color: Colors.white),
+            ),
           ),
         ),
       ),
     );
   }
 
+  // ================= Drawer Item =================
   Widget drawerItem(String title) {
     return ListTile(
       title: Text(title, style: TextStyle(color: Colors.white)),
@@ -170,7 +204,6 @@ class _AdminDashboardState extends State<AdminDashboard>
   }
 
   // ================= HOME PAGE =================
-
   Widget homePage() {
     return SingleChildScrollView(
       padding: EdgeInsets.fromLTRB(20, 90, 20, 20),
@@ -213,7 +246,7 @@ class _AdminDashboardState extends State<AdminDashboard>
     );
   }
 
-  // ===== Pie Chart =====
+  // ================= Pie Chart =================
   Widget pieChart() {
     return PieChart(
       PieChartData(
@@ -229,7 +262,7 @@ class _AdminDashboardState extends State<AdminDashboard>
     );
   }
 
-  // ===== Bar Chart =====
+  // ================= Bar Chart =================
   Widget barChart() {
     return BarChart(
       BarChartData(
@@ -258,7 +291,7 @@ class _AdminDashboardState extends State<AdminDashboard>
     );
   }
 
-  // ===== Glassmorphism Chart Box =====
+  // ================= Chart Box =================
   Widget chartBox(String title, Widget child) {
     return Container(
       margin: EdgeInsets.only(bottom: 25),
@@ -283,7 +316,7 @@ class _AdminDashboardState extends State<AdminDashboard>
     );
   }
 
-  // ===== Count Animation Card =====
+  // ================= Stat Card =================
   Widget statCard(String title, int value) {
     return Container(
       padding: EdgeInsets.all(20),
@@ -301,16 +334,13 @@ class _AdminDashboardState extends State<AdminDashboard>
         duration: Duration(seconds: 3),
         builder: (context, val, child) => Column(
           children: [
-            Text(title,
-                style: TextStyle(color: Colors.white70)),
+            Text(title, style: TextStyle(color: Colors.white70)),
             SizedBox(height: 10),
-            Text(
-              val.toString(),
-              style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold),
-            ),
+            Text(val.toString(),
+                style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold)),
           ],
         ),
       ),

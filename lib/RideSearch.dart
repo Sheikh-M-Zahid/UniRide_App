@@ -1,42 +1,40 @@
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
-import 'package:geolocator/geolocator.dart'; // লোকেশন পারমিশন ও পজিশনের জন্য
-import 'package:geocoding/geocoding.dart';   // অক্ষাংশ থেকে ঠিকানা বের করার জন্য
+import 'package:geolocator/geolocator.dart';
+import 'package:geocoding/geocoding.dart';
 
-void main() => runApp(MaterialApp(home: PlanYourRidePage()));
+void main() => runApp(const MaterialApp(home: PlanYourRidePage()));
 
 class PlanYourRidePage extends StatefulWidget {
+  const PlanYourRidePage({super.key});
+
   @override
   _PlanYourRidePageState createState() => _PlanYourRidePageState();
 }
 
 class _PlanYourRidePageState extends State<PlanYourRidePage> {
   late GoogleMapController mapController;
-  static const LatLng _center = LatLng(23.8103, 90.4125); // প্রাথমিক সেন্টার
+  static const LatLng _center = LatLng(23.8103, 90.4125);
 
   String rideTime = "Pick-up now";
-  String currentAddress = "Detecting current location..."; // ডিফল্ট টেক্সট
+  String currentAddress = "Detecting current location...";
 
   @override
   void initState() {
     super.initState();
-    // অ্যাপ চালু হওয়ার সাথে সাথে লোকেশন ধরার চেষ্টা করবে
     _determinePosition();
   }
 
-  // ডিভাইস থেকে আসল লোকেশন এবং ঠিকানা বের করার ফাংশন
   Future<void> _determinePosition() async {
     bool serviceEnabled;
     LocationPermission permission;
 
-    // ১. লোকেশন সার্ভিস অন আছে কি না চেক
     serviceEnabled = await Geolocator.isLocationServiceEnabled();
     if (!serviceEnabled) {
       setState(() => currentAddress = "Location services are disabled.");
       return;
     }
 
-    // ২. পারমিশন চেক ও রিকোয়েস্ট
     permission = await Geolocator.checkPermission();
     if (permission == LocationPermission.denied) {
       permission = await Geolocator.requestPermission();
@@ -51,26 +49,28 @@ class _PlanYourRidePageState extends State<PlanYourRidePage> {
       return;
     }
 
-    // ৩. বর্তমান পজিশন নেওয়া
     Position position = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high);
+      desiredAccuracy: LocationAccuracy.high,
+    );
 
-    // ৪. কোঅর্ডিনেট থেকে ঠিকানায় (Address) রূপান্তর
     try {
       List<Placemark> placemarks = await placemarkFromCoordinates(
-          position.latitude, position.longitude);
+        position.latitude,
+        position.longitude,
+      );
 
       if (placemarks.isNotEmpty) {
         Placemark place = placemarks[0];
         setState(() {
-          // এটি আপনার ডিভাইসের আসল ঠিকানা সেট করবে
-          currentAddress = "${place.name}, ${place.subLocality}, ${place.locality}";
+          currentAddress =
+          "${place.name}, ${place.subLocality}, ${place.locality}";
         });
 
-        // ম্যাপের ক্যামেরা বর্তমান লোকেশনে নিয়ে যাওয়া
-        mapController.animateCamera(CameraUpdate.newLatLng(
-          LatLng(position.latitude, position.longitude),
-        ));
+        mapController.animateCamera(
+          CameraUpdate.newLatLng(
+            LatLng(position.latitude, position.longitude),
+          ),
+        );
       }
     } catch (e) {
       setState(() => currentAddress = "Unnamed Road");
@@ -84,76 +84,232 @@ class _PlanYourRidePageState extends State<PlanYourRidePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: const Color(0xFFF9FAFB),
       body: Stack(
         children: [
-          // ১. গুগল ম্যাপ
           GoogleMap(
             onMapCreated: _onMapCreated,
-            initialCameraPosition: CameraPosition(target: _center, zoom: 15.0),
+            initialCameraPosition:
+            const CameraPosition(target: _center, zoom: 15.0),
             myLocationEnabled: true,
             zoomControlsEnabled: false,
+            myLocationButtonEnabled: false,
           ),
 
-          // ২. ব্যাক বাটন
           Positioned(
             top: 50,
             left: 20,
-            child: CircleAvatar(
-              backgroundColor: Colors.white,
-              child: IconButton(
-                icon: Icon(Icons.arrow_back, color: Colors.black),
-                onPressed: () => Navigator.pop(context),
-              ),
-            ),
-          ),
-
-          // ৩. ড্রাগেবল পপআপ (BottomSheet)
-          DraggableScrollableSheet(
-            initialChildSize: 0.6,
-            minChildSize: 0.4,
-            maxChildSize: 0.9,
-            builder: (context, scrollController) {
-              return Container(
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-                  boxShadow: [BoxShadow(blurRadius: 10, color: Colors.black12)],
+            right: 20,
+            child: Row(
+              children: [
+                CircleAvatar(
+                  radius: 24,
+                  backgroundColor: Colors.white,
+                  child: IconButton(
+                    icon: const Icon(
+                      Icons.arrow_back,
+                      color: Color(0xFF1F2937),
+                    ),
+                    onPressed: () => Navigator.pop(context),
+                  ),
                 ),
-                child: ListView(
-                  controller: scrollController,
-                  padding: EdgeInsets.all(20),
-                  children: [
-                    Center(child: Container(width: 40, height: 5, decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(10)))),
-                    SizedBox(height: 20),
-                    Text("Plan your ride", style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold), textAlign: TextAlign.center),
-                    SizedBox(height: 20),
-
-                    Row(
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Container(
+                    height: 52,
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(18),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.08),
+                          blurRadius: 12,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: const Row(
                       children: [
-                        _buildTimeDropdown(),
+                        Icon(
+                          Icons.search,
+                          color: Color(0xFF0F766E),
+                        ),
                         SizedBox(width: 10),
-                        // ড্রপডাউন সাইন ছাড়া For me বাটন
-                        Container(
-                          padding: EdgeInsets.symmetric(horizontal: 15, vertical: 12),
-                          decoration: BoxDecoration(color: Colors.grey[100], borderRadius: BorderRadius.circular(20)),
-                          child: Row(
-                            children: [
-                              Icon(Icons.person, size: 18),
-                              SizedBox(width: 5),
-                              Text("For me", style: TextStyle(fontWeight: FontWeight.w500)),
-                            ],
+                        Expanded(
+                          child: Text(
+                            "Search destination",
+                            style: TextStyle(
+                              color: Colors.grey,
+                              fontSize: 15,
+                            ),
                           ),
                         ),
                       ],
                     ),
-                    SizedBox(height: 20),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          Positioned(
+            top: 120,
+            right: 20,
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.08),
+                    blurRadius: 10,
+                    offset: const Offset(0, 3),
+                  ),
+                ],
+              ),
+              child: IconButton(
+                icon: const Icon(
+                  Icons.my_location,
+                  color: Color(0xFF14B8A6),
+                ),
+                onPressed: _determinePosition,
+              ),
+            ),
+          ),
+
+          DraggableScrollableSheet(
+            initialChildSize: 0.62,
+            minChildSize: 0.42,
+            maxChildSize: 0.9,
+            builder: (context, scrollController) {
+              return Container(
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF9FAFB),
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(28),
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      blurRadius: 18,
+                      color: Colors.black.withOpacity(0.12),
+                      offset: const Offset(0, -3),
+                    ),
+                  ],
+                ),
+                child: ListView(
+                  controller: scrollController,
+                  padding: const EdgeInsets.fromLTRB(20, 14, 20, 28),
+                  children: [
+                    Center(
+                      child: Container(
+                        width: 52,
+                        height: 5,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF14B8A6).withOpacity(0.30),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                      ),
+                    ),
+
+                    const SizedBox(height: 18),
+
+                    const Text(
+                      "Plan your ride",
+                      style: TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF1F2937),
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+
+                    const SizedBox(height: 8),
+
+                    const Text(
+                      "Set your pickup and destination for a smoother trip experience.",
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.grey,
+                        height: 1.4,
+                      ),
+                    ),
+
+                    const SizedBox(height: 22),
+
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _buildTimeDropdown(),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 15,
+                              vertical: 14,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(18),
+                              border: Border.all(
+                                color: const Color(0xFFE5E7EB),
+                              ),
+                            ),
+                            child: const Row(
+                              children: [
+                                Icon(
+                                  Icons.person,
+                                  size: 18,
+                                  color: Color(0xFF0F766E),
+                                ),
+                                SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    "For me",
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w600,
+                                      color: Color(0xFF1F2937),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+
+                    const SizedBox(height: 20),
 
                     _buildLocationBox(),
 
-                    SizedBox(height: 25),
-                    _buildListTile(Icons.public, "Search in a different city"),
-                    _buildListTile(Icons.search, "Get more results"),
-                    _buildListTile(Icons.location_on, "Set location on map"),
+                    const SizedBox(height: 24),
+
+                    const Text(
+                      "More options",
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF1F2937),
+                      ),
+                    ),
+
+                    const SizedBox(height: 12),
+
+                    _buildListTile(
+                      Icons.public,
+                      "Search in a different city",
+                    ),
+                    _buildListTile(
+                      Icons.search,
+                      "Get more results",
+                    ),
+                    _buildListTile(
+                      Icons.location_on,
+                      "Set location on map",
+                    ),
                   ],
                 ),
               );
@@ -166,14 +322,37 @@ class _PlanYourRidePageState extends State<PlanYourRidePage> {
 
   Widget _buildTimeDropdown() {
     return Container(
-      padding: EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-      decoration: BoxDecoration(color: Colors.grey[100], borderRadius: BorderRadius.circular(20)),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: const Color(0xFFE5E7EB),
+        ),
+      ),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<String>(
           value: rideTime == "Pick-up now" ? "Now" : "Later",
-          icon: Icon(Icons.keyboard_arrow_down),
+          icon: const Icon(
+            Icons.keyboard_arrow_down,
+            color: Color(0xFF0F766E),
+          ),
+          dropdownColor: Colors.white,
+          style: const TextStyle(
+            color: Color(0xFF1F2937),
+            fontSize: 14,
+            fontWeight: FontWeight.w500,
+          ),
           items: ["Now", "Later"].map((String value) {
-            return DropdownMenuItem<String>(value: value, child: Text(value));
+            return DropdownMenuItem<String>(
+              value: value,
+              child: Text(
+                value,
+                style: const TextStyle(
+                  color: Color(0xFF1F2937),
+                ),
+              ),
+            );
           }).toList(),
           onChanged: (val) {
             setState(() {
@@ -187,33 +366,85 @@ class _PlanYourRidePageState extends State<PlanYourRidePage> {
 
   Widget _buildLocationBox() {
     return Container(
-      padding: EdgeInsets.all(15),
+      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        border: Border.all(color: Colors.black, width: 2),
-        borderRadius: BorderRadius.circular(15),
+        color: Colors.white,
+        border: Border.all(
+          color: const Color(0xFFE5E7EB),
+          width: 1.2,
+        ),
+        borderRadius: BorderRadius.circular(22),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
       ),
       child: Column(
         children: [
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(Icons.circle, size: 12, color: Colors.black),
-              SizedBox(width: 15),
-              Expanded(
-                child: Text(
-                  currentAddress, // ডিভাইসের আসল লোকেশন এখানে দেখাবে
-                  style: TextStyle(fontSize: 15, color: Colors.black, fontWeight: FontWeight.w500),
-                ),
+              Column(
+                children: [
+                  const Icon(
+                    Icons.radio_button_checked,
+                    size: 16,
+                    color: Color(0xFF14B8A6),
+                  ),
+                  Container(
+                    width: 2,
+                    height: 26,
+                    margin: const EdgeInsets.symmetric(vertical: 6),
+                    color: const Color(0xFFE5E7EB),
+                  ),
+                  const Icon(
+                    Icons.location_on,
+                    size: 18,
+                    color: Color(0xFF0F766E),
+                  ),
+                ],
               ),
-            ],
-          ),
-          Divider(height: 30, thickness: 1, indent: 30),
-          Row(
-            children: [
-              Icon(Icons.square, size: 12, color: Colors.black),
-              SizedBox(width: 15),
+              const SizedBox(width: 14),
               Expanded(
-                child: TextField(
-                  decoration: InputDecoration(hintText: "Where to?", border: InputBorder.none, isDense: true),
+                child: Column(
+                  children: [
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        currentAddress,
+                        style: const TextStyle(
+                          fontSize: 15,
+                          color: Color(0xFF1F2937),
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 18),
+                    Container(
+                      height: 1,
+                      color: const Color(0xFFE5E7EB),
+                    ),
+                    const SizedBox(height: 14),
+                    TextField(
+                      decoration: const InputDecoration(
+                        hintText: "Where to?",
+                        hintStyle: TextStyle(
+                          color: Colors.grey,
+                          fontSize: 15,
+                        ),
+                        border: InputBorder.none,
+                        isDense: true,
+                      ),
+                      style: const TextStyle(
+                        color: Color(0xFF1F2937),
+                        fontSize: 15,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
@@ -224,13 +455,43 @@ class _PlanYourRidePageState extends State<PlanYourRidePage> {
   }
 
   Widget _buildListTile(IconData icon, String title) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 12),
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: const Color(0xFFE5E7EB),
+        ),
+      ),
       child: Row(
         children: [
-          CircleAvatar(backgroundColor: Colors.grey[100], child: Icon(icon, color: Colors.black, size: 20)),
-          SizedBox(width: 15),
-          Text(title, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500)),
+          CircleAvatar(
+            radius: 20,
+            backgroundColor: const Color(0xFFECFEFF),
+            child: Icon(
+              icon,
+              color: const Color(0xFF0F766E),
+              size: 20,
+            ),
+          ),
+          const SizedBox(width: 15),
+          Expanded(
+            child: Text(
+              title,
+              style: const TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF1F2937),
+              ),
+            ),
+          ),
+          const Icon(
+            Icons.arrow_forward_ios,
+            size: 16,
+            color: Colors.grey,
+          ),
         ],
       ),
     );

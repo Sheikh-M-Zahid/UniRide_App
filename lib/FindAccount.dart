@@ -15,7 +15,7 @@ class _FindAccountState extends State<FindAccount> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: const Color(0xFFF9FAFB),
       body: SafeArea(
         child: Padding(
           padding:
@@ -27,17 +27,23 @@ class _FindAccountState extends State<FindAccount> {
 
               const SizedBox(height: 40),
 
-              const Text("Find Your Account",
+              const Text(
+                "Find Your Account",
                 style: TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold),
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF1F2937),
+                ),
               ),
 
               const SizedBox(height: 30),
 
-              const Text("Enter your university email",
+              const Text(
+                "Enter your university email",
                 style: TextStyle(
-                    fontWeight: FontWeight.w600),
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF1F2937),
+                ),
               ),
 
               const SizedBox(height: 10),
@@ -46,9 +52,9 @@ class _FindAccountState extends State<FindAccount> {
                 controller: _emailController,
                 decoration: InputDecoration(
                   hintText: "Enter your university email",
+                  hintStyle: const TextStyle(color: Colors.grey),
                   filled: true,
-                  fillColor:
-                  const Color(0xFFF3F3F3),
+                  fillColor: const Color(0xFFFFFFFF),
                   border: OutlineInputBorder(
                     borderRadius:
                     BorderRadius.circular(10),
@@ -73,16 +79,18 @@ class _FindAccountState extends State<FindAccount> {
                     );
                   },
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.black,
+                    backgroundColor: const Color(0xFF14B8A6),
                     shape: RoundedRectangleBorder(
                       borderRadius:
                       BorderRadius.circular(10),
                     ),
                   ),
-                  child: const Text("Search",
+                  child: const Text(
+                    "Search",
                     style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 16),
+                      color: Colors.white,
+                      fontSize: 16,
+                    ),
                   ),
                 ),
               ),
@@ -92,9 +100,10 @@ class _FindAccountState extends State<FindAccount> {
               TextButton(
                 onPressed: () =>
                     Navigator.pop(context),
-                child: const Text("Back to Login",
+                child: const Text(
+                  "Back to Login",
                   style:
-                  TextStyle(color: Colors.grey),
+                  TextStyle(color: Color(0xFF0F766E)),
                 ),
               ),
 
