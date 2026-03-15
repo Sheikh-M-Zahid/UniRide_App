@@ -2,14 +2,14 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
-class AllRiderPage extends StatefulWidget {
-  const AllRiderPage({super.key});
+class AllPassengersPage extends StatefulWidget {
+  const AllPassengersPage({super.key});
 
   @override
-  State<AllRiderPage> createState() => _AllRiderPageState();
+  State<AllPassengersPage> createState() => _AllPassengersPageState();
 }
 
-class _AllRiderPageState extends State<AllRiderPage>
+class _AllPassengersPageState extends State<AllPassengersPage>
     with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   late Animation<double> _fadeAnimation;
@@ -19,15 +19,14 @@ class _AllRiderPageState extends State<AllRiderPage>
 
   String selectedFilter = "All";
   bool isLoading = true;
-  bool isUpdatingStatus = false;
   String? errorMessage;
 
-  List<RiderModel> allRiders = [];
+  List<PassengerModel> allPassengers = [];
 
-  // এখানে তোমার backend URL দাও
-  // Android emulator হলে: http://10.0.2.2:5000
-  // Localhost web হলে: http://localhost:5000
-  // Real device হলে: তোমার PC/Laptop এর local IP দিতে হবে
+  // এখানে তোমার backend URL বসাবে
+  // Android Emulator -> http://10.0.2.2:5000
+  // Flutter Web -> http://localhost:5000
+  // Real Device -> তোমার PC এর local IP
   static const String baseUrl = "http://10.0.2.2:5000/api";
 
   @override
@@ -48,7 +47,7 @@ class _AllRiderPageState extends State<AllRiderPage>
     ).animate(_fadeAnimation);
 
     _controller.forward();
-    fetchRiders();
+    fetchPassengers();
   }
 
   @override
@@ -58,7 +57,7 @@ class _AllRiderPageState extends State<AllRiderPage>
     super.dispose();
   }
 
-  Future<void> fetchRiders() async {
+  Future<void> fetchPassengers() async {
     setState(() {
       isLoading = true;
       errorMessage = null;
@@ -66,7 +65,7 @@ class _AllRiderPageState extends State<AllRiderPage>
 
     try {
       final response = await http.get(
-        Uri.parse("$baseUrl/riders"),
+        Uri.parse("$baseUrl/passengers"),
         headers: {
           "Content-Type": "application/json",
         },
@@ -85,16 +84,16 @@ class _AllRiderPageState extends State<AllRiderPage>
           throw Exception("Invalid API response format");
         }
 
-        final riders =
-        dataList.map((e) => RiderModel.fromJson(e)).toList();
+        final passengers =
+        dataList.map((e) => PassengerModel.fromJson(e)).toList();
 
         if (!mounted) return;
         setState(() {
-          allRiders = riders;
+          allPassengers = passengers;
           isLoading = false;
         });
       } else {
-        throw Exception("Failed to load riders (${response.statusCode})");
+        throw Exception("Failed to load passengers (${response.statusCode})");
       }
     } catch (e) {
       if (!mounted) return;
@@ -105,115 +104,46 @@ class _AllRiderPageState extends State<AllRiderPage>
     }
   }
 
-  Future<void> toggleStatus(RiderModel rider) async {
-    if (isUpdatingStatus) return;
-
-    setState(() {
-      isUpdatingStatus = true;
-    });
-
-    try {
-      final String newStatus =
-      rider.status.toLowerCase() == "suspended" ? "Active" : "Suspended";
-
-      final response = await http.patch(
-        Uri.parse("$baseUrl/riders/${rider.id}/status"),
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: jsonEncode({
-          "status": newStatus,
-        }),
-      );
-
-      if (response.statusCode == 200) {
-        final index = allRiders.indexWhere((item) => item.id == rider.id);
-
-        if (index != -1) {
-          final updatedRider = allRiders[index].copyWith(status: newStatus);
-
-          setState(() {
-            allRiders[index] = updatedRider;
-          });
-        }
-
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              newStatus == "Active"
-                  ? "Rider activated successfully"
-                  : "Rider suspended successfully",
-            ),
-          ),
-        );
-      } else {
-        String message = "Failed to update status";
-        try {
-          final decoded = jsonDecode(response.body);
-          if (decoded is Map<String, dynamic> && decoded["message"] != null) {
-            message = decoded["message"].toString();
-          }
-        } catch (_) {}
-        throw Exception(message);
-      }
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Status update failed: $e")),
-      );
-    } finally {
-      if (!mounted) return;
-      setState(() {
-        isUpdatingStatus = false;
-      });
-    }
-  }
-
-  bool isRecentlyJoined(DateTime? joinedAt) {
-    if (joinedAt == null) return false;
-    final now = DateTime.now();
-    return now.difference(joinedAt).inDays <= 7;
-  }
-
-  List<RiderModel> get filteredRiders {
+  List<PassengerModel> get filteredPassengers {
     final query = searchController.text.trim().toLowerCase();
 
-    return allRiders.where((rider) {
-      final bool searchMatch = query.isEmpty ||
-          rider.name.toLowerCase().contains(query) ||
-          rider.location.toLowerCase().contains(query) ||
-          rider.phone.toLowerCase().contains(query);
+    return allPassengers.where((passenger) {
+      final bool searchMatch =
+          query.isEmpty || passenger.name.toLowerCase().contains(query);
 
       bool filterMatch = true;
 
-      if (selectedFilter == "Due Payment") {
-        filterMatch = rider.due > 0;
-      } else if (selectedFilter == "Active") {
-        filterMatch = rider.status.toLowerCase() == "active";
-      } else if (selectedFilter == "Suspended") {
-        filterMatch = rider.status.toLowerCase() == "suspended";
-      } else if (selectedFilter == "Recently Joined") {
-        filterMatch = isRecentlyJoined(rider.joinedAt);
+      if (selectedFilter == "Student") {
+        filterMatch = passenger.userType.toLowerCase() == "student";
+      } else if (selectedFilter == "Faculty") {
+        filterMatch = passenger.userType.toLowerCase() == "faculty";
+      } else if (selectedFilter == "Staff") {
+        filterMatch = passenger.userType.toLowerCase() == "staff";
       }
 
       return searchMatch && filterMatch;
     }).toList();
   }
 
-  Color statusColor(String status) {
-    switch (status.toLowerCase()) {
-      case "active":
-        return Colors.green;
-      case "suspended":
-        return Colors.red;
-      case "inactive":
-        return Colors.orange;
-      case "pending":
-        return Colors.amber;
+  Color userTypeColor(String userType) {
+    switch (userType.toLowerCase()) {
+      case "student":
+        return Colors.lightBlueAccent;
+      case "faculty":
+        return Colors.deepPurpleAccent;
+      case "staff":
+        return Colors.orangeAccent;
       default:
         return Colors.blueGrey;
     }
+  }
+
+  Color riderBadgeColor(bool isRider) {
+    return isRider ? Colors.greenAccent : Colors.white70;
+  }
+
+  String riderBadgeText(bool isRider) {
+    return isRider ? "Rider" : "Non-Rider";
   }
 
   String formatDate(DateTime? date) {
@@ -225,7 +155,7 @@ class _AllRiderPageState extends State<AllRiderPage>
 
   @override
   Widget build(BuildContext context) {
-    final riders = filteredRiders;
+    final passengers = filteredPassengers;
 
     return Scaffold(
       backgroundColor: const Color(0xFFF9FAFB),
@@ -261,7 +191,7 @@ class _AllRiderPageState extends State<AllRiderPage>
                         ),
                         const Expanded(
                           child: Text(
-                            "All Riders",
+                            "All Passengers",
                             style: TextStyle(
                               color: Colors.white,
                               fontSize: 22,
@@ -270,7 +200,7 @@ class _AllRiderPageState extends State<AllRiderPage>
                           ),
                         ),
                         IconButton(
-                          onPressed: fetchRiders,
+                          onPressed: fetchPassengers,
                           icon: const Icon(
                             Icons.refresh,
                             color: Colors.white,
@@ -285,7 +215,7 @@ class _AllRiderPageState extends State<AllRiderPage>
                       controller: searchController,
                       style: const TextStyle(color: Colors.white),
                       decoration: InputDecoration(
-                        hintText: "Search by name, phone or location...",
+                        hintText: "Search by passenger name...",
                         hintStyle: const TextStyle(color: Colors.white60),
                         prefixIcon:
                         const Icon(Icons.search, color: Colors.white70),
@@ -313,7 +243,7 @@ class _AllRiderPageState extends State<AllRiderPage>
                       dropdownColor: const Color(0xFF1F2937),
                       style: const TextStyle(color: Colors.white),
                       decoration: InputDecoration(
-                        labelText: "Filter",
+                        labelText: "Filter by user type",
                         labelStyle: const TextStyle(color: Colors.white70),
                         filled: true,
                         fillColor: Colors.white.withOpacity(0.08),
@@ -329,10 +259,9 @@ class _AllRiderPageState extends State<AllRiderPage>
                       ),
                       items: const [
                         "All",
-                        "Due Payment",
-                        "Active",
-                        "Suspended",
-                        "Recently Joined",
+                        "Student",
+                        "Faculty",
+                        "Staff",
                       ].map((e) {
                         return DropdownMenuItem<String>(
                           value: e,
@@ -382,7 +311,7 @@ class _AllRiderPageState extends State<AllRiderPage>
                                     ),
                                     const SizedBox(height: 12),
                                     const Text(
-                                      "Failed to load riders",
+                                      "Failed to load passengers",
                                       style: TextStyle(
                                         color: Colors.white,
                                         fontSize: 18,
@@ -399,7 +328,7 @@ class _AllRiderPageState extends State<AllRiderPage>
                                     ),
                                     const SizedBox(height: 14),
                                     ElevatedButton(
-                                      onPressed: fetchRiders,
+                                      onPressed: fetchPassengers,
                                       style: ElevatedButton.styleFrom(
                                         backgroundColor: const Color(0xFF14B8A6),
                                         foregroundColor: Colors.white,
@@ -412,33 +341,31 @@ class _AllRiderPageState extends State<AllRiderPage>
                             );
                           }
 
-                          if (allRiders.isEmpty) {
+                          if (allPassengers.isEmpty) {
                             return const Center(
                               child: Text(
-                                "No riders found",
+                                "No passengers found",
                                 style: TextStyle(color: Colors.white70),
                               ),
                             );
                           }
 
-                          if (riders.isEmpty) {
+                          if (passengers.isEmpty) {
                             return const Center(
                               child: Text(
-                                "No matching riders found",
+                                "No matching passengers found",
                                 style: TextStyle(color: Colors.white70),
                               ),
                             );
                           }
 
                           return RefreshIndicator(
-                            onRefresh: fetchRiders,
+                            onRefresh: fetchPassengers,
                             child: ListView.builder(
                               physics: const AlwaysScrollableScrollPhysics(),
-                              itemCount: riders.length,
+                              itemCount: passengers.length,
                               itemBuilder: (context, index) {
-                                final rider = riders[index];
-                                final bool isSuspended =
-                                    rider.status.toLowerCase() == "suspended";
+                                final passenger = passengers[index];
 
                                 return Container(
                                   margin: const EdgeInsets.only(bottom: 15),
@@ -461,10 +388,10 @@ class _AllRiderPageState extends State<AllRiderPage>
                                             backgroundColor:
                                             const Color(0xFF14B8A6),
                                             child: Text(
-                                              rider.name.isNotEmpty
-                                                  ? rider.name[0]
+                                              passenger.name.isNotEmpty
+                                                  ? passenger.name[0]
                                                   .toUpperCase()
-                                                  : "R",
+                                                  : "P",
                                               style: const TextStyle(
                                                 color: Colors.white,
                                                 fontWeight: FontWeight.bold,
@@ -479,7 +406,7 @@ class _AllRiderPageState extends State<AllRiderPage>
                                               CrossAxisAlignment.start,
                                               children: [
                                                 Text(
-                                                  rider.name,
+                                                  passenger.name,
                                                   style: const TextStyle(
                                                     color: Colors.white,
                                                     fontSize: 17,
@@ -488,7 +415,7 @@ class _AllRiderPageState extends State<AllRiderPage>
                                                 ),
                                                 const SizedBox(height: 4),
                                                 Text(
-                                                  "Joined: ${formatDate(rider.joinedAt)}",
+                                                  "Joined: ${formatDate(passenger.joinedAt)}",
                                                   style: const TextStyle(
                                                     color: Colors.white60,
                                                     fontSize: 12,
@@ -503,12 +430,13 @@ class _AllRiderPageState extends State<AllRiderPage>
                                               vertical: 6,
                                             ),
                                             decoration: BoxDecoration(
-                                              color: statusColor(rider.status),
+                                              color:
+                                              userTypeColor(passenger.userType),
                                               borderRadius:
                                               BorderRadius.circular(30),
                                             ),
                                             child: Text(
-                                              rider.status,
+                                              passenger.userType,
                                               style: const TextStyle(
                                                 color: Colors.black,
                                                 fontWeight: FontWeight.w600,
@@ -523,50 +451,60 @@ class _AllRiderPageState extends State<AllRiderPage>
                                       _infoRow(
                                         icon: Icons.phone,
                                         label: "Phone",
-                                        value: rider.phone,
+                                        value: passenger.phone,
+                                      ),
+                                      const SizedBox(height: 8),
+                                      _infoRow(
+                                        icon: Icons.email_outlined,
+                                        label: "Email",
+                                        value: passenger.email,
                                       ),
                                       const SizedBox(height: 8),
                                       _infoRow(
                                         icon: Icons.location_on_outlined,
                                         label: "Location",
-                                        value: rider.location,
-                                      ),
-                                      const SizedBox(height: 8),
-                                      _infoRow(
-                                        icon: Icons.account_balance_wallet_outlined,
-                                        label: "Due",
-                                        value:
-                                        "${rider.due.toStringAsFixed(0)} BDT",
+                                        value: passenger.location,
                                       ),
 
-                                      const SizedBox(height: 14),
+                                      const SizedBox(height: 12),
 
-                                      Align(
-                                        alignment: Alignment.centerRight,
-                                        child: ElevatedButton(
-                                          onPressed: isUpdatingStatus
-                                              ? null
-                                              : () => toggleStatus(rider),
-                                          style: ElevatedButton.styleFrom(
-                                            backgroundColor: isSuspended
-                                                ? Colors.green
-                                                : Colors.red,
-                                            foregroundColor: Colors.white,
+                                      Row(
+                                        children: [
+                                          Container(
                                             padding: const EdgeInsets.symmetric(
-                                              horizontal: 18,
-                                              vertical: 12,
+                                              horizontal: 12,
+                                              vertical: 7,
                                             ),
-                                            shape: RoundedRectangleBorder(
+                                            decoration: BoxDecoration(
+                                              color: riderBadgeColor(
+                                                passenger.isRider,
+                                              ),
                                               borderRadius:
-                                              BorderRadius.circular(12),
+                                              BorderRadius.circular(30),
+                                            ),
+                                            child: Text(
+                                              riderBadgeText(passenger.isRider),
+                                              style: TextStyle(
+                                                color: passenger.isRider
+                                                    ? Colors.black
+                                                    : Colors.black87,
+                                                fontWeight: FontWeight.w600,
+                                              ),
                                             ),
                                           ),
-                                          child: Text(
-                                            isSuspended
-                                                ? "Activate"
-                                                : "Suspend",
+                                          const SizedBox(width: 10),
+                                          Expanded(
+                                            child: Text(
+                                              passenger.isRider
+                                                  ? "This passenger is also registered as a rider."
+                                                  : "This passenger is currently using the app as a non-rider user.",
+                                              style: const TextStyle(
+                                                color: Colors.white70,
+                                                fontSize: 12.5,
+                                              ),
+                                            ),
                                           ),
-                                        ),
+                                        ],
                                       ),
                                     ],
                                   ),
@@ -607,6 +545,7 @@ class _AllRiderPageState extends State<AllRiderPage>
           child: Text(
             value,
             style: const TextStyle(color: Colors.white),
+            overflow: TextOverflow.ellipsis,
           ),
         ),
       ],
@@ -614,54 +553,37 @@ class _AllRiderPageState extends State<AllRiderPage>
   }
 }
 
-class RiderModel {
+class PassengerModel {
   final int id;
   final String name;
   final String phone;
+  final String email;
   final String location;
-  final String status;
-  final double due;
+  final String userType;
+  final bool isRider;
   final DateTime? joinedAt;
 
-  RiderModel({
+  PassengerModel({
     required this.id,
     required this.name,
     required this.phone,
+    required this.email,
     required this.location,
-    required this.status,
-    required this.due,
+    required this.userType,
+    required this.isRider,
     required this.joinedAt,
   });
 
-  factory RiderModel.fromJson(Map<String, dynamic> json) {
-    return RiderModel(
+  factory PassengerModel.fromJson(Map<String, dynamic> json) {
+    return PassengerModel(
       id: _parseInt(json["id"]),
       name: (json["name"] ?? "").toString(),
       phone: (json["phone"] ?? "").toString(),
+      email: (json["email"] ?? "").toString(),
       location: (json["location"] ?? "").toString(),
-      status: (json["status"] ?? "Inactive").toString(),
-      due: _parseDouble(json["due"]),
+      userType: (json["user_type"] ?? json["userType"] ?? "Student").toString(),
+      isRider: _parseBool(json["is_rider"] ?? json["isRider"]),
       joinedAt: _parseDate(json["joined_at"] ?? json["joinedAt"]),
-    );
-  }
-
-  RiderModel copyWith({
-    int? id,
-    String? name,
-    String? phone,
-    String? location,
-    String? status,
-    double? due,
-    DateTime? joinedAt,
-  }) {
-    return RiderModel(
-      id: id ?? this.id,
-      name: name ?? this.name,
-      phone: phone ?? this.phone,
-      location: location ?? this.location,
-      status: status ?? this.status,
-      due: due ?? this.due,
-      joinedAt: joinedAt ?? this.joinedAt,
     );
   }
 
@@ -672,12 +594,14 @@ class RiderModel {
     return 0;
   }
 
-  static double _parseDouble(dynamic value) {
-    if (value is double) return value;
-    if (value is int) return value.toDouble();
-    if (value is num) return value.toDouble();
-    if (value is String) return double.tryParse(value) ?? 0;
-    return 0;
+  static bool _parseBool(dynamic value) {
+    if (value is bool) return value;
+    if (value is int) return value == 1;
+    if (value is String) {
+      final lower = value.toLowerCase();
+      return lower == "true" || lower == "1" || lower == "yes";
+    }
+    return false;
   }
 
   static DateTime? _parseDate(dynamic value) {

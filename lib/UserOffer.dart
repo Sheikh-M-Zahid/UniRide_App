@@ -37,6 +37,10 @@ class _OffersPageState extends State<OffersPage> {
       appBar: AppBar(
         backgroundColor: AppColors.background,
         elevation: 0,
+
+        // 🔹 BACK BUTTON ADD করা হয়েছে
+        leading: const BackButton(color: AppColors.text),
+
         automaticallyImplyLeading: false,
         title: const Padding(
           padding: EdgeInsets.only(left: 8.0, top: 10),

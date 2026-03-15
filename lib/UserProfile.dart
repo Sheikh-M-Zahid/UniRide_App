@@ -9,6 +9,11 @@ import 'UserOffer.dart';
 import 'UserActivity.dart';
 import 'UserServices.dart';
 import 'PersonalInfo.dart';
+import 'WalletPage.dart';
+import 'HelpSupport.dart';
+import 'SafetyPage.dart';
+import 'SecurityPage.dart';
+import 'PrivacyDataPage.dart';
 
 void main() => runApp(
   const MaterialApp(
@@ -244,12 +249,63 @@ class _UniRideProfilePageState extends State<UniRideProfilePage> {
                       },
                       child: _buildSquareTile(Icons.person, "Personal info"),
                     ),
-                    _buildSquareTile(Icons.security, "Security"),
-                    _buildSquareTile(Icons.lock, "Privacy & data"),
-                    _buildSquareTile(Icons.help, "Help"),
-                    _buildSquareTile(
-                      Icons.account_balance_wallet,
-                      "Wallet",
+                    GestureDetector(
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const SecurityPage(),
+                          ),
+                        );
+                      },
+                      child: _buildSquareTile(Icons.security, "Security"),
+                    ),
+                    GestureDetector(
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const PrivacyDataPage(),
+                          ),
+                        );
+                      },
+                      child: _buildSquareTile(Icons.lock, "Privacy & data"),
+                    ),
+                    GestureDetector(
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const SafetyPage(),
+                          ),
+                        );
+                      },
+                      child: _buildSquareTile(Icons.safety_check, "Safety"),
+                    ),
+                    GestureDetector(
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const HelpSupportPage(),
+                          ),
+                        );
+                      },
+                      child: _buildSquareTile(Icons.help, "Help"),
+                    ),
+                    GestureDetector(
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const WalletPage(),
+                          ),
+                        );
+                      },
+                      child: _buildSquareTile(
+                        Icons.account_balance_wallet,
+                        "Wallet",
+                      ),
                     ),
                   ],
                 ),

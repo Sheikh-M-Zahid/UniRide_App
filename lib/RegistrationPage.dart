@@ -22,6 +22,8 @@ class _PersonalInfoFormState extends State<PersonalInfoForm> {
   bool _isObscure = true;
   bool _isObscureConfirm = true;
   String? selectedBloodGroup;
+  String? selectedOccupation;
+  String? selectedGender;
 
   final _formKey = GlobalKey<FormState>();
   final TextEditingController _passwordController = TextEditingController();
@@ -261,15 +263,14 @@ class _PersonalInfoFormState extends State<PersonalInfoForm> {
               const SizedBox(height: 15),
 
               DropdownButtonFormField<String>(
-                value: selectedBloodGroup,
+                value: selectedOccupation,
                 decoration: InputDecoration(
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(10),
                   ),
                   enabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(10),
-                    borderSide:
-                    const BorderSide(color: Color(0xFFD1D5DB)),
+                    borderSide: const BorderSide(color: Color(0xFFD1D5DB)),
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(10),
@@ -290,7 +291,7 @@ class _PersonalInfoFormState extends State<PersonalInfoForm> {
                 ),
                 items: ['Student', 'Faculty', 'Staff']
                     .map(
-                      (group) => DropdownMenuItem(
+                      (group) => DropdownMenuItem<String>(
                     value: group,
                     child: Text(group),
                   ),
@@ -298,11 +299,56 @@ class _PersonalInfoFormState extends State<PersonalInfoForm> {
                     .toList(),
                 onChanged: (value) {
                   setState(() {
-                    selectedBloodGroup = value;
+                    selectedOccupation = value;
                   });
                 },
                 validator: (value) =>
                 value == null ? 'Please select your occupation' : null,
+              ),
+              const SizedBox(height: 15),
+
+              DropdownButtonFormField<String>(
+                value: selectedGender,
+                decoration: InputDecoration(
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: const BorderSide(color: Color(0xFFD1D5DB)),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: const BorderSide(
+                      color: Color(0xFF0F766E),
+                      width: 1.8,
+                    ),
+                  ),
+                  labelText: "Gender",
+                  hintText: "Select Your Gender",
+                  labelStyle: const TextStyle(color: Color(0xFF1F2937)),
+                  prefixIcon: const Icon(
+                    Icons.person_outline,
+                    color: Color(0xFF0F766E),
+                  ),
+                  filled: true,
+                  fillColor: Colors.white,
+                ),
+                items: ['Male', 'Female', 'Other']
+                    .map(
+                      (gender) => DropdownMenuItem<String>(
+                    value: gender,
+                    child: Text(gender),
+                  ),
+                )
+                    .toList(),
+                onChanged: (value) {
+                  setState(() {
+                    selectedGender = value;
+                  });
+                },
+                validator: (value) =>
+                value == null ? 'Please select your gender' : null,
               ),
               const SizedBox(height: 15),
 
@@ -329,8 +375,7 @@ class _PersonalInfoFormState extends State<PersonalInfoForm> {
                   ),
                   enabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(10),
-                    borderSide:
-                    const BorderSide(color: Color(0xFFD1D5DB)),
+                    borderSide: const BorderSide(color: Color(0xFFD1D5DB)),
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(10),
@@ -380,8 +425,7 @@ class _PersonalInfoFormState extends State<PersonalInfoForm> {
                   ),
                   enabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(10),
-                    borderSide:
-                    const BorderSide(color: Color(0xFFD1D5DB)),
+                    borderSide: const BorderSide(color: Color(0xFFD1D5DB)),
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(10),

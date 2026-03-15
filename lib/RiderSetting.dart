@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:uni_ride/LogIn.dart';
 
 import 'RiderProfile.dart';
@@ -281,7 +282,10 @@ class _RiderSettingsPageState extends State<RiderSettingsPage> {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (context) => const SavedPlacesPage(),
+                    builder: (context) => SavedPlacesPage(
+                      googleApiKey: 'YOUR_GOOGLE_API_KEY',
+                      initialPosition: const LatLng(23.8103, 90.4125),
+                    ),
                   ),
                 );
               },

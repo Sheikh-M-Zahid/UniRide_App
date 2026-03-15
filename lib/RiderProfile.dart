@@ -8,6 +8,11 @@ import 'RiderActivityPage.dart';
 import 'RiderMap.dart';
 import 'RiderSetting.dart';
 import 'PersonalInfo.dart';
+import 'HelpSupport.dart';
+import 'WalletPage.dart';
+import 'SafetyPage.dart';
+import 'SecurityPage.dart';
+import 'PrivacyDataPage.dart';
 
 class AppColors {
   static const Color primary = Color(0xFF14B8A6);
@@ -34,7 +39,7 @@ class RiderProfile extends StatefulWidget {
 }
 
 class _RiderProfileState extends State<RiderProfile> {
-  int _selectedIndex = 4;
+  int _selectedIndex = 3;
   File? _profileImage;
   final ImagePicker _picker = ImagePicker();
 
@@ -92,31 +97,33 @@ class _RiderProfileState extends State<RiderProfile> {
   }
 
   void _onNavTap(int index) {
+    setState(() {
+      _selectedIndex = index;
+    });
+
     if (index == 0) {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => const RiderDashboard()),
-      );
-    } else if (index == 2) {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => const ActivityPage()),
-      );
-    } else if (index == 3) {
-      Navigator.pushReplacement(
+      Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (context) => const MapPage(),
+          builder: (_) => const RiderDashboard(),
         ),
       );
-    } else if (index == 4) {
-      setState(() {
-        _selectedIndex = index;
-      });
-    } else {
-      setState(() {
-        _selectedIndex = index;
-      });
+    }
+    if (index == 1) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => const ActivityPage(),
+        ),
+      );
+    }
+    if (index == 2) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => const MapPage(),
+        ),
+      );
     }
   }
 
@@ -139,6 +146,24 @@ class _RiderProfileState extends State<RiderProfile> {
 
     return Scaffold(
       backgroundColor: AppColors.background,
+      appBar: AppBar(
+        backgroundColor: AppColors.primary,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          onPressed: () {
+            Navigator.pop(context);
+          },
+        ),
+        title: const Text(
+          "Profile",
+          style: TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        centerTitle: true,
+      ),
       body: SafeArea(
         child: SingleChildScrollView(
           child: Column(
@@ -248,25 +273,56 @@ class _RiderProfileState extends State<RiderProfile> {
                     ),
                     GestureDetector(
                       onTap: () {
-                        _showComingSoon("Security");
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const SecurityPage(),
+                          ),
+                        );
                       },
                       child: _buildSquareTile(Icons.security, "Security"),
                     ),
                     GestureDetector(
                       onTap: () {
-                        _showComingSoon("Privacy & data");
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const PrivacyDataPage(),
+                          ),
+                        );
                       },
                       child: _buildSquareTile(Icons.lock, "Privacy & data"),
                     ),
                     GestureDetector(
                       onTap: () {
-                        _showComingSoon("Help");
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const SafetyPage(),
+                          ),
+                        );
+                      },
+                      child: _buildSquareTile(Icons.safety_check, "Safety"),
+                    ),
+                    GestureDetector(
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const HelpSupportPage(),
+                          ),
+                        );
                       },
                       child: _buildSquareTile(Icons.help, "Help"),
                     ),
                     GestureDetector(
                       onTap: () {
-                        _showComingSoon("Wallet");
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const WalletPage(),
+                          ),
+                        );
                       },
                       child: _buildSquareTile(
                         Icons.account_balance_wallet,
@@ -359,23 +415,19 @@ class _RiderProfileState extends State<RiderProfile> {
         items: const [
           BottomNavigationBarItem(
             icon: Icon(Icons.home),
-            label: 'Home',
+            label: "Home",
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.grid_view),
-            label: 'Services',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.receipt_long),
-            label: 'Activity',
+            icon: Icon(Icons.access_time),
+            label: "Activity",
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.map),
-            label: 'Map',
+            label: "Map",
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.person_outline),
-            label: 'Account',
+            icon: Icon(Icons.person),
+            label: "Account",
           ),
         ],
       ),

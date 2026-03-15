@@ -3,6 +3,12 @@ import 'package:fl_chart/fl_chart.dart';
 import 'AddOfferPage.dart';
 import 'AllRiderPage.dart';
 import 'ActiveRiderPage.dart';
+import 'AllPassengers.dart';
+import 'AdminProfile.dart';
+import 'AppStats.dart';
+import 'TopLocationPage.dart';
+import 'RideSharingHistory.dart';
+import 'SharingCaringHistory.dart';
 
 void main() {
   runApp(MyApp());
@@ -123,12 +129,82 @@ class _AdminDashboardState extends State<AdminDashboard>
               },
             ),
 
-            drawerItem("Passengers"),
-            drawerItem("App Stats"),
-            drawerItem("Top Location"),
-            drawerItem("Income/Expense"),
-            drawerItem("Rider Sharing History"),
-            drawerItem("Sharing & Caring History"),
+            ListTile(
+              title: Text("Passengers",
+                  style: TextStyle(color: Colors.white)),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                      builder: (context) => const AllPassengersPage()),
+                );
+              },
+            ),
+
+            ListTile(
+              title: const Text(
+                "App Stats",
+                style: TextStyle(color: Colors.white),
+              ),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const AppStatsPage(),
+                  ),
+                );
+              },
+            ),
+
+            ListTile(
+              title: const Text(
+                "Top Location",
+                style: TextStyle(color: Colors.white),
+              ),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const TopLocationPage(),
+                  ),
+                );
+              },
+            ),
+
+            ListTile(
+              title: const Text(
+                "Ride Sharing History",
+                style: TextStyle(color: Colors.white),
+              ),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const RiderSharingHistoryPage(),
+                  ),
+                );
+              },
+            ),
+
+            ListTile(
+              title: const Text(
+                "Sharing & Caring History",
+                style: TextStyle(color: Colors.white),
+              ),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const SharingCaringHistoryPage(),
+                  ),
+                );
+              },
+            ),
           ],
         ),
       ),
@@ -143,17 +219,30 @@ class _AdminDashboardState extends State<AdminDashboard>
         actions: [
           Padding(
             padding: const EdgeInsets.only(right: 16),
-            child: Row(
-              children: [
-                Text("Admin Name",
-                    style: TextStyle(color: Colors.white)),
-                SizedBox(width: 10),
-                CircleAvatar(
-                  radius: 18,
-                  backgroundImage:
-                  NetworkImage("https://i.pravatar.cc/150?img=3"),
-                ),
-              ],
+            child: InkWell(
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const AdminProfilePage(),
+                  ),
+                );
+              },
+              borderRadius: BorderRadius.circular(30),
+              child: Row(
+                children: [
+                  Text(
+                    "Admin Name",
+                    style: TextStyle(color: Colors.white),
+                  ),
+                  SizedBox(width: 10),
+                  CircleAvatar(
+                    radius: 18,
+                    backgroundImage:
+                    NetworkImage("https://i.pravatar.cc/150?img=3"),
+                  ),
+                ],
+              ),
             ),
           ),
         ],

@@ -114,7 +114,9 @@ class UniRideHomePage extends StatelessWidget {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (context) => PlanYourRidePage(),
+                      builder: (context) => PlanYourRidePage(
+                        googleApiKey: 'YOUR_GOOGLE_API_KEY',
+                      ),
                     ),
                   );
                 },
@@ -167,7 +169,9 @@ class UniRideHomePage extends StatelessWidget {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (context) => PlanYourRidePage(),
+                            builder: (context) => PlanYourRidePage(
+                              googleApiKey: 'YOUR_GOOGLE_API_KEY',
+                            ),
                           ),
                         );
                       },

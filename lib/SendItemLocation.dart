@@ -1,7 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:google_places_flutter/google_places_flutter.dart';
-import 'package:geolocator/geolocator.dart';
-import 'package:geocoding/geocoding.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'map_picker_screen.dart';
 
@@ -24,138 +21,21 @@ class SendItemLocation extends StatefulWidget {
 }
 
 class _SendItemLocationState extends State<SendItemLocation> {
-  final TextEditingController pickupController =
-  TextEditingController();
-
-  final TextEditingController destinationController =
-  TextEditingController();
+  final TextEditingController pickupController = TextEditingController();
+  final TextEditingController destinationController = TextEditingController();
 
   LatLng? pickupLatLng;
   LatLng? destinationLatLng;
-
-  bool isGettingLocation = true;
 
   bool get isFormValid =>
       pickupController.text.isNotEmpty &&
           destinationController.text.isNotEmpty;
 
   @override
-  void initState() {
-    super.initState();
-    _detectCurrentLocation();
-  }
-
-  @override
   void dispose() {
     pickupController.dispose();
     destinationController.dispose();
     super.dispose();
-  }
-
-  Future<void> _detectCurrentLocation() async {
-    setState(() {
-      isGettingLocation = true;
-      pickupController.text = "Detecting current location...";
-    });
-
-    try {
-      bool serviceEnabled =
-      await Geolocator.isLocationServiceEnabled();
-
-      if (!serviceEnabled) {
-        if (!mounted) return;
-        setState(() {
-          isGettingLocation = false;
-          pickupController.text =
-          "Location service is disabled";
-        });
-        return;
-      }
-
-      LocationPermission permission =
-      await Geolocator.checkPermission();
-
-      if (permission == LocationPermission.denied) {
-        permission = await Geolocator.requestPermission();
-      }
-
-      if (permission == LocationPermission.denied) {
-        if (!mounted) return;
-        setState(() {
-          isGettingLocation = false;
-          pickupController.text =
-          "Location permission denied";
-        });
-        return;
-      }
-
-      if (permission == LocationPermission.deniedForever) {
-        if (!mounted) return;
-        setState(() {
-          isGettingLocation = false;
-          pickupController.text =
-          "Enable location permission from settings";
-        });
-        return;
-      }
-
-      Position position =
-      await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
-      );
-
-      pickupLatLng = LatLng(
-        position.latitude,
-        position.longitude,
-      );
-
-      try {
-        List<Placemark> placemarks =
-        await placemarkFromCoordinates(
-          position.latitude,
-          position.longitude,
-        );
-
-        if (!mounted) return;
-
-        if (placemarks.isNotEmpty) {
-          final place = placemarks.first;
-
-          final List<String> parts = [
-            place.name ?? "",
-            place.subLocality ?? "",
-            place.locality ?? "",
-          ].where((e) => e.trim().isNotEmpty).toList();
-
-          setState(() {
-            isGettingLocation = false;
-            pickupController.text = parts.isNotEmpty
-                ? parts.join(", ")
-                : "${position.latitude.toStringAsFixed(5)}, ${position.longitude.toStringAsFixed(5)}";
-          });
-        } else {
-          setState(() {
-            isGettingLocation = false;
-            pickupController.text =
-            "${position.latitude.toStringAsFixed(5)}, ${position.longitude.toStringAsFixed(5)}";
-          });
-        }
-      } catch (_) {
-        if (!mounted) return;
-        setState(() {
-          isGettingLocation = false;
-          pickupController.text =
-          "${position.latitude.toStringAsFixed(5)}, ${position.longitude.toStringAsFixed(5)}";
-        });
-      }
-    } catch (_) {
-      if (!mounted) return;
-      setState(() {
-        isGettingLocation = false;
-        pickupController.text =
-        "Unable to detect current location";
-      });
-    }
   }
 
   Future<void> _pickPickupLocation() async {
@@ -168,7 +48,7 @@ class _SendItemLocationState extends State<SendItemLocation> {
         builder: (_) => MapPickerScreen(
           googleApiKey: "YOUR_GOOGLE_MAPS_API_KEY",
           initialPosition: initialPosition,
-          title: "Select Pickup Location",
+          title: "Select Item Sender Location",
         ),
       ),
     );
@@ -193,7 +73,7 @@ class _SendItemLocationState extends State<SendItemLocation> {
         builder: (_) => MapPickerScreen(
           googleApiKey: "YOUR_GOOGLE_MAPS_API_KEY",
           initialPosition: initialPosition,
-          title: "Select Destination",
+          title: "Select Receiver Location",
         ),
       ),
     );
@@ -230,7 +110,6 @@ class _SendItemLocationState extends State<SendItemLocation> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF9FAFB),
-
       appBar: AppBar(
         backgroundColor: const Color(0xFFF9FAFB),
         elevation: 0,
@@ -250,14 +129,12 @@ class _SendItemLocationState extends State<SendItemLocation> {
         ),
         centerTitle: true,
       ),
-
       body: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16),
         child: Column(
           children: [
             const SizedBox(height: 20),
 
-            // Receiver Info Card
             Container(
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
@@ -293,36 +170,23 @@ class _SendItemLocationState extends State<SendItemLocation> {
 
             const SizedBox(height: 20),
 
-            // CURRENT LOCATION (Editable)
             GestureDetector(
               onTap: _pickPickupLocation,
               child: AbsorbPointer(
                 child: TextField(
                   controller: pickupController,
                   decoration: InputDecoration(
-                    hintText: "Enter Current Location",
+                    hintText: "Item Sender Location",
                     filled: true,
                     fillColor: Colors.white,
                     prefixIcon: const Icon(
                       Icons.my_location,
                       color: Color(0xFF0F766E),
                     ),
-                    suffixIcon: isGettingLocation
-                        ? const Padding(
-                      padding: EdgeInsets.all(14),
-                      child: SizedBox(
-                        height: 18,
-                        width: 18,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Color(0xFF14B8A6),
-                        ),
-                      ),
-                    )
-                        : IconButton(
+                    suffixIcon: IconButton(
                       onPressed: _pickPickupLocation,
                       icon: const Icon(
-                        Icons.edit_location_alt,
+                        Icons.map_outlined,
                         color: Color(0xFF14B8A6),
                       ),
                     ),
@@ -354,7 +218,7 @@ class _SendItemLocationState extends State<SendItemLocation> {
             Align(
               alignment: Alignment.centerLeft,
               child: Text(
-                "Pickup location auto-detected. Tap to change it.",
+                "Tap to pick item sender location from map.",
                 style: TextStyle(
                   fontSize: 12,
                   color: Colors.grey.shade600,
@@ -364,76 +228,47 @@ class _SendItemLocationState extends State<SendItemLocation> {
 
             const SizedBox(height: 15),
 
-            // DESTINATION (Google Autocomplete)
-            GooglePlaceAutoCompleteTextField(
-              textEditingController: destinationController,
-              googleAPIKey: "YOUR_GOOGLE_MAPS_API_KEY",
-              inputDecoration: InputDecoration(
-                hintText: "Where to?",
-                filled: true,
-                fillColor: Colors.white,
-                prefixIcon: const Icon(
-                  Icons.location_on,
-                  color: Color(0xFF0F766E),
-                ),
-                suffixIcon: IconButton(
-                  onPressed: _pickDestinationLocation,
-                  icon: const Icon(
-                    Icons.map_outlined,
-                    color: Color(0xFF14B8A6),
+            GestureDetector(
+              onTap: _pickDestinationLocation,
+              child: AbsorbPointer(
+                child: TextField(
+                  controller: destinationController,
+                  decoration: InputDecoration(
+                    hintText: "Receiver Location",
+                    filled: true,
+                    fillColor: Colors.white,
+                    prefixIcon: const Icon(
+                      Icons.location_on,
+                      color: Color(0xFF0F766E),
+                    ),
+                    suffixIcon: IconButton(
+                      onPressed: _pickDestinationLocation,
+                      icon: const Icon(
+                        Icons.map_outlined,
+                        color: Color(0xFF14B8A6),
+                      ),
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide.none,
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(
+                        color: Color(0xFFE5E7EB),
+                      ),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(
+                        color: Color(0xFF14B8A6),
+                        width: 1.5,
+                      ),
+                    ),
                   ),
-                ),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide.none,
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(
-                    color: Color(0xFFE5E7EB),
-                  ),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(
-                    color: Color(0xFF14B8A6),
-                    width: 1.5,
-                  ),
+                  onChanged: (_) => setState(() {}),
                 ),
               ),
-              debounceTime: 800,
-              countries: const ["bd"],
-              isLatLngRequired: true,
-              itemClick: (prediction) {
-                destinationController.text =
-                    prediction.description ?? "";
-                destinationController.selection =
-                    TextSelection.fromPosition(
-                      TextPosition(
-                        offset:
-                        (prediction.description ?? "").length,
-                      ),
-                    );
-
-                if (prediction.lat != null &&
-                    prediction.lng != null) {
-                  destinationLatLng = LatLng(
-                    double.tryParse(prediction.lat!) ?? 23.8103,
-                    double.tryParse(prediction.lng!) ?? 90.4125,
-                  );
-                }
-
-                setState(() {});
-              },
-              getPlaceDetailWithLatLng: (prediction) {
-                if (prediction.lat != null &&
-                    prediction.lng != null) {
-                  destinationLatLng = LatLng(
-                    double.tryParse(prediction.lat!) ?? 23.8103,
-                    double.tryParse(prediction.lng!) ?? 90.4125,
-                  );
-                }
-              },
             ),
 
             const SizedBox(height: 8),
@@ -441,7 +276,7 @@ class _SendItemLocationState extends State<SendItemLocation> {
             Align(
               alignment: Alignment.centerLeft,
               child: Text(
-                "You can search or pick destination from map.",
+                "Tap to pick receiver location from map.",
                 style: TextStyle(
                   fontSize: 12,
                   color: Colors.grey.shade600,
@@ -451,22 +286,19 @@ class _SendItemLocationState extends State<SendItemLocation> {
 
             const Spacer(),
 
-            // CONFIRM BUTTON
             SizedBox(
               width: double.infinity,
               height: 55,
               child: ElevatedButton(
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: isFormValid
-                      ? const Color(0xFF14B8A6)
-                      : Colors.grey,
+                  backgroundColor:
+                  isFormValid ? const Color(0xFF14B8A6) : Colors.grey,
                   elevation: 0,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
                 ),
-                onPressed:
-                isFormValid ? confirmSendItem : null,
+                onPressed: isFormValid ? confirmSendItem : null,
                 child: const Text(
                   "Confirm",
                   style: TextStyle(
