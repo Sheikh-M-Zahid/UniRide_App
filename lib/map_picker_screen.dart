@@ -23,8 +23,15 @@ class MapPickerScreen extends StatefulWidget {
 class _MapPickerScreenState extends State<MapPickerScreen> {
   GoogleMapController? mapController;
   late LatLng selectedPosition;
+
   String selectedAddress = "Loading address...";
   bool isLoadingAddress = true;
+
+  final TextEditingController searchController = TextEditingController();
+  final FocusNode searchFocusNode = FocusNode();
+
+  List<dynamic> placePredictions = [];
+  bool isSearchingPlaces = false;
 
   @override
   void initState() {
@@ -56,12 +63,14 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
           data["results"].isNotEmpty) {
         setState(() {
           selectedAddress = data["results"][0]["formatted_address"];
+          searchController.text = selectedAddress;
           isLoadingAddress = false;
         });
       } else {
         setState(() {
           selectedAddress =
           "${latLng.latitude.toStringAsFixed(5)}, ${latLng.longitude.toStringAsFixed(5)}";
+          searchController.text = selectedAddress;
           isLoadingAddress = false;
         });
       }
@@ -70,8 +79,101 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
       setState(() {
         selectedAddress =
         "${latLng.latitude.toStringAsFixed(5)}, ${latLng.longitude.toStringAsFixed(5)}";
+        searchController.text = selectedAddress;
         isLoadingAddress = false;
       });
+    }
+  }
+
+  Future<void> _searchPlaces(String input) async {
+    if (input.trim().isEmpty) {
+      if (!mounted) return;
+      setState(() {
+        placePredictions = [];
+        isSearchingPlaces = false;
+      });
+      return;
+    }
+
+    if (!mounted) return;
+    setState(() {
+      isSearchingPlaces = true;
+    });
+
+    try {
+      final url = Uri.parse(
+        "https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${Uri.encodeComponent(input)}&key=${widget.googleApiKey}",
+      );
+
+      final response = await http.get(url);
+      final data = jsonDecode(response.body);
+
+      if (!mounted) return;
+
+      if (response.statusCode == 200 && data["predictions"] != null) {
+        setState(() {
+          placePredictions = data["predictions"];
+          isSearchingPlaces = false;
+        });
+      } else {
+        setState(() {
+          placePredictions = [];
+          isSearchingPlaces = false;
+        });
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        placePredictions = [];
+        isSearchingPlaces = false;
+      });
+    }
+  }
+
+  Future<void> _selectPrediction(dynamic prediction) async {
+    final placeId = prediction["place_id"];
+    final description = prediction["description"] ?? "";
+
+    try {
+      final url = Uri.parse(
+        "https://maps.googleapis.com/maps/api/place/details/json?place_id=$placeId&key=${widget.googleApiKey}",
+      );
+
+      final response = await http.get(url);
+      final data = jsonDecode(response.body);
+
+      if (response.statusCode == 200 &&
+          data["result"] != null &&
+          data["result"]["geometry"] != null &&
+          data["result"]["geometry"]["location"] != null) {
+        final location = data["result"]["geometry"]["location"];
+        final latLng = LatLng(
+          (location["lat"] as num).toDouble(),
+          (location["lng"] as num).toDouble(),
+        );
+
+        selectedPosition = latLng;
+
+        await mapController?.animateCamera(
+          CameraUpdate.newCameraPosition(
+            CameraPosition(
+              target: latLng,
+              zoom: 17,
+            ),
+          ),
+        );
+
+        if (!mounted) return;
+        setState(() {
+          searchController.text = description;
+          placePredictions = [];
+        });
+
+        searchFocusNode.unfocus();
+        await _getAddressFromLatLng(latLng);
+      }
+    } catch (e) {
+      // ignore for now
     }
   }
 
@@ -96,11 +198,15 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
   @override
   void dispose() {
     mapController?.dispose();
+    searchController.dispose();
+    searchFocusNode.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    final bool showPredictionBox = placePredictions.isNotEmpty;
+
     return Scaffold(
       backgroundColor: const Color(0xFFF9FAFB),
       appBar: AppBar(
@@ -134,10 +240,162 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
           ),
 
           const Center(
-            child: Icon(
-              Icons.location_pin,
-              size: 42,
-              color: Color(0xFF14B8A6),
+            child: IgnorePointer(
+              child: Icon(
+                Icons.location_pin,
+                size: 42,
+                color: Color(0xFF14B8A6),
+              ),
+            ),
+          ),
+
+          Positioned(
+            top: 14,
+            left: 16,
+            right: 16,
+            child: Column(
+              children: [
+                Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
+                      color: const Color(0xFFE5E7EB),
+                    ),
+                    boxShadow: const [
+                      BoxShadow(
+                        blurRadius: 10,
+                        color: Colors.black12,
+                        offset: Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: TextField(
+                    controller: searchController,
+                    focusNode: searchFocusNode,
+                    onChanged: _searchPlaces,
+                    decoration: InputDecoration(
+                      hintText: "Search location",
+                      prefixIcon: const Icon(
+                        Icons.search,
+                        color: Color(0xFF6B7280),
+                      ),
+                      suffixIcon: searchController.text.isNotEmpty
+                          ? IconButton(
+                        icon: const Icon(Icons.close),
+                        onPressed: () {
+                          searchController.clear();
+                          setState(() {
+                            placePredictions = [];
+                          });
+                        },
+                      )
+                          : null,
+                      border: InputBorder.none,
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 15,
+                      ),
+                    ),
+                  ),
+                ),
+
+                if (isSearchingPlaces)
+                  Container(
+                    width: double.infinity,
+                    margin: const EdgeInsets.only(top: 8),
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                        color: const Color(0xFFE5E7EB),
+                      ),
+                      boxShadow: const [
+                        BoxShadow(
+                          blurRadius: 8,
+                          color: Colors.black12,
+                          offset: Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: const Row(
+                      children: [
+                        SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                        SizedBox(width: 10),
+                        Text(
+                          "Searching places...",
+                          style: TextStyle(
+                            color: Color(0xFF1F2937),
+                            fontSize: 14,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                if (showPredictionBox)
+                  Container(
+                    width: double.infinity,
+                    margin: const EdgeInsets.only(top: 8),
+                    constraints: const BoxConstraints(maxHeight: 260),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                        color: const Color(0xFFE5E7EB),
+                      ),
+                      boxShadow: const [
+                        BoxShadow(
+                          blurRadius: 8,
+                          color: Colors.black12,
+                          offset: Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: ListView.separated(
+                      shrinkWrap: true,
+                      padding: EdgeInsets.zero,
+                      itemCount: placePredictions.length,
+                      separatorBuilder: (_, __) => const Divider(
+                        height: 1,
+                        color: Color(0xFFE5E7EB),
+                      ),
+                      itemBuilder: (context, index) {
+                        final item = placePredictions[index];
+                        return ListTile(
+                          leading: const Icon(
+                            Icons.location_on_outlined,
+                            color: Color(0xFF14B8A6),
+                          ),
+                          title: Text(
+                            item["structured_formatting"]?["main_text"] ??
+                                item["description"] ??
+                                "",
+                            style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF1F2937),
+                            ),
+                          ),
+                          subtitle: Text(
+                            item["structured_formatting"]?["secondary_text"] ??
+                                "",
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: Color(0xFF6B7280),
+                            ),
+                          ),
+                          onTap: () => _selectPrediction(item),
+                        );
+                      },
+                    ),
+                  ),
+              ],
             ),
           ),
 
@@ -165,6 +423,15 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  const Text(
+                    "Selected Location",
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Color(0xFF6B7280),
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
                   Text(
                     isLoadingAddress ? "Loading..." : selectedAddress,
                     style: const TextStyle(

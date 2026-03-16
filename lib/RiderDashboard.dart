@@ -8,6 +8,7 @@ import 'RiderMap.dart';
 import 'RiderProfile.dart';
 import 'RiderDelivery.dart';
 import 'EarningsPage.dart';
+import 'NotificationsPage.dart';
 
 class RiderDashboard extends StatefulWidget {
   const RiderDashboard({super.key});
@@ -182,20 +183,32 @@ class _RiderDashboardState extends State<RiderDashboard> {
 
             /// Top Summary
             Row(
-              children: const [
-                Expanded(
+              children: [
+                const Expanded(
                   child: _InfoCard(
                     title: "Today Earnings",
                     value: "৳450",
                     icon: Icons.account_balance_wallet,
                   ),
                 ),
-                SizedBox(width: 12),
+                const SizedBox(width: 12),
                 Expanded(
-                  child: _InfoCard(
-                    title: "Notifications",
-                    value: "3 New",
-                    icon: Icons.notifications_active,
+                  child: GestureDetector(
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const NotificationsPage(
+                            userRole: UserRole.rider,
+                          ),
+                        ),
+                      );
+                    },
+                    child: const _InfoCard(
+                      title: "Notifications",
+                      value: "3 New",
+                      icon: Icons.notifications_active,
+                    ),
                   ),
                 ),
               ],
@@ -345,7 +358,16 @@ class _RiderDashboardState extends State<RiderDashboard> {
                         child: _DashboardBox(
                           icon: Icons.notifications,
                           title: "Notifications",
-                          onTap: () => _openFeature("Notifications"),
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const NotificationsPage(
+                                  userRole: UserRole.rider,
+                                ),
+                              ),
+                            );
+                          },
                         ),
                       ),
                     ),

@@ -7,6 +7,7 @@ import 'UserServices.dart';
 import 'ReserveRide.dart';
 import 'SendItem.dart';
 import 'SharingCaringPage.dart';
+import 'NotificationsPage.dart';
 
 class AppColors {
   static const Color primary = Color(0xFF14B8A6);
@@ -65,7 +66,9 @@ class UniRideHomePage extends StatelessWidget {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (context) => const OffersPage(),
+                        builder: (context) => const NotificationsPage(
+                          userRole: UserRole.passenger,
+                        ),
                       ),
                     );
                   },

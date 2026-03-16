@@ -1,181 +1,63 @@
 import 'package:flutter/material.dart';
+import 'UserHome.dart';
+import 'ReserveRide.dart';
 
-class ReserveRideSummary extends StatefulWidget {
+class ReserveRequestSummaryPage extends StatelessWidget {
+  final DateTime selectedDate;
+  final TimeOfDay selectedTime;
+
   final String pickupLocation;
-  final String dropLocation;
-  final DateTime selectedDateTime;
+  final String destinationLocation;
 
-  const ReserveRideSummary({
+  final int selectedSeats;
+  final String genderPreference;
+  final String vehicleType;
+
+  final double totalDistanceKm;
+  final int estimatedTravelMinutes;
+  final double estimatedCost;
+
+  final String note;
+
+  const ReserveRequestSummaryPage({
     super.key,
+    required this.selectedDate,
+    required this.selectedTime,
     required this.pickupLocation,
-    required this.dropLocation,
-    required this.selectedDateTime,
+    required this.destinationLocation,
+    required this.selectedSeats,
+    required this.genderPreference,
+    required this.vehicleType,
+    required this.totalDistanceKm,
+    required this.estimatedTravelMinutes,
+    required this.estimatedCost,
+    required this.note,
   });
 
-  @override
-  State<ReserveRideSummary> createState() => _ReserveRideSummaryState();
-}
-
-class _ReserveRideSummaryState extends State<ReserveRideSummary> {
-  String selectedVehicle = "car";
-
-  // ⚠️ এগুলো backend থেকে আসবে
-  double carFare = 898.29;
-  double bikeFare = 450.00;
-
-  bool isLoading = false;
-
-  String _formatDateTime(DateTime dateTime) {
-    final List<String> months = [
-      "Jan",
-      "Feb",
-      "Mar",
-      "Apr",
-      "May",
-      "Jun",
-      "Jul",
-      "Aug",
-      "Sep",
-      "Oct",
-      "Nov",
-      "Dec",
+  String _formatDate(DateTime date) {
+    const List<String> months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
     ];
 
-    int hour = dateTime.hour;
-    final int minute = dateTime.minute;
-    final String period = hour >= 12 ? "PM" : "AM";
-
-    hour = hour % 12;
-    if (hour == 0) hour = 12;
-
-    final String minuteText = minute.toString().padLeft(2, '0');
-
-    return "${dateTime.day} ${months[dateTime.month - 1]} ${dateTime.year}, $hour:$minuteText $period";
+    return '${date.day} ${months[date.month - 1]} ${date.year}';
   }
 
-  Future<void> confirmReservation() async {
-    if (isLoading) return;
-
-    setState(() {
-      isLoading = true;
-    });
-
-    await Future.delayed(const Duration(seconds: 1));
-
-    if (!mounted) return;
-
-    setState(() {
-      isLoading = false;
-    });
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        backgroundColor: const Color(0xFF0F766E),
-        content: Text(
-          "Your $selectedVehicle reservation has been submitted successfully.",
-          style: const TextStyle(color: Colors.white),
-        ),
-      ),
-    );
-  }
-
-  Widget vehicleCard({
-    required String type,
-    required String title,
-    required double fare,
-  }) {
-    bool isSelected = selectedVehicle == type;
-
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(12),
-        onTap: () {
-          setState(() {
-            selectedVehicle = type;
-          });
-        },
-        child: Container(
-          margin: const EdgeInsets.symmetric(vertical: 8),
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: isSelected
-                ? const Color(0xFFECFEFF)
-                : Colors.white,
-            border: Border.all(
-              color: isSelected
-                  ? const Color(0xFF14B8A6)
-                  : const Color(0xFFE5E7EB),
-              width: 2,
-            ),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Row(
-            children: [
-              Icon(
-                type == "car"
-                    ? Icons.directions_car
-                    : Icons.motorcycle,
-                size: 40,
-                color: isSelected
-                    ? const Color(0xFF0F766E)
-                    : const Color(0xFF1F2937),
-              ),
-
-              const SizedBox(width: 16),
-
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF1F2937),
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      type == "car"
-                          ? "Comfortable for longer trips"
-                          : "Fast and budget-friendly",
-                      style: const TextStyle(
-                        fontSize: 13,
-                        color: Colors.grey,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text(
-                    "BDT ${fare.toStringAsFixed(2)}",
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF1F2937),
-                    ),
-                  ),
-                  if (isSelected) ...[
-                    const SizedBox(height: 6),
-                    const Icon(
-                      Icons.check_circle,
-                      color: Color(0xFF14B8A6),
-                      size: 20,
-                    ),
-                  ],
-                ],
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
+  String _formatTime(TimeOfDay time) {
+    final int hour = time.hourOfPeriod == 0 ? 12 : time.hourOfPeriod;
+    final String minute = time.minute.toString().padLeft(2, '0');
+    final String period = time.period == DayPeriod.am ? 'AM' : 'PM';
+    return '$hour:$minute $period';
   }
 
   @override
@@ -185,13 +67,7 @@ class _ReserveRideSummaryState extends State<ReserveRideSummary> {
       appBar: AppBar(
         backgroundColor: const Color(0xFFF9FAFB),
         elevation: 0,
-        title: const Text(
-          "Trip Summary",
-          style: TextStyle(
-            color: Color(0xFF1F2937),
-            fontWeight: FontWeight.w600,
-          ),
-        ),
+        centerTitle: true,
         leading: IconButton(
           icon: const Icon(
             Icons.arrow_back,
@@ -199,203 +75,384 @@ class _ReserveRideSummaryState extends State<ReserveRideSummary> {
           ),
           onPressed: () => Navigator.pop(context),
         ),
-      ),
-      body: Column(
-        children: [
-          // 📍 Map Placeholder
-          Container(
-            height: 250,
-            margin: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: const Color(0xFFEFF6FF),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                color: const Color(0xFFE5E7EB),
-              ),
-            ),
-            child: const Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    Icons.map_outlined,
-                    size: 48,
-                    color: Color(0xFF0F766E),
-                  ),
-                  SizedBox(height: 10),
-                  Text(
-                    "Google Map will appear here",
-                    style: TextStyle(
-                      fontSize: 16,
-                      color: Color(0xFF1F2937),
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ],
-              ),
-            ),
+        title: const Text(
+          "Reservation Summary",
+          style: TextStyle(
+            color: Color(0xFF1F2937),
+            fontWeight: FontWeight.w600,
           ),
-
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(
-                        color: const Color(0xFFE5E7EB),
+        ),
+      ),
+      body: SafeArea(
+        child: Column(
+          children: [
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(16, 10, 16, 24),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      "Review your request",
+                      style: TextStyle(
+                        fontSize: 28,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF1F2937),
                       ),
                     ),
-                    child: Column(
+                    const SizedBox(height: 8),
+                    const Text(
+                      "Please check all reservation details before confirming your request.",
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.grey,
+                        height: 1.5,
+                      ),
+                    ),
+                    const SizedBox(height: 22),
+
+                    _buildSectionTitle("Trip details"),
+                    const SizedBox(height: 12),
+                    _buildCard(
                       children: [
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Icon(
-                              Icons.radio_button_checked,
-                              color: Color(0xFF14B8A6),
-                              size: 18,
-                            ),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: Text(
-                                widget.pickupLocation,
-                                style: const TextStyle(
-                                  fontSize: 15,
-                                  color: Color(0xFF1F2937),
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            ),
-                          ],
+                        _buildInfoRow(
+                          icon: Icons.calendar_today_rounded,
+                          label: "Travel date",
+                          value: _formatDate(selectedDate),
                         ),
-                        const SizedBox(height: 12),
-                        const Divider(color: Color(0xFFE5E7EB)),
-                        const SizedBox(height: 12),
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Icon(
-                              Icons.location_on,
-                              color: Color(0xFF0F766E),
-                              size: 18,
-                            ),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: Text(
-                                widget.dropLocation,
-                                style: const TextStyle(
-                                  fontSize: 15,
-                                  color: Color(0xFF1F2937),
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            ),
-                          ],
+                        _buildSpacingDivider(),
+                        _buildInfoRow(
+                          icon: Icons.access_time_rounded,
+                          label: "Travel time",
+                          value: _formatTime(selectedTime),
                         ),
-                        const SizedBox(height: 12),
-                        const Divider(color: Color(0xFFE5E7EB)),
-                        const SizedBox(height: 12),
-                        Row(
-                          children: [
-                            const Icon(
-                              Icons.calendar_month,
-                              color: Color(0xFF0F766E),
-                              size: 18,
-                            ),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: Text(
-                                _formatDateTime(widget.selectedDateTime),
-                                style: const TextStyle(
-                                  fontSize: 15,
-                                  color: Color(0xFF1F2937),
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            ),
-                          ],
+                        _buildSpacingDivider(),
+                        _buildInfoRow(
+                          icon: Icons.my_location_rounded,
+                          label: "Pickup location",
+                          value: pickupLocation,
+                        ),
+                        _buildSpacingDivider(),
+                        _buildInfoRow(
+                          icon: Icons.location_on_rounded,
+                          label: "Destination",
+                          value: destinationLocation,
                         ),
                       ],
                     ),
-                  ),
 
-                  const SizedBox(height: 18),
+                    const SizedBox(height: 22),
 
-                  const Text(
-                    "Choose your vehicle",
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF1F2937),
+                    _buildSectionTitle("Ride preference"),
+                    const SizedBox(height: 12),
+                    _buildCard(
+                      children: [
+                        _buildInfoRow(
+                          icon: Icons.event_seat_rounded,
+                          label: "Seats needed",
+                          value: "$selectedSeats",
+                        ),
+                        _buildSpacingDivider(),
+                        _buildInfoRow(
+                          icon: Icons.person_outline_rounded,
+                          label: "Gender preference",
+                          value: genderPreference,
+                        ),
+                        _buildSpacingDivider(),
+                        _buildInfoRow(
+                          icon: vehicleType == "Car"
+                              ? Icons.directions_car_filled_rounded
+                              : Icons.two_wheeler_rounded,
+                          label: "Ride type",
+                          value: vehicleType,
+                        ),
+                      ],
                     ),
-                  ),
 
-                  const SizedBox(height: 10),
+                    const SizedBox(height: 22),
 
-                  // 🚗 Car
-                  vehicleCard(
-                    type: "car",
-                    title: "Car",
-                    fare: carFare,
-                  ),
+                    _buildSectionTitle("Fare preview"),
+                    const SizedBox(height: 12),
+                    _buildCard(
+                      children: [
+                        _buildInfoRow(
+                          icon: Icons.route_rounded,
+                          label: "Total distance",
+                          value: "${totalDistanceKm.toStringAsFixed(1)} km",
+                        ),
+                        _buildSpacingDivider(),
+                        _buildInfoRow(
+                          icon: Icons.timelapse_rounded,
+                          label: "Estimated time",
+                          value: "$estimatedTravelMinutes min",
+                        ),
+                        _buildSpacingDivider(),
+                        _buildInfoRow(
+                          icon: Icons.payments_rounded,
+                          label: "Estimated cost",
+                          value: "৳ ${estimatedCost.toStringAsFixed(0)}",
+                          valueColor: const Color(0xFF0F766E),
+                          valueWeight: FontWeight.bold,
+                        ),
+                      ],
+                    ),
 
-                  // 🏍 Bike
-                  vehicleCard(
-                    type: "bike",
-                    title: "Bike",
-                    fare: bikeFare,
-                  ),
+                    const SizedBox(height: 22),
 
-                  const Spacer(),
-
-                  SizedBox(
-                    width: double.infinity,
-                    height: 55,
-                    child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF14B8A6),
-                        disabledBackgroundColor: Colors.grey.shade300,
-                        elevation: 0,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
+                    _buildSectionTitle("Note for driver"),
+                    const SizedBox(height: 12),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: const Color(0xFFD1D5DB),
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.03),
+                            blurRadius: 8,
+                            offset: const Offset(0, 3),
+                          ),
+                        ],
+                      ),
+                      child: Text(
+                        note.trim().isEmpty ? "No note added" : note.trim(),
+                        style: TextStyle(
+                          fontSize: 14,
+                          height: 1.5,
+                          color: note.trim().isEmpty
+                              ? Colors.grey
+                              : const Color(0xFF1F2937),
                         ),
                       ),
-                      onPressed: isLoading ? null : confirmReservation,
-                      child: isLoading
-                          ? const SizedBox(
-                        height: 22,
-                        width: 22,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2.3,
-                          valueColor:
-                          AlwaysStoppedAnimation<Color>(
-                            Colors.white,
+                    ),
+
+                    const SizedBox(height: 18),
+
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFECFEFF),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(
+                          color: const Color(0xFFBEE3F8),
+                        ),
+                      ),
+                      child: const Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Icon(
+                            Icons.info_outline,
+                            color: Color(0xFF0F766E),
+                            size: 20,
+                          ),
+                          SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              "After you confirm, your reserve request will be submitted with the selected details.",
+                              style: TextStyle(
+                                fontSize: 13.5,
+                                color: Color(0xFF1F2937),
+                                height: 1.5,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+            Container(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF9FAFB),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.04),
+                    blurRadius: 10,
+                    offset: const Offset(0, -2),
+                  ),
+                ],
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: SizedBox(
+                      height: 56,
+                      child: OutlinedButton(
+                        onPressed: () {
+                          Navigator.pushAndRemoveUntil(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const ReserveRide(),
+                            ),
+                                (route) => false,
+                          );
+                        },
+                        style: OutlinedButton.styleFrom(
+                          side: const BorderSide(
+                            color: Color(0xFF14B8A6),
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
                           ),
                         ),
-                      )
-                          : const Text(
-                        "Confirm Reservation",
-                        style: TextStyle(
-                          fontSize: 16,
-                          color: Colors.white,
-                          fontWeight: FontWeight.w600,
+                        child: const Text(
+                          "Cancel",
+                          style: TextStyle(
+                            color: Color(0xFF14B8A6),
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                          ),
                         ),
                       ),
                     ),
-                  )
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: SizedBox(
+                      height: 56,
+                      child: ElevatedButton(
+                        onPressed: () {
+                          Navigator.pushAndRemoveUntil(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const UniRideHomePage(),
+                            ),
+                                (route) => false,
+                          );
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF14B8A6),
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                        ),
+                        child: const Text(
+                          "Confirm",
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
                 ],
               ),
             ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSectionTitle(String title) {
+    return Text(
+      title,
+      style: const TextStyle(
+        fontSize: 18,
+        fontWeight: FontWeight.w700,
+        color: Color(0xFF1F2937),
+      ),
+    );
+  }
+
+  Widget _buildCard({required List<Widget> children}) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: const Color(0xFFD1D5DB),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
+      child: Column(children: children),
+    );
+  }
+
+  Widget _buildSpacingDivider() {
+    return Column(
+      children: [
+        const SizedBox(height: 14),
+        Divider(
+          color: Colors.grey.shade200,
+          height: 1,
+        ),
+        const SizedBox(height: 14),
+      ],
+    );
+  }
+
+  Widget _buildInfoRow({
+    required IconData icon,
+    required String label,
+    required String value,
+    Color valueColor = const Color(0xFF1F2937),
+    FontWeight valueWeight = FontWeight.w600,
+  }) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          height: 42,
+          width: 42,
+          decoration: BoxDecoration(
+            color: const Color(0xFFECFEFF),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Icon(
+            icon,
+            color: const Color(0xFF0F766E),
+            size: 20,
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Padding(
+            padding: const EdgeInsets.only(top: 2),
+            child: Text(
+              label,
+              style: const TextStyle(
+                fontSize: 14,
+                color: Colors.grey,
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          flex: 2,
+          child: Text(
+            value,
+            textAlign: TextAlign.right,
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight: valueWeight,
+              color: valueColor,
+              height: 1.4,
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

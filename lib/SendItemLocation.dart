@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'map_picker_screen.dart';
+import 'UserHome.dart';
 
 class SendItemLocation extends StatefulWidget {
   final String receiverName;
@@ -103,7 +104,13 @@ class _SendItemLocationState extends State<SendItemLocation> {
       ),
     );
 
-    Navigator.pop(context);
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const UniRideHomePage(),
+      ),
+          (route) => false,
+    );
   }
 
   @override

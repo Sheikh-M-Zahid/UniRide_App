@@ -194,6 +194,40 @@ class _ReserveRideSearchState extends State<ReserveRideSearch> {
     }
   }
 
+  double _calculateDistanceKm() {
+    final double distanceInMeters = Geolocator.distanceBetween(
+      currentLatLng.latitude,
+      currentLatLng.longitude,
+      destinationLatLng.latitude,
+      destinationLatLng.longitude,
+    );
+
+    return distanceInMeters / 1000;
+  }
+
+  int _estimateTravelMinutes(double distanceKm) {
+    if (distanceKm <= 0) return 0;
+
+    // Simple fallback estimate
+    // পরে route API/map থেকে real duration বসাবে
+    const double averageSpeedKmPerHour = 25;
+    final double hours = distanceKm / averageSpeedKmPerHour;
+    final int minutes = (hours * 60).round();
+
+    return minutes < 5 ? 5 : minutes;
+  }
+
+  double _estimateCost(double distanceKm) {
+    if (distanceKm <= 0) return 0;
+
+    // Temporary estimate
+    // পরে backend থেকে exact fare বসাবে
+    const double baseFare = 40;
+    const double perKmFare = 12;
+
+    return baseFare + (distanceKm * perKmFare);
+  }
+
   void _goToNextPage() {
     FocusScope.of(context).unfocus();
 
@@ -215,16 +249,29 @@ class _ReserveRideSearchState extends State<ReserveRideSearch> {
       return;
     }
 
+    final double totalDistanceKm = _calculateDistanceKm();
+    final int estimatedTravelMinutes = _estimateTravelMinutes(totalDistanceKm);
+    final double estimatedCost = _estimateCost(totalDistanceKm);
+
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => const ReserveDateSelection(),
+        builder: (context) => ReserveDateSelection(
+          pickupLocation: currentLocationController.text.trim(),
+          destinationLocation: destinationController.text.trim(),
+          totalDistanceKm: totalDistanceKm,
+          estimatedTravelMinutes: estimatedTravelMinutes,
+          estimatedCost: estimatedCost,
+        ),
       ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    final bool isFormReady = currentLocationController.text.trim().isNotEmpty &&
+        destinationController.text.trim().isNotEmpty;
+
     return Scaffold(
       backgroundColor: const Color(0xFFF9FAFB),
       appBar: AppBar(
@@ -421,10 +468,7 @@ class _ReserveRideSearchState extends State<ReserveRideSearch> {
               width: double.infinity,
               height: 55,
               child: ElevatedButton(
-                onPressed: (currentLocationController.text.trim().isEmpty ||
-                    destinationController.text.trim().isEmpty)
-                    ? null
-                    : _goToNextPage,
+                onPressed: isFormReady ? _goToNextPage : null,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF14B8A6),
                   disabledBackgroundColor: Colors.grey.shade300,
@@ -436,10 +480,7 @@ class _ReserveRideSearchState extends State<ReserveRideSearch> {
                 child: Text(
                   "Next",
                   style: TextStyle(
-                    color: (currentLocationController.text.trim().isEmpty ||
-                        destinationController.text.trim().isEmpty)
-                        ? Colors.grey.shade600
-                        : Colors.white,
+                    color: isFormReady ? Colors.white : Colors.grey.shade600,
                     fontSize: 16,
                     fontWeight: FontWeight.w600,
                   ),
