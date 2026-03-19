@@ -2,10 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'dart:io' show Platform;
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:google_sign_in/google_sign_in.dart';
+
 import 'LoginCheck.dart';
 import 'GmailConfirm.dart';
 import 'FindAccount.dart';
-import 'package:google_sign_in/google_sign_in.dart';
+import 'AdminHome.dart';
 
 void main() {
   runApp(const MaterialApp(
@@ -15,13 +17,13 @@ void main() {
 }
 
 class AppColors {
-  static const Color primary = Color(0xFF14B8A6);     // Teal
-  static const Color secondary = Color(0xFF0F766E);   // Dark Teal
-  static const Color background = Color(0xFFF9FAFB);  // Background
-  static const Color text = Color(0xFF1F2937);        // Main text
-  static const Color inputFill = Color(0xFFF1F5F9);   // Input fill
-  static const Color border = Color(0xFFD1D5DB);      // Border
-  static const Color mutedText = Color(0xFF6B7280);   // Sub text
+  static const Color primary = Color(0xFF14B8A6);
+  static const Color secondary = Color(0xFF0F766E);
+  static const Color background = Color(0xFFF9FAFB);
+  static const Color text = Color(0xFF1F2937);
+  static const Color inputFill = Color(0xFFF1F5F9);
+  static const Color border = Color(0xFFD1D5DB);
+  static const Color mutedText = Color(0xFF6B7280);
 }
 
 class UniRideLogin extends StatefulWidget {
@@ -41,6 +43,45 @@ class _UniRideLoginState extends State<UniRideLogin> {
 
   bool _isGoogleLoading = false;
   bool _isPasswordHidden = true;
+  bool _isLoginLoading = false;
+
+  bool _isValidUniversityEmail(String email) {
+    final normalizedEmail = email.trim().toLowerCase();
+
+    final studentRegex =
+    RegExp(r'^\d{4}-\d-\d{2}-\d{3}@std\.ewubd\.edu$');
+    final facultyStaffRegex =
+    RegExp(r'^[a-zA-Z]+(?:\.[a-zA-Z]+)+@ewubd\.edu$');
+
+    return studentRegex.hasMatch(normalizedEmail) ||
+        facultyStaffRegex.hasMatch(normalizedEmail);
+  }
+
+  Future<bool> _checkIfAdmin(String email) async {
+    await Future.delayed(const Duration(milliseconds: 600));
+
+    // ================= BACKEND READY =================
+    // পরে এখানে তোমার real database/API call বসাবে
+    //
+    // Example:
+    // final response = await yourApiService.getUserByEmail(email);
+    // final List<String> roles = response.roles;
+    // return roles.map((e) => e.toLowerCase()).contains('admin');
+    //
+    // Important:
+    // এখানে admin email pattern দেখে check করা যাবে না।
+    // কারণ একই university email system থেকেই admin হতে পারে।
+
+    final normalizedEmail = email.trim().toLowerCase();
+
+    // Dummy admin check for testing only
+    const adminEmails = [
+      'john.doe@ewubd.edu',
+      '2024-1-60-074@std.ewubd.edu',
+    ];
+
+    return adminEmails.contains(normalizedEmail);
+  }
 
   Future<void> _handleGoogleSignIn() async {
     if (_isGoogleLoading) return;
@@ -54,28 +95,57 @@ class _UniRideLoginState extends State<UniRideLogin> {
 
       final GoogleSignInAccount? account = await _googleSignIn.signIn();
 
-      if (account != null) {
+      if (account == null) {
         if (!mounted) return;
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Signed in as ${account.email}'),
-            backgroundColor: AppColors.secondary,
-          ),
-        );
-
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (context) => const LoginCheck(),
-          ),
-        );
-      } else {
-        if (!mounted) return;
-
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Google sign-in was cancelled.'),
+          ),
+        );
+        return;
+      }
+
+      final email = account.email.trim().toLowerCase();
+
+      if (!_isValidUniversityEmail(email)) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Please use your official EWU university email address.',
+            ),
+            backgroundColor: Colors.red,
+          ),
+        );
+        await _googleSignIn.signOut();
+        return;
+      }
+
+      if (!mounted) return;
+
+      final bool isAdmin = await _checkIfAdmin(email);
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Signed in as $email'),
+          backgroundColor: AppColors.secondary,
+        ),
+      );
+
+      if (isAdmin) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => AdminDashboard(),
+          ),
+        );
+      } else {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => LoginCheck(email: email),
           ),
         );
       }
@@ -92,6 +162,106 @@ class _UniRideLoginState extends State<UniRideLogin> {
       if (mounted) {
         setState(() {
           _isGoogleLoading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _handleLogin() async {
+    if (_isLoginLoading) return;
+
+    final email = emailController.text.trim().toLowerCase();
+    final password = passwordController.text.trim();
+
+    if (email.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please enter your email address.'),
+        ),
+      );
+      return;
+    }
+
+    if (!_isValidUniversityEmail(email)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Please enter a valid EWU university email address.',
+          ),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    if (password.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please enter your password.'),
+        ),
+      );
+      return;
+    }
+
+    setState(() {
+      _isLoginLoading = true;
+    });
+
+    try {
+      // ================= BACKEND READY =================
+      // পরে এখানে actual login API call বসাবে
+      //
+      // Example:
+      // final loginResponse = await yourApiService.login(email, password);
+      // if (!loginResponse.success) {
+      //   throw Exception('Invalid email or password');
+      // }
+
+      final bool loginSuccess = true;
+
+      if (!loginSuccess) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Invalid email or password.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
+
+      final bool isAdmin = await _checkIfAdmin(email);
+
+      if (!mounted) return;
+
+      if (isAdmin) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => AdminDashboard(),
+          ),
+        );
+      } else {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => LoginCheck(email: email),
+          ),
+        );
+      }
+    } catch (error) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Login failed: $error'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoginLoading = false;
         });
       }
     }
@@ -116,7 +286,6 @@ class _UniRideLoginState extends State<UniRideLogin> {
               const SizedBox(height: 50),
               _logoWidget(),
               const SizedBox(height: 25),
-
               const Text(
                 'Welcome to Intra University\nRide Sharing System',
                 textAlign: TextAlign.center,
@@ -126,9 +295,7 @@ class _UniRideLoginState extends State<UniRideLogin> {
                   fontWeight: FontWeight.w500,
                 ),
               ),
-
               const SizedBox(height: 30),
-
               const Text(
                 'Log In',
                 style: TextStyle(
@@ -137,18 +304,14 @@ class _UniRideLoginState extends State<UniRideLogin> {
                   color: AppColors.text,
                 ),
               ),
-
               const SizedBox(height: 30),
-
               _inputLabel('Email Address'),
               _textField(
                 emailController,
-                'Enter your email',
+                'Enter your university email',
                 Icons.email_outlined,
               ),
-
               const SizedBox(height: 20),
-
               _inputLabel('Password'),
               _textField(
                 passwordController,
@@ -156,24 +319,13 @@ class _UniRideLoginState extends State<UniRideLogin> {
                 Icons.lock_outline,
                 isPass: true,
               ),
-
               const SizedBox(height: 30),
-
-              _actionButton('Log In', () {
-                bool loginSuccess = true; // পরে API login check বসাতে পারবে
-
-                if (loginSuccess) {
-                  Navigator.pushReplacement(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const LoginCheck(),
-                    ),
-                  );
-                }
-              }),
-
+              _actionButton(
+                _isLoginLoading ? 'Logging In...' : 'Log In',
+                _isLoginLoading ? null : _handleLogin,
+                isLoading: _isLoginLoading,
+              ),
               const SizedBox(height: 20),
-
               _switchPageLink(
                 "Don't have an account? ",
                 "Sign up",
@@ -186,11 +338,9 @@ class _UniRideLoginState extends State<UniRideLogin> {
                   );
                 },
               ),
-
               const SizedBox(height: 25),
               _orDivider(),
               const SizedBox(height: 25),
-
               if (!kIsWeb && Platform.isIOS) ...[
                 _socialButton(
                   FontAwesomeIcons.apple,
@@ -199,14 +349,12 @@ class _UniRideLoginState extends State<UniRideLogin> {
                 ),
                 const SizedBox(height: 12),
               ],
-
               _socialButton(
                 FontAwesomeIcons.google,
                 _isGoogleLoading ? 'Signing in...' : 'Continue with Google',
                 onTap: _isGoogleLoading ? null : _handleGoogleSignIn,
                 isLoading: _isGoogleLoading,
               ),
-
               const SizedBox(height: 20),
               _findAccountButton(),
               const SizedBox(height: 40),
@@ -262,6 +410,8 @@ class _UniRideLoginState extends State<UniRideLogin> {
       child: TextField(
         controller: controller,
         obscureText: isPass ? _isPasswordHidden : false,
+        keyboardType:
+        isPass ? TextInputType.visiblePassword : TextInputType.emailAddress,
         style: const TextStyle(color: AppColors.text),
         decoration: InputDecoration(
           hintText: hint,
@@ -308,27 +458,41 @@ class _UniRideLoginState extends State<UniRideLogin> {
     );
   }
 
-  Widget _actionButton(String title, VoidCallback onPressed) => SizedBox(
-    width: double.infinity,
-    height: 58,
-    child: ElevatedButton(
-      onPressed: onPressed,
-      style: ElevatedButton.styleFrom(
-        backgroundColor: AppColors.primary,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(10),
+  Widget _actionButton(
+      String title,
+      VoidCallback? onPressed, {
+        bool isLoading = false,
+      }) =>
+      SizedBox(
+        width: double.infinity,
+        height: 58,
+        child: ElevatedButton(
+          onPressed: onPressed,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: AppColors.primary,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+            elevation: 2,
+          ),
+          child: isLoading
+              ? const SizedBox(
+            width: 22,
+            height: 22,
+            child: CircularProgressIndicator(
+              strokeWidth: 2.5,
+              color: Colors.white,
+            ),
+          )
+              : Text(
+            title,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 18,
+            ),
+          ),
         ),
-        elevation: 2,
-      ),
-      child: Text(
-        title,
-        style: const TextStyle(
-          color: Colors.white,
-          fontSize: 18,
-        ),
-      ),
-    ),
-  );
+      );
 
   Widget _switchPageLink(
       String text,

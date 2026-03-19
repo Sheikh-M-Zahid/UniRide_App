@@ -31,7 +31,6 @@ class AdminDashboard extends StatefulWidget {
 
 class _AdminDashboardState extends State<AdminDashboard>
     with SingleTickerProviderStateMixin {
-
   // ===== Database Ready Variables =====
   int totalRide = 0;
   int totalUser = 0;
@@ -40,6 +39,7 @@ class _AdminDashboardState extends State<AdminDashboard>
   int staff = 0;
 
   String selectedPage = "Home";
+  String selectedMood = "Normal Mood";
 
   late AnimationController _controller;
   late Animation<double> _fadeAnimation;
@@ -65,6 +65,167 @@ class _AdminDashboardState extends State<AdminDashboard>
     _controller.forward();
   }
 
+  Future<void> _showMoodSelectionSheet() async {
+    await showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return Container(
+              decoration: const BoxDecoration(
+                color: Color(0xff1b2b34),
+                borderRadius: BorderRadius.vertical(
+                  top: Radius.circular(28),
+                ),
+              ),
+              padding: const EdgeInsets.fromLTRB(20, 18, 20, 24),
+              child: SafeArea(
+                top: false,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 48,
+                      height: 5,
+                      decoration: BoxDecoration(
+                        color: Colors.white24,
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                    ),
+                    const SizedBox(height: 18),
+                    const Row(
+                      children: [
+                        Icon(Icons.tune, color: Colors.cyanAccent),
+                        SizedBox(width: 10),
+                        Text(
+                          "Switch Mood",
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 18,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    const Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        "Choose your preferred app mood.",
+                        style: TextStyle(
+                          color: Colors.white70,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 18),
+                    _buildMoodOption(
+                      title: "Normal Mood",
+                      subtitle: "Default mode for regular use",
+                      icon: Icons.wb_sunny_outlined,
+                      isSelected: selectedMood == "Normal Mood",
+                      onTap: () {
+                        setState(() {
+                          selectedMood = "Normal Mood";
+                        });
+                        setModalState(() {});
+                        Navigator.pop(sheetContext);
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    _buildMoodOption(
+                      title: "Exam Mood",
+                      subtitle: "Focused mode during exams",
+                      icon: Icons.menu_book_rounded,
+                      isSelected: selectedMood == "Exam Mood",
+                      onTap: () {
+                        setState(() {
+                          selectedMood = "Exam Mood";
+                        });
+                        setModalState(() {});
+                        Navigator.pop(sheetContext);
+                      },
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildMoodOption({
+    required String title,
+    required String subtitle,
+    required IconData icon,
+    required bool isSelected,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(18),
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? Colors.cyanAccent.withOpacity(0.15)
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(
+            color: isSelected ? Colors.cyanAccent : Colors.white24,
+            width: isSelected ? 1.4 : 1,
+          ),
+        ),
+        child: Row(
+          children: [
+            Container(
+              height: 46,
+              width: 46,
+              decoration: BoxDecoration(
+                color: Colors.white10,
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Icon(icon, color: Colors.cyanAccent),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    subtitle,
+                    style: const TextStyle(
+                      color: Colors.white70,
+                      fontSize: 12.5,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(
+              isSelected
+                  ? Icons.radio_button_checked
+                  : Icons.radio_button_off,
+              color: isSelected ? Colors.cyanAccent : Colors.white54,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   void dispose() {
     _controller.dispose();
@@ -74,14 +235,12 @@ class _AdminDashboardState extends State<AdminDashboard>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-
       // ================= DRAWER =================
       drawer: Drawer(
         backgroundColor: Colors.black,
         child: ListView(
           padding: EdgeInsets.zero,
           children: [
-
             DrawerHeader(
               decoration: BoxDecoration(
                 gradient: LinearGradient(
@@ -93,51 +252,60 @@ class _AdminDashboardState extends State<AdminDashboard>
                 child: Text(
                   "Menu",
                   style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold),
+                    color: Colors.white,
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
             ),
-
             drawerItem("Home"),
             drawerItem("Add Offer"),
             ListTile(
-              title: Text("Active Rider",
-                  style: TextStyle(color: Colors.white)),
+              title: Text(
+                "Active Rider",
+                style: TextStyle(color: Colors.white),
+              ),
               onTap: () {
-                Navigator.pop(context); // Drawer close
+                Navigator.pop(context);
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                      builder: (context) => const ActiveRiderPage()),
+                    builder: (context) => const ActiveRiderPage(),
+                  ),
                 );
               },
             ),
 
             // ✅ All Rider → Separate Page
             ListTile(
-              title: Text("All Rider",
-                  style: TextStyle(color: Colors.white)),
+              title: Text(
+                "All Rider",
+                style: TextStyle(color: Colors.white),
+              ),
               onTap: () {
                 Navigator.pop(context);
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                      builder: (context) => const AllRiderPage()),
+                    builder: (context) => const AllRiderPage(),
+                  ),
                 );
               },
             ),
 
             ListTile(
-              title: Text("Passengers",
-                  style: TextStyle(color: Colors.white)),
+              title: Text(
+                "Passengers",
+                style: TextStyle(color: Colors.white),
+              ),
               onTap: () {
                 Navigator.pop(context);
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                      builder: (context) => const AllPassengersPage()),
+                    builder: (context) => const AllPassengersPage(),
+                  ),
                 );
               },
             ),
@@ -205,6 +373,24 @@ class _AdminDashboardState extends State<AdminDashboard>
                 );
               },
             ),
+
+            const Divider(color: Colors.white24, thickness: 1),
+
+            ListTile(
+              leading: const Icon(Icons.tune, color: Colors.cyanAccent),
+              title: const Text(
+                "Switch Mood",
+                style: TextStyle(color: Colors.white),
+              ),
+              subtitle: Text(
+                selectedMood,
+                style: const TextStyle(color: Colors.white70),
+              ),
+              onTap: () {
+                Navigator.pop(context);
+                _showMoodSelectionSheet();
+              },
+            ),
           ],
         ),
       ),
@@ -214,8 +400,10 @@ class _AdminDashboardState extends State<AdminDashboard>
         elevation: 0,
         backgroundColor: Colors.transparent,
         iconTheme: IconThemeData(color: Colors.white),
-        title: Text("Admin Dashboard",
-            style: TextStyle(color: Colors.white)),
+        title: Text(
+          "Admin Dashboard",
+          style: TextStyle(color: Colors.white),
+        ),
         actions: [
           Padding(
             padding: const EdgeInsets.only(right: 16),
@@ -302,13 +490,10 @@ class _AdminDashboardState extends State<AdminDashboard>
           position: _slideAnimation,
           child: Column(
             children: [
-
               chartBox("Active Riders", pieChart()),
               chartBox("Active Users", pieChart()),
               chartBox("Last 5 Months Ride", barChart()),
-
               SizedBox(height: 30),
-
               Row(
                 children: [
                   Expanded(child: statCard("Total Ride", totalRide)),
@@ -316,9 +501,7 @@ class _AdminDashboardState extends State<AdminDashboard>
                   Expanded(child: statCard("Total User", totalUser)),
                 ],
               ),
-
               SizedBox(height: 20),
-
               Row(
                 children: [
                   Expanded(child: statCard("Student", student)),
@@ -393,11 +576,14 @@ class _AdminDashboardState extends State<AdminDashboard>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(title,
-              style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold)),
+          Text(
+            title,
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
           SizedBox(height: 20),
           SizedBox(height: 200, child: child),
         ],
@@ -425,11 +611,14 @@ class _AdminDashboardState extends State<AdminDashboard>
           children: [
             Text(title, style: TextStyle(color: Colors.white70)),
             SizedBox(height: 10),
-            Text(val.toString(),
-                style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold)),
+            Text(
+              val.toString(),
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
           ],
         ),
       ),

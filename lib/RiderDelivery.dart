@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class RiderDeliveryPage extends StatefulWidget {
   const RiderDeliveryPage({super.key});
@@ -88,12 +89,19 @@ class _RiderDeliveryPageState extends State<RiderDeliveryPage> {
     );
   }
 
-  void _callPerson(String name, String phone) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text("Call $name at $phone"),
-      ),
-    );
+  Future<void> _callPerson(String name, String phone) async {
+    final Uri phoneUri = Uri(scheme: 'tel', path: phone);
+
+    if (await canLaunchUrl(phoneUri)) {
+      await launchUrl(phoneUri);
+    } else {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("Could not open dial pad for $name"),
+        ),
+      );
+    }
   }
 
   @override

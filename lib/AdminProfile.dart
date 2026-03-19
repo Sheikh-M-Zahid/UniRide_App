@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'LogIn.dart';
+import 'UserProfile.dart';
 
 class AdminProfilePage extends StatefulWidget {
   const AdminProfilePage({super.key});
@@ -30,9 +31,7 @@ class _AdminProfilePageState extends State<AdminProfilePage> {
       fullName: "Admin Name",
       email: "admin@uniride.com",
       phone: "+8801XXXXXXXXX",
-      universityId: "UNI-24-ADMIN-01",
       userType: "Student", // Student / Faculty / Staff
-      department: "CSE",
       gender: "Male",
       joinedDate: "14 Mar 2026",
       profileImageUrl: "",
@@ -46,6 +45,123 @@ class _AdminProfilePageState extends State<AdminProfilePage> {
       _profileFuture = _fetchUserProfile();
     });
     await _profileFuture;
+  }
+
+  Future<void> _showSwitchPassengerDialog() async {
+    await showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (dialogContext) {
+        return Dialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(22),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 22, 20, 18),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  height: 58,
+                  width: 58,
+                  decoration: BoxDecoration(
+                    color: AppColors.softPrimary,
+                    borderRadius: BorderRadius.circular(18),
+                  ),
+                  child: const Icon(
+                    Icons.switch_account_rounded,
+                    color: AppColors.primary,
+                    size: 30,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  "Switch to Passenger Profile?",
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: AppColors.text,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                const Text(
+                  "You are about to switch from Admin to Passenger mode.\n\n"
+                      "⚠️ Once you switch, you will not be able to return to the Admin profile directly.\n"
+                      "To access the Admin panel again, you will need to log out and log in again.\n\n"
+                      "Do you want to continue?",
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: AppColors.mutedText,
+                    fontSize: 13.5,
+                    height: 1.5,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () {
+                          Navigator.pop(dialogContext);
+                        },
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: AppColors.text,
+                          side: BorderSide(color: AppColors.border),
+                          padding: const EdgeInsets.symmetric(vertical: 13),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                        ),
+                        child: const Text(
+                          "Cancel",
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: () {
+                          Navigator.pop(dialogContext);
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) =>
+                              const UniRideProfilePage(),
+                            ),
+                          );
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primary,
+                          foregroundColor: Colors.white,
+                          elevation: 0,
+                          padding: const EdgeInsets.symmetric(vertical: 13),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                        ),
+                        child: const Text(
+                          "Confirm",
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 
   @override
@@ -113,12 +229,10 @@ class _AdminProfilePageState extends State<AdminProfilePage> {
                   const SizedBox(height: 16),
                   _buildQuickActionsCard(),
                   const SizedBox(height: 20),
-
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton.icon(
                       onPressed: () {
-
                         Navigator.pushAndRemoveUntil(
                           context,
                           MaterialPageRoute(
@@ -126,7 +240,6 @@ class _AdminProfilePageState extends State<AdminProfilePage> {
                           ),
                               (route) => false,
                         );
-
                       },
                       icon: const Icon(Icons.logout),
                       label: const Text(
@@ -301,11 +414,7 @@ class _AdminProfilePageState extends State<AdminProfilePage> {
           _divider(),
           _infoTile("Phone Number", profile.phone),
           _divider(),
-          _infoTile("University ID", profile.universityId),
-          _divider(),
           _infoTile("User Type", profile.userType),
-          _divider(),
-          _infoTile("Department", profile.department),
           _divider(),
           _infoTile("Gender", profile.gender),
         ],
@@ -342,6 +451,13 @@ class _AdminProfilePageState extends State<AdminProfilePage> {
       icon: Icons.flash_on_outlined,
       child: Column(
         children: [
+          _actionTile(
+            icon: Icons.switch_account_rounded,
+            title: "Switch to as a Passenger",
+            subtitle: "Open your passenger profile to request a ride",
+            onTap: _showSwitchPassengerDialog,
+          ),
+          _divider(),
           _actionTile(
             icon: Icons.edit_outlined,
             title: "Edit Profile",
@@ -578,9 +694,7 @@ class UserProfileModel {
   final String fullName;
   final String email;
   final String phone;
-  final String universityId;
   final String userType;
-  final String department;
   final String gender;
   final String joinedDate;
   final String profileImageUrl;
@@ -592,9 +706,7 @@ class UserProfileModel {
     required this.fullName,
     required this.email,
     required this.phone,
-    required this.universityId,
     required this.userType,
-    required this.department,
     required this.gender,
     required this.joinedDate,
     required this.profileImageUrl,
@@ -612,9 +724,7 @@ class UserProfileModel {
       fullName: json['fullName']?.toString() ?? '',
       email: json['email']?.toString() ?? '',
       phone: json['phone']?.toString() ?? '',
-      universityId: json['universityId']?.toString() ?? '',
       userType: json['userType']?.toString() ?? '',
-      department: json['department']?.toString() ?? '',
       gender: json['gender']?.toString() ?? '',
       joinedDate: json['joinedDate']?.toString() ?? '',
       profileImageUrl: json['profileImageUrl']?.toString() ?? '',
