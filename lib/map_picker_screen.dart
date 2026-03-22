@@ -1,7 +1,9 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
 
 class MapPickerScreen extends StatefulWidget {
@@ -32,12 +34,49 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
 
   List<dynamic> placePredictions = [];
   bool isSearchingPlaces = false;
+  bool isMapMoving = false;
+  bool isFetchingCurrentLocation = false;
+
+  Timer? _debounce;
+  LatLng? currentDeviceLocation;
+
+  static const Color primaryColor = Color(0xFF14B8A6);
+  static const Color textColor = Color(0xFF1F2937);
+  static const Color mutedTextColor = Color(0xFF6B7280);
+  static const Color borderColor = Color(0xFFE5E7EB);
+  static const Color bgColor = Color(0xFFF9FAFB);
 
   @override
   void initState() {
     super.initState();
     selectedPosition = widget.initialPosition;
     _getAddressFromLatLng(selectedPosition);
+  }
+
+  bool get _isOnCurrentLocation {
+    if (currentDeviceLocation == null) return false;
+
+    final distance = Geolocator.distanceBetween(
+      currentDeviceLocation!.latitude,
+      currentDeviceLocation!.longitude,
+      selectedPosition.latitude,
+      selectedPosition.longitude,
+    );
+
+    return distance <= 20;
+  }
+
+  bool get _canConfirm {
+    return !isLoadingAddress && !_isOnCurrentLocation;
+  }
+
+  void _showSnackBar(String message) {
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
   }
 
   Future<void> _getAddressFromLatLng(LatLng latLng) async {
@@ -73,19 +112,26 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
           searchController.text = selectedAddress;
           isLoadingAddress = false;
         });
+
+        _showSnackBar("Failed to fetch exact address.");
       }
     } catch (e) {
       if (!mounted) return;
+
       setState(() {
         selectedAddress =
         "${latLng.latitude.toStringAsFixed(5)}, ${latLng.longitude.toStringAsFixed(5)}";
         searchController.text = selectedAddress;
         isLoadingAddress = false;
       });
+
+      _showSnackBar("No internet connection or address fetch failed.");
     }
   }
 
-  Future<void> _searchPlaces(String input) async {
+  void _searchPlaces(String input) {
+    _debounce?.cancel();
+
     if (input.trim().isEmpty) {
       if (!mounted) return;
       setState(() {
@@ -95,39 +141,47 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
       return;
     }
 
-    if (!mounted) return;
-    setState(() {
-      isSearchingPlaces = true;
-    });
-
-    try {
-      final url = Uri.parse(
-        "https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${Uri.encodeComponent(input)}&key=${widget.googleApiKey}",
-      );
-
-      final response = await http.get(url);
-      final data = jsonDecode(response.body);
-
+    _debounce = Timer(const Duration(milliseconds: 450), () async {
       if (!mounted) return;
 
-      if (response.statusCode == 200 && data["predictions"] != null) {
-        setState(() {
-          placePredictions = data["predictions"];
-          isSearchingPlaces = false;
-        });
-      } else {
+      setState(() {
+        isSearchingPlaces = true;
+      });
+
+      try {
+        final url = Uri.parse(
+          "https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${Uri.encodeComponent(input)}&key=${widget.googleApiKey}",
+        );
+
+        final response = await http.get(url);
+        final data = jsonDecode(response.body);
+
+        if (!mounted) return;
+
+        if (response.statusCode == 200 && data["predictions"] != null) {
+          setState(() {
+            placePredictions = data["predictions"];
+            isSearchingPlaces = false;
+          });
+        } else {
+          setState(() {
+            placePredictions = [];
+            isSearchingPlaces = false;
+          });
+
+          _showSnackBar("Failed to search places.");
+        }
+      } catch (e) {
+        if (!mounted) return;
+
         setState(() {
           placePredictions = [];
           isSearchingPlaces = false;
         });
+
+        _showSnackBar("No internet connection or place search failed.");
       }
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        placePredictions = [];
-        isSearchingPlaces = false;
-      });
-    }
+    });
   }
 
   Future<void> _selectPrediction(dynamic prediction) async {
@@ -164,6 +218,7 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
         );
 
         if (!mounted) return;
+
         setState(() {
           searchController.text = description;
           placePredictions = [];
@@ -171,21 +226,114 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
 
         searchFocusNode.unfocus();
         await _getAddressFromLatLng(latLng);
+      } else {
+        _showSnackBar("Failed to load selected place.");
       }
     } catch (e) {
-      // ignore for now
+      _showSnackBar("No internet connection or place details failed.");
+    }
+  }
+
+  Future<void> _useCurrentLocation() async {
+    try {
+      if (!mounted) return;
+
+      setState(() {
+        isFetchingCurrentLocation = true;
+      });
+
+      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        setState(() {
+          isFetchingCurrentLocation = false;
+        });
+        _showSnackBar("Please turn on location service.");
+        return;
+      }
+
+      LocationPermission permission = await Geolocator.checkPermission();
+
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+
+      if (permission == LocationPermission.denied) {
+        setState(() {
+          isFetchingCurrentLocation = false;
+        });
+        _showSnackBar("Location permission denied.");
+        return;
+      }
+
+      if (permission == LocationPermission.deniedForever) {
+        setState(() {
+          isFetchingCurrentLocation = false;
+        });
+        _showSnackBar("Location permission permanently denied.");
+        return;
+      }
+
+      final position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+      );
+
+      final latLng = LatLng(position.latitude, position.longitude);
+
+      currentDeviceLocation = latLng;
+      selectedPosition = latLng;
+
+      await mapController?.animateCamera(
+        CameraUpdate.newCameraPosition(
+          CameraPosition(
+            target: latLng,
+            zoom: 17,
+          ),
+        ),
+      );
+
+      await _getAddressFromLatLng(latLng);
+
+      if (!mounted) return;
+      setState(() {
+        placePredictions = [];
+        isFetchingCurrentLocation = false;
+      });
+
+      searchFocusNode.unfocus();
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        isFetchingCurrentLocation = false;
+      });
+
+      _showSnackBar("Failed to get current location.");
     }
   }
 
   void _onCameraMove(CameraPosition position) {
     selectedPosition = position.target;
+
+    if (!isMapMoving && mounted) {
+      setState(() {
+        isMapMoving = true;
+      });
+    }
   }
 
   void _onCameraIdle() {
+    if (!mounted) return;
+
+    setState(() {
+      isMapMoving = false;
+    });
+
     _getAddressFromLatLng(selectedPosition);
   }
 
   void _confirmLocation() {
+    if (!_canConfirm) return;
+
     Navigator.pop(
       context,
       {
@@ -197,6 +345,7 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
 
   @override
   void dispose() {
+    _debounce?.cancel();
     mapController?.dispose();
     searchController.dispose();
     searchFocusNode.dispose();
@@ -208,16 +357,16 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
     final bool showPredictionBox = placePredictions.isNotEmpty;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF9FAFB),
+      backgroundColor: bgColor,
       appBar: AppBar(
-        backgroundColor: const Color(0xFFF9FAFB),
+        backgroundColor: bgColor,
         elevation: 0,
         centerTitle: true,
-        iconTheme: const IconThemeData(color: Color(0xFF1F2937)),
+        iconTheme: const IconThemeData(color: textColor),
         title: Text(
           widget.title,
           style: const TextStyle(
-            color: Color(0xFF1F2937),
+            color: textColor,
             fontWeight: FontWeight.w600,
           ),
         ),
@@ -235,16 +384,25 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
             onCameraMove: _onCameraMove,
             onCameraIdle: _onCameraIdle,
             myLocationEnabled: true,
-            myLocationButtonEnabled: true,
+            myLocationButtonEnabled: false,
             zoomControlsEnabled: false,
           ),
 
-          const Center(
+          Center(
             child: IgnorePointer(
-              child: Icon(
-                Icons.location_pin,
-                size: 42,
-                color: Color(0xFF14B8A6),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 180),
+                curve: Curves.easeOut,
+                transform: Matrix4.translationValues(
+                  0,
+                  isMapMoving ? -12 : 0,
+                  0,
+                ),
+                child: const Icon(
+                  Icons.location_pin,
+                  size: 44,
+                  color: primaryColor,
+                ),
               ),
             ),
           ),
@@ -259,9 +417,7 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
                   decoration: BoxDecoration(
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(14),
-                    border: Border.all(
-                      color: const Color(0xFFE5E7EB),
-                    ),
+                    border: Border.all(color: borderColor),
                     boxShadow: const [
                       BoxShadow(
                         blurRadius: 10,
@@ -278,7 +434,7 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
                       hintText: "Search location",
                       prefixIcon: const Icon(
                         Icons.search,
-                        color: Color(0xFF6B7280),
+                        color: mutedTextColor,
                       ),
                       suffixIcon: searchController.text.isNotEmpty
                           ? IconButton(
@@ -300,6 +456,92 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
                   ),
                 ),
 
+                const SizedBox(height: 8),
+
+                Row(
+                  children: [
+                    Expanded(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 11,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: borderColor),
+                          boxShadow: const [
+                            BoxShadow(
+                              blurRadius: 8,
+                              color: Colors.black12,
+                              offset: Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: const Row(
+                          children: [
+                            Icon(
+                              Icons.open_with_rounded,
+                              size: 18,
+                              color: primaryColor,
+                            ),
+                            SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                "Move map to adjust location",
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: mutedTextColor,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    SizedBox(
+                      height: 46,
+                      child: ElevatedButton.icon(
+                        onPressed: isFetchingCurrentLocation
+                            ? null
+                            : _useCurrentLocation,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: primaryColor,
+                          disabledBackgroundColor: primaryColor.withOpacity(0.7),
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          padding: const EdgeInsets.symmetric(horizontal: 14),
+                        ),
+                        icon: isFetchingCurrentLocation
+                            ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                            : const Icon(
+                          Icons.my_location,
+                          color: Colors.white,
+                          size: 18,
+                        ),
+                        label: Text(
+                          isFetchingCurrentLocation ? "Loading" : "Current",
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+
                 if (isSearchingPlaces)
                   Container(
                     width: double.infinity,
@@ -308,9 +550,7 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
                     decoration: BoxDecoration(
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(14),
-                      border: Border.all(
-                        color: const Color(0xFFE5E7EB),
-                      ),
+                      border: Border.all(color: borderColor),
                       boxShadow: const [
                         BoxShadow(
                           blurRadius: 8,
@@ -330,7 +570,7 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
                         Text(
                           "Searching places...",
                           style: TextStyle(
-                            color: Color(0xFF1F2937),
+                            color: textColor,
                             fontSize: 14,
                           ),
                         ),
@@ -346,9 +586,7 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
                     decoration: BoxDecoration(
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(14),
-                      border: Border.all(
-                        color: const Color(0xFFE5E7EB),
-                      ),
+                      border: Border.all(color: borderColor),
                       boxShadow: const [
                         BoxShadow(
                           blurRadius: 8,
@@ -363,14 +601,14 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
                       itemCount: placePredictions.length,
                       separatorBuilder: (_, __) => const Divider(
                         height: 1,
-                        color: Color(0xFFE5E7EB),
+                        color: borderColor,
                       ),
                       itemBuilder: (context, index) {
                         final item = placePredictions[index];
                         return ListTile(
                           leading: const Icon(
                             Icons.location_on_outlined,
-                            color: Color(0xFF14B8A6),
+                            color: primaryColor,
                           ),
                           title: Text(
                             item["structured_formatting"]?["main_text"] ??
@@ -379,7 +617,7 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
                             style: const TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.w600,
-                              color: Color(0xFF1F2937),
+                              color: textColor,
                             ),
                           ),
                           subtitle: Text(
@@ -387,7 +625,7 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
                                 "",
                             style: const TextStyle(
                               fontSize: 12,
-                              color: Color(0xFF6B7280),
+                              color: mutedTextColor,
                             ),
                           ),
                           onTap: () => _selectPrediction(item),
@@ -408,9 +646,7 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(
-                  color: const Color(0xFFE5E7EB),
-                ),
+                border: Border.all(color: borderColor),
                 boxShadow: const [
                   BoxShadow(
                     blurRadius: 10,
@@ -427,7 +663,7 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
                     "Selected Location",
                     style: TextStyle(
                       fontSize: 12,
-                      color: Color(0xFF6B7280),
+                      color: mutedTextColor,
                       fontWeight: FontWeight.w500,
                     ),
                   ),
@@ -436,7 +672,7 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
                     isLoadingAddress ? "Loading..." : selectedAddress,
                     style: const TextStyle(
                       fontSize: 14,
-                      color: Color(0xFF1F2937),
+                      color: textColor,
                       fontWeight: FontWeight.w500,
                     ),
                   ),
@@ -445,20 +681,24 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
                     width: double.infinity,
                     height: 50,
                     child: ElevatedButton(
-                      onPressed: _confirmLocation,
+                      onPressed: _canConfirm ? _confirmLocation : null,
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF14B8A6),
+                        backgroundColor: primaryColor,
+                        disabledBackgroundColor: const Color(0xFFBFC7CD),
                         elevation: 0,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
                       ),
-                      child: const Text(
-                        "Confirm Location",
-                        style: TextStyle(
+                      child: Text(
+                        _isOnCurrentLocation
+                            ? "Move map to select another location"
+                            : "Confirm Location",
+                        style: const TextStyle(
                           color: Colors.white,
                           fontWeight: FontWeight.w600,
                         ),
+                        textAlign: TextAlign.center,
                       ),
                     ),
                   ),

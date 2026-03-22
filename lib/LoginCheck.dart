@@ -36,38 +36,26 @@ class _LoginCheckState extends State<LoginCheck> {
     await Future.delayed(const Duration(milliseconds: 600));
 
     final normalizedEmail = email.trim().toLowerCase();
-    final normalizedRole = role.trim().toLowerCase();
 
-    // Step 1: শুধু @ এর পরের domain check
+    // Apatoto sudhu university domain thaklei allow
     if (!_hasValidUniversityDomain(normalizedEmail)) {
       return false;
     }
 
     // ================= BACKEND READY =================
-    // এখানে backend/database থেকে FULL email address দিয়ে user roles check করবে
-    //
+    // Pore ekhane backend/database theke FULL email + role check hobe.
     // Example:
-    // final response = await yourApiService.getUserByEmail(normalizedEmail);
     //
+    // final response = await yourApiService.getUserByEmail(normalizedEmail);
     // final List<String> rolesFromDatabase =
     //     (response['roles'] as List<dynamic>? ?? [])
     //         .map((e) => e.toString().toLowerCase().trim())
     //         .toList();
     //
-    // return rolesFromDatabase.contains(normalizedRole);
+    // return rolesFromDatabase.contains(role.trim().toLowerCase());
 
-    // Temporary demo data only
-    final Map<String, List<String>> demoDatabase = {
-      '2024-1-60-074@std.ewubd.edu': ['passenger', 'rider'],
-      'name.name@ewubd.edu': ['passenger', 'rider'],
-    };
-
-    final List<String> rolesFromDatabase =
-        demoDatabase[normalizedEmail] ?? [];
-
-    return rolesFromDatabase
-        .map((e) => e.toLowerCase().trim())
-        .contains(normalizedRole);
+    // Apatoto valid university email hole Passenger/Rider jekono role e jete parbe
+    return true;
   }
 
   Future<void> goNext() async {

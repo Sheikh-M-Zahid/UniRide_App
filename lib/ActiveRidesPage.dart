@@ -171,21 +171,24 @@ class _ActiveRidesPageState extends State<ActiveRidesPage> {
                 borderRadius: BorderRadius.circular(15),
                 border: Border.all(color: const Color(0xFFE5E7EB)),
               ),
-              child: Row(
-                mainAxisAlignment:
-                MainAxisAlignment.spaceBetween,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
 
-                  // Vehicle Type Dropdown
                   DropdownButton<String>(
                     value: selectedVehicleType,
+                    isExpanded: true,
                     underline: const SizedBox(),
                     items: vehicleTypes
-                        .map((type) =>
-                        DropdownMenuItem(
-                          value: type,
-                          child: Text(type),
-                        ))
+                        .map(
+                          (type) => DropdownMenuItem(
+                        value: type,
+                        child: Text(
+                          type,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    )
                         .toList(),
                     onChanged: (value) {
                       setState(() {
@@ -194,9 +197,30 @@ class _ActiveRidesPageState extends State<ActiveRidesPage> {
                     },
                   ),
 
-                  Text(vehicleModel),
+                  const SizedBox(height: 12),
 
-                  Text(vehicleNumber),
+                  Text(
+                    vehicleModel,
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF1F2937),
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+
+                  const SizedBox(height: 6),
+
+                  Text(
+                    vehicleNumber,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      color: Color(0xFF6B7280),
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ],
               ),
             ),

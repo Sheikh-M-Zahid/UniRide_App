@@ -48,13 +48,8 @@ class _UniRideLoginState extends State<UniRideLogin> {
   bool _isValidUniversityEmail(String email) {
     final normalizedEmail = email.trim().toLowerCase();
 
-    final studentRegex =
-    RegExp(r'^\d{4}-\d-\d{2}-\d{3}@std\.ewubd\.edu$');
-    final facultyStaffRegex =
-    RegExp(r'^[a-zA-Z]+(?:\.[a-zA-Z]+)+@ewubd\.edu$');
-
-    return studentRegex.hasMatch(normalizedEmail) ||
-        facultyStaffRegex.hasMatch(normalizedEmail);
+    return normalizedEmail.endsWith('@std.ewubd.edu') ||
+        normalizedEmail.endsWith('@ewubd.edu');
   }
 
   Future<bool> _checkIfAdmin(String email) async {
@@ -75,12 +70,7 @@ class _UniRideLoginState extends State<UniRideLogin> {
     final normalizedEmail = email.trim().toLowerCase();
 
     // Dummy admin check for testing only
-    const adminEmails = [
-      'john.doe@ewubd.edu',
-      '2024-1-60-074@std.ewubd.edu',
-    ];
-
-    return adminEmails.contains(normalizedEmail);
+    return normalizedEmail == '2024-1-60-074@std.ewubd.edu';
   }
 
   Future<void> _handleGoogleSignIn() async {

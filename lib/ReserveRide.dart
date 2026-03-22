@@ -36,15 +36,11 @@ class ReserveRide extends StatelessWidget {
             children: [
               // Top Image Section
               Container(
-                height: 250,
                 width: double.infinity,
+                height: MediaQuery.of(context).size.width * 0.58,
                 margin: const EdgeInsets.symmetric(horizontal: 16),
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(20),
-                  image: const DecorationImage(
-                    image: AssetImage("assets/reserve.png"),
-                    fit: BoxFit.cover,
-                  ),
                   boxShadow: [
                     BoxShadow(
                       color: Colors.black.withOpacity(0.08),
@@ -52,6 +48,15 @@ class ReserveRide extends StatelessWidget {
                       offset: const Offset(0, 4),
                     ),
                   ],
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(20),
+                  child: Image.asset(
+                    "images/reserve.png",
+                    width: double.infinity,
+                    fit: BoxFit.cover,
+                    alignment: Alignment.center,
+                  ),
                 ),
               ),
 
