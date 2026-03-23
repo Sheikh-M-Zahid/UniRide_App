@@ -5,11 +5,16 @@ import 'WalletPage.dart';
 import 'report_problem_page.dart';
 
 class SecurityPage extends StatefulWidget {
-  const SecurityPage({super.key});
+  final WalletUserRole userRole;
+  const SecurityPage({
+    super.key,
+    required this.userRole,
+  });
 
   @override
   State<SecurityPage> createState() => _SecurityPageState();
 }
+
 
 /* ================= MODEL ================= */
 
@@ -225,7 +230,9 @@ class _SecurityPageState extends State<SecurityPage> {
                           Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (_) => const WalletPage(),
+                              builder: (_) => WalletPage(
+                                userRole: widget.userRole,
+                              ),
                             ),
                           );
 

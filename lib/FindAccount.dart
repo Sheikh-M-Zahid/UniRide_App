@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'PasswordRecoveryOTP.dart';
 
 class FindAccount extends StatefulWidget {
   const FindAccount({super.key});
@@ -8,9 +9,51 @@ class FindAccount extends StatefulWidget {
 }
 
 class _FindAccountState extends State<FindAccount> {
+  final TextEditingController _emailController = TextEditingController();
 
-  final TextEditingController _emailController =
-  TextEditingController();
+  bool _isValidUniversityEmail(String email) {
+    final value = email.trim().toLowerCase();
+
+    return value.endsWith('@std.ewubd.edu') ||
+        value.endsWith('@ewubd.edu');
+  }
+
+  void _handleSearch() {
+    final email = _emailController.text.trim().toLowerCase();
+
+    if (email.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please enter your university email.'),
+        ),
+      );
+      return;
+    }
+
+    if (!_isValidUniversityEmail(email)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Enter a valid university email (@std.ewubd.edu or @ewubd.edu).',
+          ),
+        ),
+      );
+      return;
+    }
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => passwordrecoveryotp(email: email),
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    _emailController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -18,15 +61,11 @@ class _FindAccountState extends State<FindAccount> {
       backgroundColor: const Color(0xFFF9FAFB),
       body: SafeArea(
         child: Padding(
-          padding:
-          const EdgeInsets.symmetric(horizontal: 24),
+          padding: const EdgeInsets.symmetric(horizontal: 24),
           child: Column(
-            crossAxisAlignment:
-            CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-
               const SizedBox(height: 40),
-
               const Text(
                 "Find Your Account",
                 style: TextStyle(
@@ -35,9 +74,7 @@ class _FindAccountState extends State<FindAccount> {
                   color: Color(0xFF1F2937),
                 ),
               ),
-
               const SizedBox(height: 30),
-
               const Text(
                 "Enter your university email",
                 style: TextStyle(
@@ -45,44 +82,31 @@ class _FindAccountState extends State<FindAccount> {
                   color: Color(0xFF1F2937),
                 ),
               ),
-
               const SizedBox(height: 10),
-
               TextField(
                 controller: _emailController,
+                keyboardType: TextInputType.emailAddress,
                 decoration: InputDecoration(
                   hintText: "Enter your university email",
                   hintStyle: const TextStyle(color: Colors.grey),
                   filled: true,
                   fillColor: const Color(0xFFFFFFFF),
                   border: OutlineInputBorder(
-                    borderRadius:
-                    BorderRadius.circular(10),
+                    borderRadius: BorderRadius.circular(10),
                     borderSide: BorderSide.none,
                   ),
                 ),
               ),
-
               const SizedBox(height: 30),
-
               SizedBox(
                 width: double.infinity,
                 height: 55,
                 child: ElevatedButton(
-                  onPressed: () {
-
-                    ScaffoldMessenger.of(context)
-                        .showSnackBar(
-                      const SnackBar(
-                        content: Text("Please check your mail box."),
-                      ),
-                    );
-                  },
+                  onPressed: _handleSearch,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF14B8A6),
                     shape: RoundedRectangleBorder(
-                      borderRadius:
-                      BorderRadius.circular(10),
+                      borderRadius: BorderRadius.circular(10),
                     ),
                   ),
                   child: const Text(
@@ -94,19 +118,14 @@ class _FindAccountState extends State<FindAccount> {
                   ),
                 ),
               ),
-
               const Spacer(),
-
               TextButton(
-                onPressed: () =>
-                    Navigator.pop(context),
+                onPressed: () => Navigator.pop(context),
                 child: const Text(
                   "Back to Login",
-                  style:
-                  TextStyle(color: Color(0xFF0F766E)),
+                  style: TextStyle(color: Color(0xFF0F766E)),
                 ),
               ),
-
               const SizedBox(height: 20),
             ],
           ),

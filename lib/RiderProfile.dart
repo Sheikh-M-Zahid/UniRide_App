@@ -276,7 +276,9 @@ class _RiderProfileState extends State<RiderProfile> {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (context) => const SecurityPage(),
+                            builder: (context) => const SecurityPage(
+                              userRole: WalletUserRole.rider,
+                            ),
                           ),
                         );
                       },
@@ -320,7 +322,9 @@ class _RiderProfileState extends State<RiderProfile> {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (context) => const WalletPage(),
+                            builder: (context) => const WalletPage(
+                              userRole: WalletUserRole.rider,
+                            ),
                           ),
                         );
                       },

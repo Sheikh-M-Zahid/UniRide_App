@@ -445,7 +445,9 @@ class _UniRideProfilePageState extends State<UniRideProfilePage> {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (context) => const SecurityPage(),
+                            builder: (context) => const SecurityPage(
+                              userRole: WalletUserRole.passenger,
+                            ),
                           ),
                         );
                       },
@@ -489,7 +491,9 @@ class _UniRideProfilePageState extends State<UniRideProfilePage> {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (context) => const WalletPage(),
+                            builder: (context) => const WalletPage(
+                              userRole: WalletUserRole.passenger,
+                            ),
                           ),
                         );
                       },
