@@ -1,8 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
-import 'RiderDashboard.dart';
-import 'RiderActivityPage.dart';
-import 'ActiveRidesPage.dart';
 
 class MapPage extends StatefulWidget {
   const MapPage({super.key});

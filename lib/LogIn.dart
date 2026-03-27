@@ -34,9 +34,7 @@ class UniRideLogin extends StatefulWidget {
 }
 
 class _UniRideLoginState extends State<UniRideLogin> {
-  final GoogleSignIn _googleSignIn = GoogleSignIn(
-    scopes: ['email'],
-  );
+  final GoogleSignIn _googleSignIn = GoogleSignIn.instance;
 
   final TextEditingController emailController = TextEditingController();
   final TextEditingController passwordController = TextEditingController();
@@ -44,6 +42,21 @@ class _UniRideLoginState extends State<UniRideLogin> {
   bool _isGoogleLoading = false;
   bool _isPasswordHidden = true;
   bool _isLoginLoading = false;
+  bool _isGoogleInitialized = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _initializeGoogleSignIn();
+  }
+
+  Future<void> _initializeGoogleSignIn() async {
+    if (_isGoogleInitialized) return;
+
+    await _googleSignIn.initialize();
+
+    _isGoogleInitialized = true;
+  }
 
   bool _isValidUniversityEmail(String email) {
     final normalizedEmail = email.trim().toLowerCase();
@@ -81,19 +94,10 @@ class _UniRideLoginState extends State<UniRideLogin> {
     });
 
     try {
+      await _initializeGoogleSignIn();
       await _googleSignIn.signOut();
 
-      final GoogleSignInAccount? account = await _googleSignIn.signIn();
-
-      if (account == null) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Google sign-in was cancelled.'),
-          ),
-        );
-        return;
-      }
+      final GoogleSignInAccount account = await _googleSignIn.authenticate();
 
       final email = account.email.trim().toLowerCase();
 

@@ -199,7 +199,7 @@ class _PlanYourRidePageState extends State<PlanYourRidePage> {
       context,
       MaterialPageRoute(
         builder: (_) => MapPickerScreen(
-          googleApiKey: widget.googleApiKey,
+          googleApiKey: "AIzaSyCF5mVtZ2woOu8P1Jwf-7IfzRw_QoPilCI",
           initialPosition: initialPosition,
           title: isForPickup ? "Pick Pickup Location" : "Pick Destination",
         ),

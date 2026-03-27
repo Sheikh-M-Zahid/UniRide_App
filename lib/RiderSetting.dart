@@ -16,7 +16,6 @@ import 'report_problem_page.dart';
 import 'RideSelection.dart';
 import 'RegisteredVehicles.dart';
 
-
 class AppColors {
   static const Color primary = Color(0xFF14B8A6);
   static const Color secondary = Color(0xFF0F766E);
@@ -44,8 +43,6 @@ class RiderSettingsPage extends StatefulWidget {
 }
 
 class _RiderSettingsPageState extends State<RiderSettingsPage> {
-  final GoogleSignIn _googleSignIn = GoogleSignIn();
-
   String displayName = "User Name";
   String displayEmail = "user@email.com";
   String? userPhotoUrl;
@@ -55,11 +52,20 @@ class _RiderSettingsPageState extends State<RiderSettingsPage> {
   @override
   void initState() {
     super.initState();
+    _initializeGoogleSignIn();
     _loadUserData();
+  }
+
+  Future<void> _initializeGoogleSignIn() async {
+    try {
+      await GoogleSignIn.instance.initialize();
+    } catch (_) {}
   }
 
   Future<void> _loadUserData() async {
     final data = await AppStorage.getUserData();
+
+    if (!mounted) return;
 
     setState(() {
       displayName =
@@ -84,7 +90,7 @@ class _RiderSettingsPageState extends State<RiderSettingsPage> {
 
   Future<void> _logout() async {
     try {
-      await _googleSignIn.signOut();
+      await GoogleSignIn.instance.signOut();
     } catch (_) {}
 
     await AppStorage.clearSession();
@@ -201,13 +207,10 @@ class _RiderSettingsPageState extends State<RiderSettingsPage> {
                 ),
               ),
             ),
-
             const SizedBox(height: 12),
-
             Container(
               margin: const EdgeInsets.symmetric(horizontal: 16),
-              padding:
-              const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(14),
@@ -227,10 +230,8 @@ class _RiderSettingsPageState extends State<RiderSettingsPage> {
                 ],
               ),
             ),
-
             const SizedBox(height: 20),
             const Divider(height: 1, thickness: 0.8, color: AppColors.border),
-
             _buildSettingItem(
               icon: Icons.edit_outlined,
               title: "Edit profile",
@@ -245,7 +246,6 @@ class _RiderSettingsPageState extends State<RiderSettingsPage> {
                 _loadUserData();
               },
             ),
-
             _buildSettingItem(
               icon: Icons.directions_bike_outlined,
               title: "Add another vehicle",
@@ -259,7 +259,6 @@ class _RiderSettingsPageState extends State<RiderSettingsPage> {
                 );
               },
             ),
-
             _buildSettingItem(
               icon: Icons.two_wheeler_outlined,
               title: "See Registered Vehicle",
@@ -273,7 +272,6 @@ class _RiderSettingsPageState extends State<RiderSettingsPage> {
                 );
               },
             ),
-
             _buildSettingItem(
               icon: Icons.home_outlined,
               title: "Saved places",
@@ -290,7 +288,6 @@ class _RiderSettingsPageState extends State<RiderSettingsPage> {
                 );
               },
             ),
-
             _buildSettingItem(
               icon: Icons.history,
               title: "Ride history",
@@ -304,7 +301,6 @@ class _RiderSettingsPageState extends State<RiderSettingsPage> {
                 );
               },
             ),
-
             _buildSettingItem(
               icon: Icons.calendar_today_outlined,
               title: "Upcoming reserve",
@@ -318,7 +314,6 @@ class _RiderSettingsPageState extends State<RiderSettingsPage> {
                 );
               },
             ),
-
             _buildSettingItem(
               icon: Icons.help_outline,
               title: "Help & support",
@@ -332,7 +327,6 @@ class _RiderSettingsPageState extends State<RiderSettingsPage> {
                 );
               },
             ),
-
             _buildSettingItem(
               icon: Icons.report_problem_outlined,
               title: "Report a problem",
@@ -346,9 +340,7 @@ class _RiderSettingsPageState extends State<RiderSettingsPage> {
                 );
               },
             ),
-
             const SizedBox(height: 24),
-
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16.0),
               child: Align(
@@ -367,7 +359,6 @@ class _RiderSettingsPageState extends State<RiderSettingsPage> {
                 ),
               ),
             ),
-
             const SizedBox(height: 20),
           ],
         ),
