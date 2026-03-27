@@ -4,15 +4,36 @@ const offerService = require('../services/offerService');
 
 const getActiveOffers = asyncHandler(async (req, res) => {
   const data = await offerService.getActiveOffers();
-  return successResponse(res, 'Active offers fetched successfully.', data);
+
+  return successResponse(
+    res,
+    'Active offers fetched successfully.',
+    data
+  );
 });
 
 const validatePromoCode = asyncHandler(async (req, res) => {
   const data = await offerService.validatePromoCode(req.body.promo_code);
-  return successResponse(res, 'Promo code is valid.', data);
+
+  return successResponse(
+    res,
+    'Promo code is valid.',
+    data
+  );
+});
+
+const getActiveOfferCount = asyncHandler(async (req, res) => {
+  const count = await offerService.getActiveOfferCount();
+
+  return successResponse(
+    res,
+    'Active offer count fetched successfully.',
+    { offerCount: count }
+  );
 });
 
 module.exports = {
   getActiveOffers,
   validatePromoCode,
+  getActiveOfferCount,
 };

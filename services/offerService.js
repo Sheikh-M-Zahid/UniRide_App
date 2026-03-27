@@ -2,23 +2,33 @@ const rideDb = require('../config/rideDb');
 
 const getActiveOffers = async () => {
   const result = await rideDb.query(
-    `SELECT *
+    `SELECT offer_id, offer_name, offer_type, reward_percentage,
+            eligible_user, promo_code, start_date, end_date, conditions, created_at
      FROM offers
-     WHERE start_date <= CURRENT_DATE
-       AND end_date >= CURRENT_DATE
+     WHERE CURRENT_DATE BETWEEN start_date AND end_date
      ORDER BY created_at DESC`
   );
 
   return result.rows;
 };
 
+const getActiveOfferCount = async () => {
+  const result = await rideDb.query(
+    `SELECT COUNT(*)::int AS count
+     FROM offers
+     WHERE CURRENT_DATE BETWEEN start_date AND end_date`
+  );
+
+  return result.rows[0].count;
+};
+
 const validatePromoCode = async (promoCode) => {
   const result = await rideDb.query(
-    `SELECT *
+    `SELECT offer_id, offer_name, offer_type, reward_percentage,
+            eligible_user, promo_code, start_date, end_date, conditions, created_at
      FROM offers
      WHERE promo_code = $1
-       AND start_date <= CURRENT_DATE
-       AND end_date >= CURRENT_DATE`,
+       AND CURRENT_DATE BETWEEN start_date AND end_date`,
     [promoCode]
   );
 
@@ -43,10 +53,16 @@ const createOffer = async (payload) => {
 
   const result = await rideDb.query(
     `INSERT INTO offers (
-      offer_name, offer_type, reward_percentage, eligible_user,
-      start_date, end_date, promo_code, conditions
+      offer_name,
+      offer_type,
+      reward_percentage,
+      eligible_user,
+      start_date,
+      end_date,
+      promo_code,
+      conditions
     )
-    VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
     RETURNING *`,
     [
       offer_name,
@@ -65,7 +81,9 @@ const createOffer = async (payload) => {
 
 const listOffers = async () => {
   const result = await rideDb.query(
-    `SELECT * FROM offers ORDER BY created_at DESC`
+    `SELECT *
+     FROM offers
+     ORDER BY created_at DESC`
   );
 
   return result.rows;
@@ -73,6 +91,7 @@ const listOffers = async () => {
 
 module.exports = {
   getActiveOffers,
+  getActiveOfferCount,
   validatePromoCode,
   createOffer,
   listOffers,

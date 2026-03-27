@@ -12,7 +12,13 @@ const authMiddleware = (req, res, next) => {
 
   try {
     const decoded = verifyToken(token);
-    req.user = decoded;
+
+    req.user = {
+      userId: decoded.userId,
+      email: decoded.email,
+      isAdmin: decoded.isAdmin || false,
+    };
+
     next();
   } catch (error) {
     return errorResponse(res, 'Invalid or expired token.', 401);

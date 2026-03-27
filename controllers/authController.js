@@ -27,6 +27,15 @@ const googleLogin = asyncHandler(async (req, res) => {
   return successResponse(res, 'Google login successful.', data);
 });
 
+const resetPassword = asyncHandler(async (req, res) => {
+  const data = await authService.resetPassword(
+    req.body.email,
+    req.body.otp_code,
+    req.body.new_password
+  );
+
+  return successResponse(res, 'Password reset successfully.', data);
+});
 
 const checkEwuAllowedUser = asyncHandler(async (req, res) => {
   const data = await authService.checkEwuAllowedUser(req.body.email);
@@ -42,6 +51,7 @@ const findAccount = asyncHandler(async (req, res) => {
   const data = await authService.findAccount(req.body.email);
   return successResponse(res, 'Account found. OTP sent successfully.', data);
 });
+
 const verifyRecoveryOtp = asyncHandler(async (req, res) => {
   const data = await authService.verifyRecoveryOtp(
     req.body.email,
@@ -60,7 +70,7 @@ const resendRecoveryOtp = asyncHandler(async (req, res) => {
   );
 });
 
-const resetPassword = asyncHandler(async (req, res) => {
+const resetPasswordWithToken = asyncHandler(async (req, res) => {
   await authService.resetPasswordWithToken(
     req.body.resetToken,
     req.body.newPassword,
@@ -80,4 +90,7 @@ module.exports = {
   checkEwuAllowedUser,
   checkAdminStatus,
   findAccount,
+  verifyRecoveryOtp,
+  resendRecoveryOtp,
+  resetPasswordWithToken,
 };

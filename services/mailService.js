@@ -1,51 +1,32 @@
 const nodemailer = require('nodemailer');
-require('dotenv').config();
 
 const transporter = nodemailer.createTransport({
-  host: process.env.MAIL_HOST,
-  port: Number(process.env.MAIL_PORT),
-  secure: false,
+  service: 'gmail',
   auth: {
-    user: process.env.MAIL_USER,
-    pass: process.env.MAIL_PASS,
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS,
   },
 });
 
-
-const sendMail = async ({ to, subject, text, html }) => {
+const sendPasswordRecoveryOtpEmail = async (toEmail, otpCode) => {
   const mailOptions = {
-    from: process.env.MAIL_FROM || process.env.MAIL_USER,
-    to,
-    subject,
-    text,
-    html,
+    from: process.env.EMAIL_USER,
+    to: toEmail,
+    subject: 'UniRide Password Recovery OTP',
+    html: `
+      <div style="font-family: Arial, sans-serif; line-height: 1.6;">
+        <h2>UniRide Password Recovery</h2>
+        <p>Your OTP code is:</p>
+        <h1 style="letter-spacing: 4px;">${otpCode}</h1>
+        <p>This OTP will expire in 10 minutes.</p>
+        <p>If you did not request this, please ignore this email.</p>
+      </div>
+    `,
   };
 
-  return transporter.sendMail(mailOptions);
-};
-
-const sendPasswordRecoveryOtpEmail = async (email, otp) => {
-  await transporter.sendMail({
-    from: process.env.MAIL_FROM,
-    to: email,
-    subject: 'UniRide Password Recovery OTP',
-    text: `Your password recovery OTP is ${otp}`,
-  });
+  await transporter.sendMail(mailOptions);
 };
 
 module.exports = {
-  sendPasswordRecoveryOtpEmail,
-};
-
-  return sendMail({
-    to: email,
-    subject,
-    text,
-    html,
-  });
-};
-
-module.exports = {
-  sendMail,
   sendPasswordRecoveryOtpEmail,
 };

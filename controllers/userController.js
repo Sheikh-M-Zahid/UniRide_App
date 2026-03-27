@@ -2,29 +2,19 @@ const asyncHandler = require('../utils/asyncHandler');
 const { successResponse } = require('../utils/apiResponse');
 const userService = require('../services/userService');
 
-const getProfile = asyncHandler(async (req, res) => {
-  const data = await userService.getProfile(req.user.userId);
+const getMyProfile = asyncHandler(async (req, res) => {
+  const data = await userService.getMyProfile(req.user.userId);
   return successResponse(res, 'Profile fetched successfully.', data);
 });
 
-const updateProfile = asyncHandler(async (req, res) => {
-  const data = await userService.updateProfile(req.user.userId, req.body);
-  return successResponse(res, 'Profile updated successfully.', data);
+const updateMyProfile = asyncHandler(async (req, res) => {
+  await userService.updateMyProfile(req.user.userId, req.body);
+  return successResponse(res, 'Profile updated successfully.');
 });
 
-const getRole = asyncHandler(async (req, res) => {
-  const data = await userService.getRole(req.user.userId);
-  return successResponse(res, 'User role fetched successfully.', data);
-});
-
-const getAccountStatus = asyncHandler(async (req, res) => {
-  const data = await userService.getAccountStatus(req.user.userId);
-  return successResponse(res, 'Account status fetched successfully.', data);
-});
-
-const getWalletInfo = asyncHandler(async (req, res) => {
-  const data = await userService.getWalletInfo(req.user.userId);
-  return successResponse(res, 'Wallet info fetched successfully.', data);
+const updateProfilePicture = asyncHandler(async (req, res) => {
+  const data = await userService.updateProfilePicture(req.user.userId, req.file);
+  return successResponse(res, 'Profile picture updated successfully.', data);
 });
 
 const getRoleOptions = asyncHandler(async (req, res) => {
@@ -33,10 +23,8 @@ const getRoleOptions = asyncHandler(async (req, res) => {
 });
 
 module.exports = {
-  getProfile,
-  updateProfile,
-  getRole,
-  getAccountStatus,
-  getWalletInfo,
+  getMyProfile,
+  updateMyProfile,
+  updateProfilePicture,
   getRoleOptions,
 };
