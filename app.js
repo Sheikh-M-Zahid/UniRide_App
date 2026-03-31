@@ -20,6 +20,11 @@ const homeRoutes = require('./routes/homeRoutes');
 const settingsRoutes = require('./routes/settingsRoutes');
 const walletRoutes = require('./routes/walletRoutes');
 const supportRoutes = require('./routes/supportRoutes');
+const savedPlacesRoutes = require('./routes/savedPlacesRoutes');
+const rideHistoryRoutes = require('./routes/rideHistoryRoutes');
+const reserveRoutes = require('./routes/reserveRoutes');
+const activityRoutes = require('./routes/activityRoutes');
+const servicesRoutes = require('./routes/servicesRoutes');
 const errorMiddleware = require('./middlewares/errorMiddleware');
 
 const app = express();
@@ -55,6 +60,11 @@ app.use('/api/home', homeRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/wallet', walletRoutes); 
 app.use('/api/support', supportRoutes);
+app.use('/api/users', savedPlacesRoutes);
+app.use('/api/reserve', reserveRoutes);
+app.use('/api/rides', rideHistoryRoutes);
+app.use('/api/activity', activityRoutes);
+app.use('/api/services', servicesRoutes);
 app.use(errorMiddleware);
 
 module.exports = app;
