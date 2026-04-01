@@ -8,6 +8,7 @@ import 'LoginCheck.dart';
 import 'GmailConfirm.dart';
 import 'FindAccount.dart';
 import 'AdminHome.dart';
+import 'services/auth_api_service.dart';
 
 void main() {
   runApp(const MaterialApp(
@@ -38,6 +39,7 @@ class _UniRideLoginState extends State<UniRideLogin> {
 
   final TextEditingController emailController = TextEditingController();
   final TextEditingController passwordController = TextEditingController();
+  final AuthApiService _authApiService = AuthApiService();
 
   bool _isGoogleLoading = false;
   bool _isPasswordHidden = true;
@@ -65,25 +67,8 @@ class _UniRideLoginState extends State<UniRideLogin> {
         normalizedEmail.endsWith('@ewubd.edu');
   }
 
-  Future<bool> _checkIfAdmin(String email) async {
-    await Future.delayed(const Duration(milliseconds: 600));
-
-    // ================= BACKEND READY =================
-    // পরে এখানে তোমার real database/API call বসাবে
-    //
-    // Example:
-    // final response = await yourApiService.getUserByEmail(email);
-    // final List<String> roles = response.roles;
-    // return roles.map((e) => e.toLowerCase()).contains('admin');
-    //
-    // Important:
-    // এখানে admin email pattern দেখে check করা যাবে না।
-    // কারণ একই university email system থেকেই admin হতে পারে।
-
-    final normalizedEmail = email.trim().toLowerCase();
-
-    // Dummy admin check for testing only
-    return normalizedEmail == '2024-1-60-074@std.ewubd.edu';
+  Future<bool> _checkIfAdmin() async {
+    return await _authApiService.checkIfAdmin();
   }
 
   Future<void> _handleGoogleSignIn() async {
@@ -117,7 +102,26 @@ class _UniRideLoginState extends State<UniRideLogin> {
 
       if (!mounted) return;
 
-      final bool isAdmin = await _checkIfAdmin(email);
+      final loginResponse = await _authApiService.googleLogin(
+        email: email,
+      );
+
+      final bool success = loginResponse['success'] == true;
+
+      if (!success) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              loginResponse['message'] ?? 'Google login failed',
+            ),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
+
+      final bool isAdmin = loginResponse['data']?['isAdmin'] == true;
 
       if (!mounted) return;
 
@@ -143,7 +147,8 @@ class _UniRideLoginState extends State<UniRideLogin> {
           ),
         );
       }
-    } catch (error) {
+    }
+    catch (error) {
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
@@ -211,20 +216,27 @@ class _UniRideLoginState extends State<UniRideLogin> {
       //   throw Exception('Invalid email or password');
       // }
 
-      final bool loginSuccess = true;
+      final loginResponse = await _authApiService.login(
+        email: email,
+        password: password,
+      );
 
-      if (!loginSuccess) {
+      final bool success = loginResponse['success'] == true;
+
+      if (!success) {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Invalid email or password.'),
+          SnackBar(
+            content: Text(
+              loginResponse['message'] ?? 'Invalid email or password.',
+            ),
             backgroundColor: Colors.red,
           ),
         );
         return;
       }
 
-      final bool isAdmin = await _checkIfAdmin(email);
+      final bool isAdmin = loginResponse['data']?['isAdmin'] == true;
 
       if (!mounted) return;
 

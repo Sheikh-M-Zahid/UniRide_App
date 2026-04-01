@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:http/http.dart' as http;
+import 'services/auth_api_service.dart';
 
 import 'ReserveDateSelection.dart';
 import 'map_picker_screen.dart';
@@ -16,7 +17,7 @@ class ReserveRideSearch extends StatefulWidget {
 }
 
 class _ReserveRideSearchState extends State<ReserveRideSearch> {
-  static const String googleApiKey = "YOUR_GOOGLE_MAPS_API_KEY";
+  static const String googleApiKey = "AIzaSyCF5mVtZ2woOu8P1Jwf-7IfzRw_QoPilCI";
 
   String currentLocation = "Fetching your current location...";
   bool isLoadingLocation = true;
@@ -25,6 +26,7 @@ class _ReserveRideSearchState extends State<ReserveRideSearch> {
   final TextEditingController currentLocationController =
   TextEditingController();
   final TextEditingController destinationController = TextEditingController();
+  final AuthApiService _authApiService = AuthApiService();
 
   LatLng currentLatLng = const LatLng(23.8103, 90.4125);
   LatLng destinationLatLng = const LatLng(23.8103, 90.4125);
@@ -194,41 +196,18 @@ class _ReserveRideSearchState extends State<ReserveRideSearch> {
     }
   }
 
-  double _calculateDistanceKm() {
-    final double distanceInMeters = Geolocator.distanceBetween(
-      currentLatLng.latitude,
-      currentLatLng.longitude,
-      destinationLatLng.latitude,
-      destinationLatLng.longitude,
+  Future<Map<String, dynamic>> _calculateReserveRide() async {
+    final response = await _authApiService.calculateReserveRide(
+      pickupLat: currentLatLng.latitude,
+      pickupLng: currentLatLng.longitude,
+      destinationLat: destinationLatLng.latitude,
+      destinationLng: destinationLatLng.longitude,
     );
 
-    return distanceInMeters / 1000;
+    return response['data'];
   }
 
-  int _estimateTravelMinutes(double distanceKm) {
-    if (distanceKm <= 0) return 0;
-
-    // Simple fallback estimate
-    // পরে route API/map থেকে real duration বসাবে
-    const double averageSpeedKmPerHour = 25;
-    final double hours = distanceKm / averageSpeedKmPerHour;
-    final int minutes = (hours * 60).round();
-
-    return minutes < 5 ? 5 : minutes;
-  }
-
-  double _estimateCost(double distanceKm) {
-    if (distanceKm <= 0) return 0;
-
-    // Temporary estimate
-    // পরে backend থেকে exact fare বসাবে
-    const double baseFare = 40;
-    const double perKmFare = 12;
-
-    return baseFare + (distanceKm * perKmFare);
-  }
-
-  void _goToNextPage() {
+  Future<void> _goToNextPage() async {
     FocusScope.of(context).unfocus();
 
     if (currentLocationController.text.trim().isEmpty) {
@@ -249,22 +228,38 @@ class _ReserveRideSearchState extends State<ReserveRideSearch> {
       return;
     }
 
-    final double totalDistanceKm = _calculateDistanceKm();
-    final int estimatedTravelMinutes = _estimateTravelMinutes(totalDistanceKm);
-    final double estimatedCost = _estimateCost(totalDistanceKm);
+    try {
+      final data = await _calculateReserveRide();
 
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => ReserveDateSelection(
-          pickupLocation: currentLocationController.text.trim(),
-          destinationLocation: destinationController.text.trim(),
-          totalDistanceKm: totalDistanceKm,
-          estimatedTravelMinutes: estimatedTravelMinutes,
-          estimatedCost: estimatedCost,
+      final double totalDistanceKm =
+      (data['distance_km'] ?? 0).toDouble();
+      final int estimatedTravelMinutes =
+      (data['estimated_time_min'] ?? 0).toInt();
+      final double estimatedCost =
+      (data['estimated_cost'] ?? 0).toDouble();
+
+      if (!mounted) return;
+
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => ReserveDateSelection(
+            pickupLocation: currentLocationController.text.trim(),
+            destinationLocation: destinationController.text.trim(),
+            totalDistanceKm: totalDistanceKm,
+            estimatedTravelMinutes: estimatedTravelMinutes,
+            estimatedCost: estimatedCost,
+          ),
         ),
-      ),
-    );
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.toString()),
+        ),
+      );
+    }
   }
 
   @override

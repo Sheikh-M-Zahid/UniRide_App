@@ -103,7 +103,7 @@ class _SharingCaringPageState extends State<SharingCaringPage> {
       context,
       MaterialPageRoute(
         builder: (_) => const MapPickerScreen(
-          googleApiKey: "YOUR_GOOGLE_MAPS_API_KEY",
+          googleApiKey: "AIzaSyCF5mVtZ2woOu8P1Jwf-7IfzRw_QoPilCI",
           initialPosition: LatLng(23.8103, 90.4125),
           title: "Select Current Location",
         ),
@@ -122,7 +122,7 @@ class _SharingCaringPageState extends State<SharingCaringPage> {
       context,
       MaterialPageRoute(
         builder: (_) => const MapPickerScreen(
-          googleApiKey: "YOUR_GOOGLE_MAPS_API_KEY",
+          googleApiKey: "AIzaSyCF5mVtZ2woOu8P1Jwf-7IfzRw_QoPilCI",
           initialPosition: LatLng(23.8103, 90.4125),
           title: "Select Destination",
         ),

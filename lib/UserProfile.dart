@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:image_picker/image_picker.dart';
 import 'UserHome.dart';
 import 'UserSetting.dart';
 import 'UserOffer.dart';
@@ -231,10 +232,7 @@ class _UniRideProfilePageState extends State<UniRideProfilePage> {
       if (Platform.isIOS) {
         status = await Permission.photos.request();
       } else {
-        status = await Permission.photos.request();
-        if (!status.isGranted && !status.isLimited) {
-          status = await Permission.storage.request();
-        }
+        status = await Permission.storage.request();
       }
 
       if (status.isGranted || status.isLimited) {

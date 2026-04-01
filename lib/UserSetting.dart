@@ -2,19 +2,12 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:google_sign_in/google_sign_in.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:uni_ride/LogIn.dart';
 
 import 'UserProfile.dart';
 import 'app_storage.dart';
 import 'saved_places_page.dart';
-import 'ride_history_page.dart';
-import 'PersonalInfo.dart';
-import 'upcoming_reserve_page.dart';
-import 'help_support_page.dart';
-import 'report_problem_page.dart';
-import 'theme_settings_page.dart';
-import 'RideSelection.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 class AppColors {
   static const Color primary = Color(0xFF14B8A6);
@@ -30,6 +23,7 @@ class SettingsPage extends StatefulWidget {
   final String? userName;
   final String? userEmail;
   final String? userPhotoUrl;
+  static const String googleApiKey = "AIzaSyCF5mVtZ2woOu8P1Jwf-7IfzRw_QoPilCI";
 
   const SettingsPage({
     super.key,
@@ -56,7 +50,6 @@ class _SettingsPageState extends State<SettingsPage> {
     _loadUserData();
   }
 
-  // ✅ NEW (GoogleSignIn initialize)
   Future<void> _initGoogle() async {
     try {
       await GoogleSignIn.instance.initialize();
@@ -71,25 +64,38 @@ class _SettingsPageState extends State<SettingsPage> {
     setState(() {
       displayName =
       (widget.userName != null && widget.userName!.trim().isNotEmpty)
-          ? widget.userName!
-          : (data['name'] ?? 'User Name');
+          ? widget.userName!.trim()
+          : ((data['name'] ?? '').toString().trim().isNotEmpty
+          ? data['name'].toString().trim()
+          : 'User Name');
 
       displayEmail =
       (widget.userEmail != null && widget.userEmail!.trim().isNotEmpty)
-          ? widget.userEmail!
-          : (data['email'] ?? 'user@email.com');
+          ? widget.userEmail!.trim()
+          : ((data['email'] ?? '').toString().trim().isNotEmpty
+          ? data['email'].toString().trim()
+          : 'user@email.com');
 
       userPhotoUrl =
       (widget.userPhotoUrl != null && widget.userPhotoUrl!.trim().isNotEmpty)
-          ? widget.userPhotoUrl
+          ? widget.userPhotoUrl!.trim()
+          : ((data['photoUrl'] ?? '').toString().trim().isNotEmpty
+          ? data['photoUrl'].toString().trim()
+          : null);
+
+      userPhotoPath = ((data['photoPath'] ?? '').toString().trim().isNotEmpty)
+          ? data['photoPath'].toString().trim()
           : null;
 
-      userPhotoPath = data['photoPath'];
-      userRating = (data['rating'] ?? 5.0).toDouble();
+      final dynamic ratingValue = data['rating'];
+      if (ratingValue is num) {
+        userRating = ratingValue.toDouble();
+      } else {
+        userRating = 5.0;
+      }
     });
   }
 
-  // ✅ FIXED
   Future<void> _logout() async {
     try {
       await GoogleSignIn.instance.signOut();
@@ -108,15 +114,27 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
+  Future<void> _openSavedPlaces() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => SavedPlacesPage(
+          googleApiKey: "AIzaSyCF5mVtZ2woOu8P1Jwf-7IfzRw_QoPilCI",
+          initialPosition: const LatLng(23.8103, 90.4125),
+        ),
+      ),
+    );
+  }
+
   ImageProvider? _getProfileImage() {
-    if (userPhotoPath != null && userPhotoPath!.trim().isNotEmpty) {
+    if (userPhotoPath != null && userPhotoPath!.isNotEmpty) {
       final file = File(userPhotoPath!);
       if (file.existsSync()) {
         return FileImage(file);
       }
     }
 
-    if (userPhotoUrl != null && userPhotoUrl!.trim().isNotEmpty) {
+    if (userPhotoUrl != null && userPhotoUrl!.isNotEmpty) {
       return NetworkImage(userPhotoUrl!);
     }
 
@@ -145,7 +163,6 @@ class _SettingsPageState extends State<SettingsPage> {
       body: SingleChildScrollView(
         child: Column(
           children: [
-            // ---- SAME UI (unchanged) ----
             InkWell(
               onTap: () async {
                 await Navigator.push(
@@ -157,7 +174,7 @@ class _SettingsPageState extends State<SettingsPage> {
                     ),
                   ),
                 );
-                _loadUserData();
+                await _loadUserData();
               },
               child: Padding(
                 padding:
@@ -169,8 +186,11 @@ class _SettingsPageState extends State<SettingsPage> {
                       backgroundColor: AppColors.inputFill,
                       backgroundImage: profileImage,
                       child: profileImage == null
-                          ? const Icon(Icons.person,
-                          size: 45, color: AppColors.mutedText)
+                          ? const Icon(
+                        Icons.person,
+                        size: 45,
+                        color: AppColors.mutedText,
+                      )
                           : null,
                     ),
                     const SizedBox(width: 15),

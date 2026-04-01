@@ -339,7 +339,8 @@ class _RiderProfileState extends State<RiderProfile> {
 
               const SizedBox(height: 30),
 
-              // ================= SUGGESTION CARD =================
+              const SizedBox(height: 20),
+
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(20),
@@ -356,48 +357,25 @@ class _RiderProfileState extends State<RiderProfile> {
                     ),
                   ],
                 ),
-                child: Column(
+                child: const Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
-                      "Suggestions",
+                    Text(
+                      "About UniRide",
                       style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
                         color: AppColors.text,
                       ),
                     ),
-                    const SizedBox(height: 15),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            "Complete your account check-up to improve your UniRide experience.",
-                            style: const TextStyle(
-                              color: AppColors.mutedText,
-                            ),
-                          ),
-                        ),
-                        const Icon(
-                          Icons.badge,
-                          size: 35,
-                          color: AppColors.secondary,
-                        ),
-                      ],
+                    SizedBox(height: 12),
+                    Text(
+                      "UniRide connects students, faculty, staff and alumni through a smarter campus ride-sharing experience. From daily rides to advance reservations and item delivery, UniRide is built to make university travel safer, easier and more connected.",
+                      style: TextStyle(
+                        color: AppColors.mutedText,
+                        height: 1.5,
+                      ),
                     ),
-                    const SizedBox(height: 15),
-                    ElevatedButton(
-                      onPressed: () {},
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.inputFill,
-                        elevation: 0,
-                        shape: const StadiumBorder(),
-                      ),
-                      child: const Text(
-                        "Begin check-up",
-                        style: TextStyle(color: AppColors.text),
-                      ),
-                    )
                   ],
                 ),
               ),
