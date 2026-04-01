@@ -118,7 +118,7 @@ class UniRideHomePage extends StatelessWidget {
                     context,
                     MaterialPageRoute(
                       builder: (context) => PlanYourRidePage(
-                        googleApiKey: 'YOUR_GOOGLE_API_KEY',
+                        googleApiKey: 'AIzaSyCF5mVtZ2woOu8P1Jwf-7IfzRw_QoPilCI',
                       ),
                     ),
                   );

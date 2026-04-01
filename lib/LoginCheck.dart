@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'RiderDashboard.dart';
 import 'UserHome.dart';
 import 'LogIn.dart';
+import 'services/auth_api_service.dart';
 
 class LoginCheck extends StatefulWidget {
   final String email;
@@ -16,6 +17,9 @@ class LoginCheck extends StatefulWidget {
 }
 
 class _LoginCheckState extends State<LoginCheck> {
+
+  final AuthApiService _authApiService = AuthApiService();
+
   String? selectedRole; // Passenger / Rider
   bool isChecking = false;
 
@@ -32,30 +36,9 @@ class _LoginCheckState extends State<LoginCheck> {
     return domainPart == 'std.ewubd.edu' || domainPart == 'ewubd.edu';
   }
 
-  Future<bool> checkRoleInDatabase(String email, String role) async {
-    await Future.delayed(const Duration(milliseconds: 600));
-
-    final normalizedEmail = email.trim().toLowerCase();
-
-    // Apatoto sudhu university domain thaklei allow
-    if (!_hasValidUniversityDomain(normalizedEmail)) {
-      return false;
-    }
-
-    // ================= BACKEND READY =================
-    // Pore ekhane backend/database theke FULL email + role check hobe.
-    // Example:
-    //
-    // final response = await yourApiService.getUserByEmail(normalizedEmail);
-    // final List<String> rolesFromDatabase =
-    //     (response['roles'] as List<dynamic>? ?? [])
-    //         .map((e) => e.toString().toLowerCase().trim())
-    //         .toList();
-    //
-    // return rolesFromDatabase.contains(role.trim().toLowerCase());
-
-    // Apatoto valid university email hole Passenger/Rider jekono role e jete parbe
-    return true;
+  Future<Map<String, dynamic>> checkRoleInDatabase() async {
+    final response = await _authApiService.getRoleOptions();
+    return response;
   }
 
   Future<void> goNext() async {
@@ -76,7 +59,16 @@ class _LoginCheckState extends State<LoginCheck> {
     try {
       final String email = widget.email.trim().toLowerCase();
 
-      final bool isValid = await checkRoleInDatabase(email, selectedRole!);
+      final response = await checkRoleInDatabase();
+      final data = response['data'];
+
+      bool isValid = false;
+
+      if (selectedRole == "Passenger") {
+        isValid = data['passengerAllowed'] == true;
+      } else if (selectedRole == "Rider") {
+        isValid = data['riderAllowed'] == true;
+      }
 
       if (!mounted) return;
 
@@ -94,11 +86,11 @@ class _LoginCheckState extends State<LoginCheck> {
       }
 
       if (!isValid) {
+        final reason = data['riderReason'] ?? "Access not allowed";
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(
-              "This email is not registered as ${selectedRole!}. Please select the correct role.",
-            ),
+            content: Text(reason),
             backgroundColor: Colors.red,
             behavior: SnackBarBehavior.floating,
           ),

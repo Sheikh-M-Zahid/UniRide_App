@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'app_colors.dart';
-import 'app_storage.dart';
+import 'services/auth_api_service.dart';
 
 class HelpSupportPage extends StatefulWidget {
   const HelpSupportPage({super.key});
@@ -11,17 +11,27 @@ class HelpSupportPage extends StatefulWidget {
 
 class _HelpSupportPageState extends State<HelpSupportPage> {
   final TextEditingController messageController = TextEditingController();
+  final AuthApiService _authApiService = AuthApiService();
 
   Future<void> _submitHelp() async {
-    if (messageController.text.trim().isEmpty) return;
+    final message = messageController.text.trim();
 
-    await AppStorage.saveHelpMessage(messageController.text.trim());
+    if (message.isEmpty) return;
 
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Help request submitted')),
-    );
-    messageController.clear();
+    try {
+      await _authApiService.submitHelpRequest(message: message);
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Help request submitted')),
+      );
+      messageController.clear();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString())),
+      );
+    }
   }
 
   @override

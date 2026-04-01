@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'services/auth_api_service.dart';
 
 class AppColors {
   static const Color primary = Color(0xFF14B8A6);
@@ -26,35 +27,24 @@ class _PersonalInformationPageState extends State<PersonalInformationPage> {
 
   File? _imageFile;
   final ImagePicker _picker = ImagePicker();
+  final AuthApiService _authApiService = AuthApiService();
 
   bool isEditing = false;
   bool bloodGroupLocked = false;
   bool isSaving = false;
 
-  // Dummy data (Later database থেকে আনবে)
   String profileImageUrl = "";
-  String firstName = "Zahid";
-  String lastName = "Hossain";
-  String occupation = "Student";
-  String universityEmail = "zahid@university.edu";
+  String firstName = "";
+  String lastName = "";
+  String occupation = "";
+  String universityEmail = "";
 
-  final TextEditingController phoneController =
-  TextEditingController(text: "01700000000");
-
-  final TextEditingController secondaryPhoneController =
-  TextEditingController();
-
-  final TextEditingController emergencyContactController =
-  TextEditingController();
-
-  final TextEditingController presentAreaController =
-  TextEditingController(text: "Narayanganj");
-
-  final TextEditingController permanentAddressController =
-  TextEditingController();
-
-  final TextEditingController dateOfBirthController =
-  TextEditingController();
+  final TextEditingController phoneController = TextEditingController();
+  final TextEditingController secondaryPhoneController = TextEditingController();
+  final TextEditingController emergencyContactController = TextEditingController();
+  final TextEditingController presentAreaController = TextEditingController();
+  final TextEditingController permanentAddressController = TextEditingController();
+  final TextEditingController dateOfBirthController = TextEditingController();
 
   String? selectedBloodGroup;
   String? selectedGender;
@@ -73,7 +63,6 @@ class _PersonalInformationPageState extends State<PersonalInformationPage> {
   final List<String> genderList = [
     "Male",
     "Female",
-    "Other",
   ];
 
   Future<bool> _requestPermission(ImageSource source) async {
@@ -83,7 +72,7 @@ class _PersonalInformationPageState extends State<PersonalInformationPage> {
       permission = Permission.camera;
     } else {
       if (Platform.isAndroid) {
-        permission = Permission.photos;
+        permission = Permission.storage;
       } else {
         permission = Permission.photos;
       }
@@ -248,6 +237,43 @@ class _PersonalInformationPageState extends State<PersonalInformationPage> {
     return null;
   }
 
+  Future<void> _loadProfile() async {
+    try {
+      final response = await _authApiService.getMyProfile();
+      final data = response['data'];
+
+      if (!mounted) return;
+
+      setState(() {
+        firstName = data['first_name'] ?? '';
+        lastName = data['last_name'] ?? '';
+        occupation = data['occupation'] ?? '';
+        universityEmail = data['university_email'] ?? '';
+        profileImageUrl = data['profile_picture'] ?? '';
+
+        phoneController.text = data['phone'] ?? '';
+        secondaryPhoneController.text = data['recovery_phone'] ?? '';
+        emergencyContactController.text = data['emergency_phone'] ?? '';
+        presentAreaController.text = data['hostel_address'] ?? '';
+        permanentAddressController.text = data['home_address'] ?? '';
+        dateOfBirthController.text = data['date_of_birth']?.toString() ?? '';
+
+        selectedGender = data['gender'] != null
+            ? "${data['gender'][0].toUpperCase()}${data['gender'].substring(1).toLowerCase()}"
+            : null;
+
+        selectedBloodGroup = data['blood_group'];
+        bloodGroupLocked = (data['blood_group'] != null &&
+            data['blood_group'].toString().trim().isNotEmpty);
+      });
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Failed to load profile')),
+      );
+    }
+  }
+
   Future<void> _saveInformation() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -257,23 +283,58 @@ class _PersonalInformationPageState extends State<PersonalInformationPage> {
       isSaving = true;
     });
 
-    await Future.delayed(const Duration(seconds: 2));
+    try {
+      await _authApiService.updateMyProfile(
+        phone: phoneController.text.trim(),
+        recoveryPhone: secondaryPhoneController.text.trim(),
+        emergencyPhone: emergencyContactController.text.trim(),
+        gender: (selectedGender ?? '').toLowerCase(),
+        dateOfBirth: dateOfBirthController.text.trim(),
+        homeAddress: permanentAddressController.text.trim(),
+        hostelAddress: presentAreaController.text.trim(),
+        campusAddress: '',
+        bloodGroup: bloodGroupLocked ? null : selectedBloodGroup,
+      );
 
-    if (!mounted) return;
-
-    setState(() {
-      if (selectedBloodGroup != null) {
-        bloodGroupLocked = true;
+      if (_imageFile != null) {
+        final imageResponse = await _authApiService.updateProfilePicture(_imageFile!);
+        profileImageUrl = imageResponse['data']?['profile_picture_url'] ?? profileImageUrl;
       }
-      isEditing = false;
-      isSaving = false;
-    });
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text("Information updated successfully"),
-      ),
-    );
+      if (!mounted) return;
+
+      setState(() {
+        if (selectedBloodGroup != null) {
+          bloodGroupLocked = true;
+        }
+        isEditing = false;
+        isSaving = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Information updated successfully"),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        isSaving = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.toString()),
+        ),
+      );
+    }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _loadProfile();
   }
 
   @override
@@ -324,7 +385,7 @@ class _PersonalInformationPageState extends State<PersonalInformationPage> {
                         backgroundImage: _imageFile != null
                             ? FileImage(_imageFile!)
                             : (profileImageUrl.isNotEmpty
-                            ? NetworkImage(profileImageUrl)
+                            ? NetworkImage(_authApiService.getFullImageUrl(profileImageUrl))
                             : null)
                         as ImageProvider?,
                         child: (_imageFile == null && profileImageUrl.isEmpty)

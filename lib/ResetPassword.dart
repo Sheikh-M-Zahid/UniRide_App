@@ -1,8 +1,14 @@
 import 'package:flutter/material.dart';
 import 'LogIn.dart'; // তোমার login page file name যদি আলাদা হয়, এটা change করবে
+import 'services/auth_api_service.dart';
 
 class ResetPasswordPage extends StatefulWidget {
-  const ResetPasswordPage({super.key});
+  final String resetToken;
+
+  const ResetPasswordPage({
+    super.key,
+    required this.resetToken,
+  });
 
   @override
   State<ResetPasswordPage> createState() => _ResetPasswordPageState();
@@ -14,6 +20,7 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
   TextEditingController();
 
   final _formKey = GlobalKey<FormState>();
+  final AuthApiService _authApiService = AuthApiService();
 
   bool _obscureNewPassword = true;
   bool _obscureConfirmPassword = true;
@@ -41,15 +48,33 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
       _isLoading = true;
     });
 
-    await Future.delayed(const Duration(seconds: 2));
+    try {
+      await _authApiService.resetPasswordWithToken(
+        resetToken: widget.resetToken,
+        newPassword: newPasswordController.text.trim(),
+        confirmPassword: confirmPasswordController.text.trim(),
+      );
 
-    setState(() {
-      _isLoading = false;
-    });
+      if (!mounted) return;
 
-    if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+      });
 
-    _showSuccessDialog();
+      _showSuccessDialog();
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        _isLoading = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.toString()),
+        ),
+      );
+    }
   }
 
   void _showSuccessDialog() {

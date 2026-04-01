@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'PasswordRecoveryOTP.dart';
+import 'services/auth_api_service.dart';
 
 class FindAccount extends StatefulWidget {
   const FindAccount({super.key});
@@ -10,6 +11,7 @@ class FindAccount extends StatefulWidget {
 
 class _FindAccountState extends State<FindAccount> {
   final TextEditingController _emailController = TextEditingController();
+  final AuthApiService _authApiService = AuthApiService();
 
   bool _isValidUniversityEmail(String email) {
     final value = email.trim().toLowerCase();
@@ -18,7 +20,7 @@ class _FindAccountState extends State<FindAccount> {
         value.endsWith('@ewubd.edu');
   }
 
-  void _handleSearch() {
+  Future<void> _handleSearch() async {
     final email = _emailController.text.trim().toLowerCase();
 
     if (email.isEmpty) {
@@ -41,12 +43,26 @@ class _FindAccountState extends State<FindAccount> {
       return;
     }
 
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => passwordrecoveryotp(email: email),
-      ),
-    );
+    try {
+      final response = await _authApiService.findAccount(email: email);
+
+      if (!mounted) return;
+
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => passwordrecoveryotp(email: email),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.toString()),
+        ),
+      );
+    }
   }
 
   @override

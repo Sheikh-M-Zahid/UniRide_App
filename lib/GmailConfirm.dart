@@ -218,6 +218,19 @@ class _GmailconfirmPageState extends State<GmailconfirmPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF9FAFB),
+      appBar: AppBar(
+        backgroundColor: const Color(0xFFF9FAFB),
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(
+            Icons.arrow_back_ios_new,
+            color: Color(0xFF1F2937),
+          ),
+          onPressed: () {
+            Navigator.pop(context);
+          },
+        ),
+      ),
       body: SafeArea(
         child: SingleChildScrollView(
           keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
@@ -226,7 +239,19 @@ class _GmailconfirmPageState extends State<GmailconfirmPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const SizedBox(height: 60),
+                const SizedBox(height: 40),
+                const Center(
+                  child: CircleAvatar(
+                    radius: 32,
+                    backgroundColor: Color(0x1414B8A6),
+                    child: Icon(
+                      Icons.directions_car_filled,
+                      size: 34,
+                      color: Color(0xFF14B8A6),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
                 const Center(
                   child: Text(
                     "UniRide",

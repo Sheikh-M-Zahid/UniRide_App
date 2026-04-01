@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'services/auth_api_service.dart';
 import 'ResetPassword.dart';
 
 class passwordrecoveryotp extends StatefulWidget {
@@ -25,6 +26,7 @@ class _passwordrecoveryotpState extends State<passwordrecoveryotp> {
   int _secondsRemaining = 30;
   bool _isVerifying = false;
   bool _isResending = false;
+  final AuthApiService _authApiService = AuthApiService();
 
   @override
   void initState() {
@@ -66,7 +68,7 @@ class _passwordrecoveryotpState extends State<passwordrecoveryotp> {
   }
 
   bool get _isOtpComplete {
-    return _otpCode.length == 6 && !_otpCode.contains('');
+    return _otpControllers.every((controller) => controller.text.trim().isNotEmpty);
   }
 
   void _onOtpChanged(String value, int index) {
@@ -93,27 +95,47 @@ class _passwordrecoveryotpState extends State<passwordrecoveryotp> {
       _isVerifying = true;
     });
 
-    await Future.delayed(const Duration(seconds: 2));
+    try {
+      final response = await _authApiService.verifyRecoveryOtp(
+        email: widget.email,
+        otp: _otpCode,
+      );
 
-    setState(() {
-      _isVerifying = false;
-    });
+      final String resetToken = response['data']?['resetToken'] ?? '';
 
-    if (!mounted) return;
+      if (!mounted) return;
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('OTP verified successfully'),
-      ),
-    );
+      setState(() {
+        _isVerifying = false;
+      });
 
-    // এখানে পরের Reset Password page-এ navigate করবে
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => const ResetPasswordPage(),
-      ),
-    );
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('OTP verified successfully'),
+        ),
+      );
+
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => ResetPasswordPage(
+            resetToken: resetToken,
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        _isVerifying = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.toString()),
+        ),
+      );
+    }
   }
 
   Future<void> _resendOtp() async {
@@ -123,22 +145,36 @@ class _passwordrecoveryotpState extends State<passwordrecoveryotp> {
       _isResending = true;
     });
 
-    await Future.delayed(const Duration(seconds: 2));
+    try {
+      await _authApiService.resendRecoveryOtp(email: widget.email);
 
-    setState(() {
-      _isResending = false;
-    });
+      if (!mounted) return;
 
-    _clearOtpFields();
-    _startTimer();
+      setState(() {
+        _isResending = false;
+      });
 
-    if (!mounted) return;
+      _clearOtpFields();
+      _startTimer();
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('A new OTP has been sent'),
-      ),
-    );
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('A new OTP has been sent'),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        _isResending = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.toString()),
+        ),
+      );
+    }
   }
 
   void _clearOtpFields() {
@@ -280,7 +316,7 @@ class _passwordrecoveryotpState extends State<passwordrecoveryotp> {
                     width: double.infinity,
                     height: 56,
                     child: ElevatedButton(
-                      onPressed: (_otpCode.length == 6 && !_isVerifying)
+                      onPressed: (_isOtpComplete && !_isVerifying)
                           ? _verifyOtp
                           : null,
                       style: ElevatedButton.styleFrom(
