@@ -53,7 +53,19 @@ const listJoinedRides = asyncHandler(async (req, res) => {
   const data = await rideService.listJoinedRides(req.user.userId);
   return successResponse(res, 'Joined rides fetched successfully.', data);
 });
+const searchRides = asyncHandler(async (req, res) => {
+  try {
+    const data = await rideService.searchRides(req.body);
 
+    return successResponse(
+      res,
+      'Ride search completed successfully.',
+      data
+    );
+  } catch (error) {
+    return errorResponse(res, error.message, 400);
+  }
+});
 module.exports = {
   createRide,
   listActiveRides,
@@ -63,4 +75,5 @@ module.exports = {
   changeRideStatus,
   listMyCreatedRides,
   listJoinedRides,
+  searchRides,
 };

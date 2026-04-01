@@ -20,6 +20,7 @@ const homeRoutes = require('./routes/homeRoutes');
 const settingsRoutes = require('./routes/settingsRoutes');
 const walletRoutes = require('./routes/walletRoutes');
 const supportRoutes = require('./routes/supportRoutes');
+const vehicleRoutes = require('./routes/vehicleRoutes');
 const errorMiddleware = require('./middlewares/errorMiddleware');
 
 const app = express();
@@ -53,6 +54,7 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/home', homeRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/wallet', walletRoutes);
+app.use('/api/vehicles', vehicleRoutes);
 app.use('/api/support', supportRoutes);
 
 app.use(errorMiddleware);

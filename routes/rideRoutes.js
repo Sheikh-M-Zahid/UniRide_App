@@ -11,6 +11,7 @@ router.post(
   rideController.createRide
 );
 
+router.post('/search', authMiddleware, rideController.searchRides);
 router.get('/active', rideController.listActiveRides);
 router.get('/my-created', authMiddleware, rideController.listMyCreatedRides);
 router.get('/joined', authMiddleware, rideController.listJoinedRides);

@@ -1,10 +1,23 @@
 const express = require('express');
 const router = express.Router();
+
 const authController = require('../controllers/authController');
 const { validateRequiredFields } = require('../middlewares/validateMiddleware');
 
-router.post('/send-otp', validateRequiredFields(['email']), authController.sendOtp);
-router.post('/verify-otp', validateRequiredFields(['email', 'otp_code']), authController.verifyOtp);
+/* =========================
+   BASIC AUTH
+========================= */
+router.post(
+  '/send-otp',
+  validateRequiredFields(['email']),
+  authController.sendOtp
+);
+
+router.post(
+  '/verify-otp',
+  validateRequiredFields(['email', 'otp_code']),
+  authController.verifyOtp
+);
 
 router.post(
   '/signup',
@@ -12,18 +25,69 @@ router.post(
   authController.signup
 );
 
-router.post('/login', validateRequiredFields(['email', 'password']), authController.login);
-router.post('/google-login', validateRequiredFields(['email']), authController.googleLogin);
-
 router.post(
-  '/reset-password',
-  validateRequiredFields(['email', 'otp_code', 'new_password']),
-  authController.resetPassword
+  '/login',
+  validateRequiredFields(['email', 'password']),
+  authController.login
 );
 
-router.post('/check-ewu-user', validateRequiredFields(['email']), authController.checkEwuAllowedUser);
-router.post('/check-admin', validateRequiredFields(['email']), authController.checkAdminStatus);
-router.post('/find-account', validateRequiredFields(['email']), authController.findAccount);
+router.post(
+  '/google-login',
+  validateRequiredFields(['email']),
+  authController.googleLogin
+);
+
+/* =========================
+   SIGNUP EMAIL VERIFY FLOW
+========================= */
+router.post(
+  '/send-signup-otp',
+  validateRequiredFields(['email']),
+  authController.sendSignupOtp
+);
+
+router.post(
+  '/verify-signup-otp',
+  validateRequiredFields(['email', 'otp']),
+  authController.verifySignupOtp
+);
+
+router.post(
+  '/resend-signup-otp',
+  validateRequiredFields(['email']),
+  authController.resendSignupOtp
+);
+
+router.post(
+  '/google-signup-check',
+  validateRequiredFields(['email']),
+  authController.googleSignupCheck
+);
+
+router.post(
+  '/register',
+  validateRequiredFields([
+    'signupToken',
+    'first_name',
+    'last_name',
+    'phone',
+    'gender',
+    'date_of_birth',
+    'home_address',
+    'hostel_address',
+    'password',
+  ]),
+  authController.register
+);
+
+/* =========================
+   PASSWORD RESET FLOW
+========================= */
+router.post(
+  '/find-account',
+  validateRequiredFields(['email']),
+  authController.findAccount
+);
 
 router.post(
   '/verify-recovery-otp',
@@ -38,9 +102,30 @@ router.post(
 );
 
 router.post(
+  '/reset-password',
+  validateRequiredFields(['email', 'otp_code', 'new_password']),
+  authController.resetPassword
+);
+
+router.post(
   '/reset-password-with-token',
   validateRequiredFields(['resetToken', 'newPassword', 'confirmPassword']),
   authController.resetPasswordWithToken
+);
+
+/* =========================
+   CHECK HELPERS
+========================= */
+router.post(
+  '/check-ewu-user',
+  validateRequiredFields(['email']),
+  authController.checkEwuAllowedUser
+);
+
+router.post(
+  '/check-admin',
+  validateRequiredFields(['email']),
+  authController.checkAdminStatus
 );
 
 module.exports = router;
