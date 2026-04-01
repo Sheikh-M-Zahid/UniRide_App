@@ -273,9 +273,7 @@ const changeRideStatus = async (rideId, riderId, status) => {
   return result.rows[0];
 };
 
-// =========================
 // My created rides
-// =========================
 const listMyCreatedRides = async (riderId) => {
   const result = await rideDb.query(
     `SELECT *
@@ -423,6 +421,63 @@ const searchRides = async (payload) => {
   };
 };
 
+const getDashboardSummary = async (userId) => {
+  // 1. Online status
+  const userRes = await rideDb.query(
+    `SELECT is_online FROM users WHERE user_id = $1`,
+    [userId]
+  );
+
+  // 2. Today earnings
+  const earningsRes = await rideDb.query(
+    `SELECT COALESCE(SUM(amount),0) AS total
+     FROM transactions
+     WHERE user_id = $1
+     AND DATE(created_at) = CURRENT_DATE`,
+    [userId]
+  );
+
+  // 3. Active ride
+  const activeRide = await rideDb.query(
+    `SELECT * FROM rides
+     WHERE rider_id = $1
+     AND status IN ('accepted','ongoing')
+     LIMIT 1`,
+    [userId]
+  );
+
+  // 4. Upcoming ride
+  const upcoming = await rideDb.query(
+    `SELECT * FROM rides
+     WHERE rider_id = $1
+     AND status = 'scheduled'
+     ORDER BY created_at ASC
+     LIMIT 1`,
+    [userId]
+  );
+
+  // 5. Notifications (simple count example)
+  const notificationCount = 0;
+
+  return {
+    is_online: userRes.rows[0]?.is_online || false,
+    today_earnings: earningsRes.rows[0].total,
+    notification_count: notificationCount,
+    active_ride: activeRide.rows[0] || null,
+    upcoming_reserved_ride: upcoming.rows[0] || null,
+  };
+};
+
+const updateStatus = async (userId, status) => {
+  await rideDb.query(
+    `UPDATE users SET is_online = $1 WHERE user_id = $2`,
+    [status, userId]
+  );
+
+  return { message: "Status updated" };
+};
+
+
 module.exports = {
   createRide,
   listActiveRides,
@@ -433,4 +488,6 @@ module.exports = {
   listMyCreatedRides,
   listJoinedRides,
   searchRides,
+  getDashboardSummary,
+  updateStatus,
 };

@@ -21,6 +21,11 @@ const settingsRoutes = require('./routes/settingsRoutes');
 const walletRoutes = require('./routes/walletRoutes');
 const supportRoutes = require('./routes/supportRoutes');
 const vehicleRoutes = require('./routes/vehicleRoutes');
+const reserveRoutes = require('./routes/reserveRoutes');
+const activeRiderRoutes = require('./routes/activeRiderRoutes');
+const earningsRoutes = require('./routes/earningsRoutes');
+const activeRideRoutes = require('./routes/activeRideRoutes');
+
 const errorMiddleware = require('./middlewares/errorMiddleware');
 
 const app = express();
@@ -56,6 +61,10 @@ app.use('/api/settings', settingsRoutes);
 app.use('/api/wallet', walletRoutes);
 app.use('/api/vehicles', vehicleRoutes);
 app.use('/api/support', supportRoutes);
+app.use('/api/rider/active-riders', activeRiderRoutes);
+app.use('/api/reserve', reserveRoutes); 
+app.use('/api/rider/earnings', earningsRoutes);
+app.use('/api/rider/active-ride', activeRideRoutes);
 
 app.use(errorMiddleware);
 
