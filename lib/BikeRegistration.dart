@@ -28,6 +28,10 @@ class _BikeRegistrationState extends State<BikeRegistration> {
   String? selectedYear;
   final TextEditingController numberPlateController =
   TextEditingController();
+  final TextEditingController otherBrandController =
+  TextEditingController();
+  final TextEditingController otherModelController =
+  TextEditingController();
 
   File? varsityId;
   File? profilePhoto;
@@ -35,21 +39,220 @@ class _BikeRegistrationState extends State<BikeRegistration> {
   File? vehicleRegistration;
   File? taxToken;
 
-  List<String> brands = ["Yamaha", "Honda", "Suzuki"];
-  List<String> models = ["R15", "CBR", "Gixxer"];
+  final List<String> brands = [
+    "Yamaha",
+    "Honda",
+    "Suzuki",
+    "Bajaj",
+    "TVS",
+    "Hero",
+    "Runner",
+    "Lifan",
+    "Keeway",
+    "Roadmaster",
+    "H Power",
+    "PHP",
+    "Speeder",
+    "Walton",
+    "Benelli",
+    "KTM",
+    "Royal Enfield",
+    "GPX",
+    "CFMOTO",
+    "Others",
+  ];
+
+  final Map<String, List<String>> brandModels = {
+    "Yamaha": [
+      "R15 V3",
+      "R15 V4",
+      "R15M",
+      "FZS V3",
+      "FZS V2",
+      "FZ-X",
+      "MT-15",
+      "Saluto",
+      "Ray ZR",
+      "Fascino",
+      "Others",
+    ],
+    "Honda": [
+      "CB Hornet 160R",
+      "CB Shine",
+      "SP 125",
+      "CBR 150R",
+      "CBR 150R ABS",
+      "Livo",
+      "XBlade",
+      "Dream 110",
+      "Dio",
+      "Others",
+    ],
+    "Suzuki": [
+      "Gixxer",
+      "Gixxer SF",
+      "Gixxer Monotone",
+      "GSX-R150",
+      "GSX-S150",
+      "Intruder",
+      "Hayate EP",
+      "Access 125",
+      "Burgman Street",
+      "Others",
+    ],
+    "Bajaj": [
+      "Pulsar 150",
+      "Pulsar NS160",
+      "Pulsar N160",
+      "Pulsar 220F",
+      "Discover 125",
+      "Platina 100",
+      "CT 100",
+      "Avenger Street 160",
+      "Others",
+    ],
+    "TVS": [
+      "Apache RTR 160 4V",
+      "Apache RTR 160",
+      "Apache RTR 165 RP",
+      "Apache RTR 180",
+      "Apache RTR 200 4V",
+      "TVS Raider 125",
+      "Metro Plus",
+      "Stryker",
+      "NTorq 125",
+      "Jupiter",
+      "Others",
+    ],
+    "Hero": [
+      "Hunk",
+      "Splendor Plus",
+      "Passion Pro",
+      "Ignitor",
+      "Glamour",
+      "Xtreme 160R",
+      "Pleasure",
+      "Destini 125",
+      "Others",
+    ],
+    "Runner": [
+      "Knight Rider",
+      "Bullet",
+      "Turbo 125",
+      "Cheeta",
+      "Skooty",
+      "Freedom",
+      "AD80S",
+      "Others",
+    ],
+    "Lifan": [
+      "KPR 165R",
+      "KPT 150",
+      "Glint 100",
+      "KP Mini",
+      "Others",
+    ],
+    "Keeway": [
+      "RKS 150",
+      "RKR 165",
+      "K-Light",
+      "Benda Darkflag",
+      "Others",
+    ],
+    "Roadmaster": [
+      "Prime 100",
+      "Rapido 150",
+      "Velocity",
+      "Delight",
+      "Others",
+    ],
+    "H Power": [
+      "125",
+      "Zaara 110",
+      "Recover",
+      "Robot",
+      "Others",
+    ],
+    "PHP": [
+      "Merkaba",
+      "Pride",
+      "Commando",
+      "Others",
+    ],
+    "Speeder": [
+      "NSX 165R",
+      "Countryman",
+      "Big Monster",
+      "Others",
+    ],
+    "Walton": [
+      "Fusion 125",
+      "Stylex",
+      "Others",
+    ],
+    "Benelli": [
+      "TNT 150",
+      "TNT 135",
+      "TRK 251",
+      "Others",
+    ],
+    "KTM": [
+      "Duke 125",
+      "Duke 200",
+      "RC 125",
+      "RC 200",
+      "Others",
+    ],
+    "Royal Enfield": [
+      "Classic 350",
+      "Meteor 350",
+      "Hunter 350",
+      "Bullet 350",
+      "Others",
+    ],
+    "GPX": [
+      "Demon",
+      "Legend",
+      "Raptor",
+      "Others",
+    ],
+    "CFMOTO": [
+      "150NK",
+      "250NK",
+      "300SR",
+      "Others",
+    ],
+    "Others": ["Others"],
+  };
+
+  List<String> get models =>
+      selectedBrand != null ? (brandModels[selectedBrand!] ?? ["Others"]) : [];
   List<String> years =
   List.generate(20, (index) => (2025 - index).toString());
 
-  bool get isFormComplete =>
-      selectedBrand != null &&
-          selectedModel != null &&
-          selectedYear != null &&
-          numberPlateController.text.isNotEmpty &&
-          varsityId != null &&
-          profilePhoto != null &&
-          drivingLicense != null &&
-          vehicleRegistration != null &&
-          taxToken != null;
+  bool get isFormComplete {
+    final bool brandOk = selectedBrand != null &&
+        (selectedBrand == "Others"
+            ? otherBrandController.text.trim().isNotEmpty
+            : true);
+
+    final bool modelOk = selectedBrand == "Others"
+        ? otherModelController.text.trim().isNotEmpty
+        : selectedModel != null &&
+        (selectedModel == "Others"
+            ? otherModelController.text.trim().isNotEmpty
+            : true);
+
+    return brandOk &&
+        modelOk &&
+        selectedYear != null &&
+        numberPlateController.text.isNotEmpty &&
+        varsityId != null &&
+        profilePhoto != null &&
+        drivingLicense != null &&
+        vehicleRegistration != null &&
+        taxToken != null;
+  }
 
   Future<void> requestCameraPermission() async {
     await Permission.camera.request();
@@ -249,46 +452,123 @@ class _BikeRegistrationState extends State<BikeRegistration> {
               onChanged: (value) {
                 setState(() {
                   selectedBrand = value;
+                  selectedModel = null;
+                  otherBrandController.clear();
+                  otherModelController.clear();
                 });
               },
             ),
 
             const SizedBox(height: 15),
 
-            DropdownButtonFormField(
-              value: selectedModel,
-              decoration: InputDecoration(
-                labelText: "Model",
-                labelStyle: const TextStyle(color: AppColors.mutedText),
-                filled: true,
-                fillColor: Colors.white,
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                  borderSide: const BorderSide(color: AppColors.border),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                  borderSide: const BorderSide(
-                    color: AppColors.primary,
-                    width: 1.5,
+            if (selectedBrand == "Others") ...[
+              TextField(
+                controller: otherBrandController,
+                decoration: InputDecoration(
+                  labelText: "Write Your Bike Brand",
+                  labelStyle: const TextStyle(color: AppColors.mutedText),
+                  filled: true,
+                  fillColor: Colors.white,
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: const BorderSide(color: AppColors.border),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: const BorderSide(
+                      color: AppColors.primary,
+                      width: 1.5,
+                    ),
                   ),
                 ),
+                onChanged: (_) => setState(() {}),
               ),
-              items: models
-                  .map((e) => DropdownMenuItem(
-                value: e,
-                child: Text(
-                  e,
-                  style: const TextStyle(color: AppColors.text),
+              const SizedBox(height: 15),
+            ],
+
+            if (selectedBrand == "Others") ...[
+              TextField(
+                controller: otherModelController,
+                decoration: InputDecoration(
+                  labelText: "Write Your Bike Model",
+                  labelStyle: const TextStyle(color: AppColors.mutedText),
+                  filled: true,
+                  fillColor: Colors.white,
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: const BorderSide(color: AppColors.border),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: const BorderSide(
+                      color: AppColors.primary,
+                      width: 1.5,
+                    ),
+                  ),
                 ),
-              ))
-                  .toList(),
-              onChanged: (value) {
-                setState(() {
-                  selectedModel = value;
-                });
-              },
-            ),
+                onChanged: (_) => setState(() {}),
+              ),
+            ] else ...[
+              DropdownButtonFormField(
+                value: selectedModel,
+                decoration: InputDecoration(
+                  labelText: "Model",
+                  labelStyle: const TextStyle(color: AppColors.mutedText),
+                  filled: true,
+                  fillColor: Colors.white,
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: const BorderSide(color: AppColors.border),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: const BorderSide(
+                      color: AppColors.primary,
+                      width: 1.5,
+                    ),
+                  ),
+                ),
+                items: models
+                    .map((e) => DropdownMenuItem(
+                  value: e,
+                  child: Text(
+                    e,
+                    style: const TextStyle(color: AppColors.text),
+                  ),
+                ))
+                    .toList(),
+                onChanged: (value) {
+                  setState(() {
+                    selectedModel = value;
+                    otherModelController.clear();
+                  });
+                },
+              ),
+              if (selectedModel == "Others") ...[
+                const SizedBox(height: 15),
+                TextField(
+                  controller: otherModelController,
+                  decoration: InputDecoration(
+                    labelText: "Write Your Bike Model",
+                    labelStyle: const TextStyle(color: AppColors.mutedText),
+                    filled: true,
+                    fillColor: Colors.white,
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: const BorderSide(color: AppColors.border),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: const BorderSide(
+                        color: AppColors.primary,
+                        width: 1.5,
+                      ),
+                    ),
+                  ),
+                  onChanged: (_) => setState(() {}),
+                ),
+              ],
+            ],
 
             const SizedBox(height: 15),
 
@@ -424,5 +704,12 @@ class _BikeRegistrationState extends State<BikeRegistration> {
         ),
       ),
     );
+  }
+  @override
+  void dispose() {
+    numberPlateController.dispose();
+    otherBrandController.dispose();
+    otherModelController.dispose();
+    super.dispose();
   }
 }

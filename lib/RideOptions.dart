@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'RideModels.dart';
+import 'requestingride.dart';
 
 class AppColors {
   static const Color primary = Color(0xFF14B8A6);
@@ -112,11 +113,17 @@ class _RideOptionsPageState extends State<RideOptionsPage> {
   }
 
   void _onBookNow(RideOptionModel ride) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (_) => _buildBookRideSheet(ride),
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => RequestingRidePage(
+          pickupAddress: widget.pickupLocation.address,
+          destinationAddress: widget.destinationLocation.address,
+          fare: widget.totalCost,
+          distanceKm: widget.routeDistanceKm,
+          estimatedMinutes: widget.estimatedTravelMinutes,
+        ),
+      ),
     );
   }
 
