@@ -3,7 +3,6 @@ const router = express.Router();
 const rideController = require('../controllers/rideController');
 const authMiddleware = require('../middlewares/authMiddleware');
 const { validateRequiredFields } = require('../middlewares/validateMiddleware');
-
 router.post(
   '/',
   authMiddleware,
@@ -19,5 +18,8 @@ router.get('/:rideId', rideController.getRideDetails);
 router.post('/:rideId/join', authMiddleware, rideController.joinRide);
 router.patch('/:rideId/status', authMiddleware, validateRequiredFields(['status']), rideController.changeRideStatus);
 router.patch('/:rideId/confirm/:participantId', authMiddleware, rideController.confirmParticipant);
+router.patch('/status', authenticate, riderController.updateStatus);
+router.get('/dashboard-summary', authenticate, riderController.getDashboard);
+
 
 module.exports = router;

@@ -66,6 +66,30 @@ const searchRides = asyncHandler(async (req, res) => {
     return errorResponse(res, error.message, 400);
   }
 });
+
+const getDashboard = async (req, res) => {
+  try {
+    const data = await riderService.getDashboardSummary(req.user.user_id);
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+const updateStatus = async (req, res) => {
+  try {
+    const { is_online } = req.body;
+    const result = await riderService.updateStatus(
+      req.user.user_id,
+      is_online
+    );
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+
 module.exports = {
   createRide,
   listActiveRides,
@@ -76,4 +100,6 @@ module.exports = {
   listMyCreatedRides,
   listJoinedRides,
   searchRides,
+  getDashboard,
+  updateStatus,
 };
