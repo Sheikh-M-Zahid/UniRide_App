@@ -1,5 +1,7 @@
 const { successResponse, errorResponse } = require('../utils/apiResponse');
 const activeRideService = require('../services/activeRideService');
+const { emitActiveRideUpdate } = require('../utils/activeRideEmitter');
+const { emitActiveRidersUpdate } = require('../utils/activeRiderEmitter');
 
 const getActiveRideDashboard = async (req, res) => {
   try {
@@ -28,6 +30,9 @@ const toggleActiveRideStatus = async (req, res) => {
       req.user.userId,
       isActive
     );
+
+    await emitActiveRideUpdate(req.user.userId);
+    await emitActiveRidersUpdate();
 
     return successResponse(
       res,

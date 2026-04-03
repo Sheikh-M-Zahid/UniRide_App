@@ -1,16 +1,19 @@
 const jwt = require('jsonwebtoken');
 const rideDb = require('../config/rideDb');
+
 const activeRiderSocket = require('./activeRiderSocket');
 const activeRideSocket = require('./activeRideSocket');
 const earningsSocket = require('./earningsSocket');
+const activitySocket = require('./activitySocket');
+
 const { emitActiveRidersUpdate } = require('../utils/activeRiderEmitter');
 
 const onlineRiders = new Map();
 
 module.exports = (io) => {
-  /* =========================
-     SOCKET AUTH MIDDLEWARE
-  ========================= */
+ 
+//SOCKET AUTH MIDDLEWARE
+ 
   io.use((socket, next) => {
     try {
       const token = socket.handshake.auth?.token;
@@ -37,9 +40,8 @@ module.exports = (io) => {
     }
   });
 
-  /* =========================
-     SOCKET CONNECTION
-  ========================= */
+//SOCKET CONNECTION
+
   io.on('connection', (socket) => {
     const userId = socket.user.userId;
 
@@ -47,16 +49,16 @@ module.exports = (io) => {
 
     onlineRiders.set(userId, socket.id);
 
-    /* =========================
-       REGISTER FEATURE SOCKETS
-    ========================= */
+//REGISTER FEATURE SOCKETS
+
     activeRiderSocket(io, socket);
     activeRideSocket(io, socket);
     earningsSocket(io, socket);
+    activitySocket(io, socket);
 
-    /* =========================
-       LIVE LOCATION UPDATE
-    ========================= */
+   
+//LIVE LOCATION UPDATE
+   
     socket.on('send_location', async (data) => {
       try {
         const { lat, lng, address, location_name } = data || {};
@@ -89,9 +91,9 @@ module.exports = (io) => {
       }
     });
 
-    /* =========================
-       OPTIONAL: MANUAL ONLINE STATUS
-    ========================= */
+    
+// OPTIONAL: MANUAL ONLINE STATUS
+    
     socket.on('set_online_status', async (data) => {
       try {
         if (typeof data?.is_online !== 'boolean') {
@@ -111,9 +113,9 @@ module.exports = (io) => {
       }
     });
 
-    /* =========================
-       DISCONNECT
-    ========================= */
+   
+//DISCONNECT
+   
     socket.on('disconnect', async () => {
       console.log('Socket disconnected:', userId);
 

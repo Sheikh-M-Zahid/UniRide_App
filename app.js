@@ -25,6 +25,8 @@ const reserveRoutes = require('./routes/reserveRoutes');
 const activeRiderRoutes = require('./routes/activeRiderRoutes');
 const earningsRoutes = require('./routes/earningsRoutes');
 const activeRideRoutes = require('./routes/activeRideRoutes');
+const activityRoutes = require('./routes/activityRoutes');
+const riderActiveRideRoutes = require('./routes/riderActiveRideRoutes');
 
 const errorMiddleware = require('./middlewares/errorMiddleware');
 
@@ -65,6 +67,8 @@ app.use('/api/rider/active-riders', activeRiderRoutes);
 app.use('/api/reserve', reserveRoutes); 
 app.use('/api/rider/earnings', earningsRoutes);
 app.use('/api/rider/active-ride', activeRideRoutes);
+app.use('/api/rider/activity', activityRoutes);
+app.use('/api/rider/active-ride', riderActiveRideRoutes);
 
 app.use(errorMiddleware);
 

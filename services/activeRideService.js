@@ -22,20 +22,19 @@ const getActiveRideDashboard = async (userId) => {
 
   const rider = riderResult.rows[0];
 
-  if (rider.account_status !== 'active') {
+  if (String(rider.account_status).toLowerCase() !== 'active') {
     throw new Error('Your account is not active.');
   }
 
   const currentRideResult = await rideDb.query(
     `
-    WITH active_ride AS (
+    WITH prioritized_ride AS (
       SELECT
         r.id AS ride_id,
         r.rider_id,
         r.start_location,
         r.destination,
         r.total_fare,
-        r.trip_date,
         r.trip_time,
         r.created_at,
         r.status
@@ -54,26 +53,26 @@ const getActiveRideDashboard = async (userId) => {
       LIMIT 1
     )
     SELECT
-      ar.ride_id,
-      ar.status AS ride_status,
+      pr.ride_id,
+      pr.status AS ride_status,
       COALESCE(
         passenger.first_name || ' ' || passenger.last_name,
         'Passenger not assigned'
       ) AS passenger_name,
-      ar.start_location AS pickup,
-      ar.destination,
-      COALESCE(ar.total_fare, 0) AS fare,
-      COALESCE(ar.trip_time::text, TO_CHAR(ar.created_at, 'HH24:MI')) AS time
-    FROM active_ride ar
+      pr.start_location AS pickup,
+      pr.destination,
+      COALESCE(pr.total_fare, 0) AS fare,
+      COALESCE(pr.trip_time::text, TO_CHAR(pr.created_at, 'HH24:MI')) AS ride_time
+    FROM prioritized_ride pr
     LEFT JOIN LATERAL (
       SELECT rp.user_id
       FROM ride_participants rp
-      WHERE rp.ride_id = ar.ride_id
-      ORDER BY rp.joined_at ASC NULLS LAST
+      WHERE rp.ride_id = pr.ride_id
+      ORDER BY rp.joined_at ASC NULLS LAST, rp.created_at ASC NULLS LAST
       LIMIT 1
-    ) first_passenger ON true
+    ) rp_first ON true
     LEFT JOIN users passenger
-      ON passenger.user_id = first_passenger.user_id
+      ON passenger.user_id = rp_first.user_id
     `,
     [userId, ACTIVE_RIDE_STATUSES]
   );
@@ -90,7 +89,7 @@ const getActiveRideDashboard = async (userId) => {
           pickup: currentRide.pickup || 'Pickup unavailable',
           destination: currentRide.destination || 'Destination unavailable',
           fare: Number(currentRide.fare || 0),
-          time: currentRide.time || '--:--',
+          time: currentRide.ride_time || '--:--',
         }
       : null,
   };
@@ -120,11 +119,11 @@ const toggleActiveRideStatus = async (userId, isActive) => {
 
   const rider = riderResult.rows[0];
 
-  if (rider.account_status !== 'active') {
+  if (String(rider.account_status).toLowerCase() !== 'active') {
     throw new Error('Your account is not active.');
   }
 
-  const ongoingRideResult = await rideDb.query(
+  const blockingRideResult = await rideDb.query(
     `
     SELECT id, status
     FROM rides
@@ -135,7 +134,7 @@ const toggleActiveRideStatus = async (userId, isActive) => {
     [userId]
   );
 
-  if (!isActive && ongoingRideResult.rowCount > 0) {
+  if (!isActive && blockingRideResult.rowCount > 0) {
     throw new Error('You cannot go inactive while a ride is accepted or ongoing.');
   }
 
@@ -150,6 +149,7 @@ const toggleActiveRideStatus = async (userId, isActive) => {
 
   return {
     isActive,
+    rideStatus: isActive ? 'active' : 'inactive',
     message: isActive
       ? 'Rider is now active.'
       : 'Rider is now inactive.',
