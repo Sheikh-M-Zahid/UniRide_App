@@ -31,6 +31,10 @@ class _PrivateCarRegistrationState
   String? selectedYear;
   final TextEditingController numberPlateController =
   TextEditingController();
+  final TextEditingController otherMakeController =
+  TextEditingController();
+  final TextEditingController otherModelController =
+  TextEditingController();
 
   File? varsityId;
   File? profilePhoto;
@@ -38,21 +42,230 @@ class _PrivateCarRegistrationState
   File? vehicleRegistration;
   File? taxToken;
 
-  List<String> makes = ["Toyota", "Honda", "Nissan"];
-  List<String> models = ["Corolla", "Civic", "X-Trail"];
+  final List<String> makes = [
+    "Toyota",
+    "Honda",
+    "Nissan",
+    "Suzuki",
+    "Hyundai",
+    "Kia",
+    "Mitsubishi",
+    "Mazda",
+    "BMW",
+    "Mercedes-Benz",
+    "Audi",
+    "Lexus",
+    "Tata",
+    "Mahindra",
+    "MG",
+    "BYD",
+    "Proton",
+    "Chery",
+    "DFSK",
+    "Haval",
+    "Others",
+  ];
+
+  final Map<String, List<String>> makeModels = {
+    "Toyota": [
+      "Corolla",
+      "Allion",
+      "Axio",
+      "Premio",
+      "Noah",
+      "Esquire",
+      "Voxy",
+      "Fielder",
+      "Aqua",
+      "Prius",
+      "Raize",
+      "CHR",
+      "Land Cruiser Prado",
+      "Hiace",
+      "Others",
+    ],
+    "Honda": [
+      "Civic",
+      "City",
+      "Grace",
+      "Vezel",
+      "CR-V",
+      "Accord",
+      "Fit",
+      "Freed",
+      "Airwave",
+      "BR-V",
+      "Others",
+    ],
+    "Nissan": [
+      "X-Trail",
+      "Sunny",
+      "Dayz",
+      "Note",
+      "Serena",
+      "Patrol",
+      "Juke",
+      "Others",
+    ],
+    "Suzuki": [
+      "Wagon R",
+      "Swift",
+      "Alto",
+      "Ciaz",
+      "Ertiga",
+      "Every",
+      "Spacia",
+      "Baleno",
+      "Others",
+    ],
+    "Hyundai": [
+      "Tucson",
+      "Creta",
+      "Santa Fe",
+      "Elantra",
+      "Accent",
+      "H1",
+      "Venue",
+      "Others",
+    ],
+    "Kia": [
+      "Sportage",
+      "Seltos",
+      "Sorento",
+      "Picanto",
+      "Rio",
+      "Carnival",
+      "Others",
+    ],
+    "Mitsubishi": [
+      "Pajero",
+      "Montero",
+      "Outlander",
+      "Eclipse Cross",
+      "L200",
+      "Others",
+    ],
+    "Mazda": [
+      "Axela",
+      "CX-3",
+      "CX-5",
+      "CX-8",
+      "Demio",
+      "Premacy",
+      "Others",
+    ],
+    "BMW": [
+      "3 Series",
+      "5 Series",
+      "X1",
+      "X3",
+      "X5",
+      "Others",
+    ],
+    "Mercedes-Benz": [
+      "C-Class",
+      "E-Class",
+      "S-Class",
+      "GLA",
+      "GLC",
+      "GLE",
+      "Others",
+    ],
+    "Audi": [
+      "A3",
+      "A4",
+      "A6",
+      "Q3",
+      "Q5",
+      "Q7",
+      "Others",
+    ],
+    "Lexus": [
+      "RX",
+      "NX",
+      "LX",
+      "ES",
+      "Others",
+    ],
+    "Tata": [
+      "Tiago",
+      "Tigor",
+      "Nexon",
+      "Harrier",
+      "Others",
+    ],
+    "Mahindra": [
+      "XUV300",
+      "XUV700",
+      "Scorpio",
+      "Bolero",
+      "Others",
+    ],
+    "MG": [
+      "ZS",
+      "HS",
+      "MG4",
+      "Others",
+    ],
+    "BYD": [
+      "Atto 3",
+      "Seal",
+      "Sealion 6",
+      "Sealion 7",
+      "Others",
+    ],
+    "Proton": [
+      "Saga",
+      "X50",
+      "X70",
+      "Others",
+    ],
+    "Chery": [
+      "Tiggo 4 Pro",
+      "Tiggo 7 Pro",
+      "Others",
+    ],
+    "DFSK": [
+      "Glory 560",
+      "Glory 580",
+      "Others",
+    ],
+    "Haval": [
+      "Jolion",
+      "H6",
+      "Others",
+    ],
+    "Others": ["Others"],
+  };
+
+  List<String> get models =>
+      selectedMake != null ? (makeModels[selectedMake!] ?? ["Others"]) : [];
   List<String> years =
   List.generate(20, (index) => (2025 - index).toString());
 
-  bool get isFormComplete =>
-      selectedMake != null &&
-          selectedModel != null &&
-          selectedYear != null &&
-          numberPlateController.text.isNotEmpty &&
-          varsityId != null &&
-          profilePhoto != null &&
-          drivingLicense != null &&
-          vehicleRegistration != null &&
-          taxToken != null;
+  bool get isFormComplete {
+    final bool makeOk = selectedMake != null &&
+        (selectedMake == "Others"
+            ? otherMakeController.text.trim().isNotEmpty
+            : true);
+
+    final bool modelOk = selectedMake == "Others"
+        ? otherModelController.text.trim().isNotEmpty
+        : selectedModel != null &&
+        (selectedModel == "Others"
+            ? otherModelController.text.trim().isNotEmpty
+            : true);
+
+    return makeOk &&
+        modelOk &&
+        selectedYear != null &&
+        numberPlateController.text.isNotEmpty &&
+        varsityId != null &&
+        profilePhoto != null &&
+        drivingLicense != null &&
+        vehicleRegistration != null &&
+        taxToken != null;
+  }
 
   Future<void> requestCameraPermission() async {
     await Permission.camera.request();
@@ -216,7 +429,7 @@ class _PrivateCarRegistrationState
 
             const SizedBox(height: 25),
 
-            DropdownButtonFormField(
+            DropdownButtonFormField<String>(
               value: selectedMake,
               decoration: InputDecoration(
                 labelText: "Make",
@@ -236,68 +449,113 @@ class _PrivateCarRegistrationState
                 ),
               ),
               items: makes
-                  .map((e) => DropdownMenuItem(
-                value: e,
-                child: const Text(
-                  "",
-                  style: TextStyle(fontSize: 0),
-                ),
-              ))
-                  .toList(),
-              onChanged: (value) {
-                setState(() {
-                  selectedMake = value;
-                });
-              },
-              selectedItemBuilder: (context) => makes
                   .map(
-                    (e) => const Align(
-                  alignment: Alignment.centerLeft,
+                    (e) => DropdownMenuItem<String>(
+                  value: e,
                   child: Text(
-                    "",
-                    style: TextStyle(fontSize: 0),
+                    e,
+                    style: const TextStyle(color: AppColors.text),
                   ),
                 ),
               )
                   .toList(),
+              onChanged: (value) {
+                setState(() {
+                  selectedMake = value;
+                  selectedModel = null;
+                  otherMakeController.clear();
+                  otherModelController.clear();
+                });
+              },
             ),
 
             const SizedBox(height: 15),
 
-            DropdownButtonFormField(
-              value: selectedModel,
-              decoration: InputDecoration(
-                labelText: "Model",
-                labelStyle: const TextStyle(color: AppColors.mutedText),
-                filled: true,
-                fillColor: Colors.white,
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                  borderSide: const BorderSide(color: AppColors.border),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                  borderSide: const BorderSide(
-                    color: AppColors.primary,
-                    width: 1.5,
+            if (selectedMake == "Others") ...[
+              TextField(
+                controller: otherModelController,
+                decoration: InputDecoration(
+                  labelText: "Write Your Car Model",
+                  labelStyle: const TextStyle(color: AppColors.mutedText),
+                  filled: true,
+                  fillColor: Colors.white,
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: const BorderSide(color: AppColors.border),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: const BorderSide(
+                      color: AppColors.primary,
+                      width: 1.5,
+                    ),
                   ),
                 ),
+                onChanged: (_) => setState(() {}),
               ),
-              items: models
-                  .map((e) => DropdownMenuItem(
-                value: e,
-                child: Text(
-                  e,
-                  style: const TextStyle(color: AppColors.text),
+            ] else ...[
+              DropdownButtonFormField<String>(
+                value: selectedModel,
+                decoration: InputDecoration(
+                  labelText: "Model",
+                  labelStyle: const TextStyle(color: AppColors.mutedText),
+                  filled: true,
+                  fillColor: Colors.white,
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: const BorderSide(color: AppColors.border),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: const BorderSide(
+                      color: AppColors.primary,
+                      width: 1.5,
+                    ),
+                  ),
                 ),
-              ))
-                  .toList(),
-              onChanged: (value) {
-                setState(() {
-                  selectedModel = value;
-                });
-              },
-            ),
+                items: models
+                    .map(
+                      (e) => DropdownMenuItem<String>(
+                    value: e,
+                    child: Text(
+                      e,
+                      style: const TextStyle(color: AppColors.text),
+                    ),
+                  ),
+                )
+                    .toList(),
+                onChanged: (value) {
+                  setState(() {
+                    selectedModel = value;
+                    otherModelController.clear();
+                  });
+                },
+              ),
+              if (selectedModel == "Others") ...[
+                const SizedBox(height: 15),
+                TextField(
+                  controller: otherModelController,
+                  decoration: InputDecoration(
+                    labelText: "Write Your Car Model",
+                    labelStyle: const TextStyle(color: AppColors.mutedText),
+                    filled: true,
+                    fillColor: Colors.white,
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: const BorderSide(color: AppColors.border),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: const BorderSide(
+                        color: AppColors.primary,
+                        width: 1.5,
+                      ),
+                    ),
+                  ),
+                  onChanged: (_) => setState(() {}),
+                ),
+              ],
+            ],
 
             const SizedBox(height: 15),
 
@@ -337,6 +595,31 @@ class _PrivateCarRegistrationState
             ),
 
             const SizedBox(height: 15),
+
+            if (selectedMake == "Others") ...[
+              TextField(
+                controller: otherMakeController,
+                decoration: InputDecoration(
+                  labelText: "Write Your Car Brand",
+                  labelStyle: const TextStyle(color: AppColors.mutedText),
+                  filled: true,
+                  fillColor: Colors.white,
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: const BorderSide(color: AppColors.border),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: const BorderSide(
+                      color: AppColors.primary,
+                      width: 1.5,
+                    ),
+                  ),
+                ),
+                onChanged: (_) => setState(() {}),
+              ),
+              const SizedBox(height: 15),
+            ],
 
             TextField(
               controller: numberPlateController,
@@ -405,6 +688,8 @@ class _PrivateCarRegistrationState
                   (file) => setState(() => taxToken = file),
             ),
 
+
+
             const SizedBox(height: 30),
 
             SizedBox(
@@ -434,5 +719,12 @@ class _PrivateCarRegistrationState
         ),
       ),
     );
+  }
+  @override
+  void dispose() {
+    numberPlateController.dispose();
+    otherMakeController.dispose();
+    otherModelController.dispose();
+    super.dispose();
   }
 }
