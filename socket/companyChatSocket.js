@@ -14,9 +14,8 @@ module.exports = (io) => {
   });
 
   io.on('connection', (socket) => {
-    const userId = socket.user.user_id;
+    const userId = socket.user.userId || socket.user.user_id;
 
-    // join personal room
     socket.join(`user_${userId}`);
 
     console.log('Chat socket connected:', userId);
