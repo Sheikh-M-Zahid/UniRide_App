@@ -1,10 +1,12 @@
 const express = require('express');
 const router = express.Router();
 
-const walletController = require('../controllers/walletController');
-const authMiddleware = require('../middlewares/authMiddleware');
+const auth = require('../middlewares/authMiddleware');
+const controller = require('../controllers/walletController');
 
-router.get('/summary', authMiddleware, walletController.getWalletSummary);
-router.post('/pay-due', authMiddleware, walletController.payDue);
+router.use(auth);
+
+router.get('/summary', controller.getWalletSummary);
+router.post('/pay', controller.submitPayment);
 
 module.exports = router;

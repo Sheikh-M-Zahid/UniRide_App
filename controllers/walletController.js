@@ -1,28 +1,33 @@
-const asyncHandler = require('../utils/asyncHandler');
-const { successResponse } = require('../utils/apiResponse');
-const walletService = require('../services/walletService');
+const { successResponse, errorResponse } = require('../utils/apiResponse');
+const service = require('../services/walletService');
 
-const getWalletSummary = asyncHandler(async (req, res) => {
-  const data = await walletService.getWalletSummary(req.user.userId);
+const getWalletSummary = async (req, res) => {
+  try {
+    const data = await service.getWalletSummary(req.user.userId);
+    return successResponse(res, 'Wallet summary', data);
+  } catch (err) {
+    return errorResponse(res, err.message, 500);
+  }
+};
 
-  return successResponse(
-    res,
-    'Wallet summary fetched successfully',
-    data
-  );
-});
+const submitPayment = async (req, res) => {
+  try {
+    const { method, transactionId, amount } = req.body;
 
-const payDue = asyncHandler(async (req, res) => {
-  const data = await walletService.payDue(req.user.userId, req.body);
+    const data = await service.submitPayment({
+      userId: req.user.userId,
+      method,
+      transactionId,
+      amount,
+    });
 
-  return successResponse(
-    res,
-    'Due payment submitted successfully.',
-    data
-  );
-});
+    return successResponse(res, 'Payment submitted', data);
+  } catch (err) {
+    return errorResponse(res, err.message, 400);
+  }
+};
 
 module.exports = {
   getWalletSummary,
-  payDue,
+  submitPayment,
 };

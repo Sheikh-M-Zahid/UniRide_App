@@ -1,137 +1,148 @@
 const rideDb = require('../config/rideDb');
 
+/* =========================
+   WALLET SUMMARY
+========================= */
 const getWalletSummary = async (userId) => {
-  const userResult = await rideDb.query(
-    `SELECT user_id, due_balance, account_status
-     FROM users
-     WHERE user_id = $1`,
+  const userRes = await rideDb.query(
+    `SELECT due_balance FROM users WHERE user_id = $1`,
     [userId]
   );
 
-  if (userResult.rowCount === 0) {
-    throw new Error('User account not found.');
-  }
-
-  const user = userResult.rows[0];
-
-  if (String(user.account_status).toLowerCase() !== 'active') {
-    throw new Error('Your account is not active.');
-  }
-
-  const offersResult = await rideDb.query(
-    `SELECT COUNT(*)::int AS count
-     FROM offers
-     WHERE CURRENT_DATE BETWEEN start_date AND end_date`
+  const latestPayment = await rideDb.query(
+    `
+    SELECT status
+    FROM transactions
+    WHERE user_id = $1 AND type = 'credit'
+    ORDER BY created_at DESC
+    LIMIT 1
+  `,
+    [userId]
   );
 
   return {
-    dueAmount: Number(user.due_balance || 0),
-    activePromotionsCount: offersResult.rows[0].count,
+    dueAmount: Number(userRes.rows[0].due_balance || 0),
+    activePromotionsCount: 0,
+    bkashNumber: '017XXXXXXXX',
+    nagadNumber: '018XXXXXXXX',
+    latestPaymentStatus: latestPayment.rows[0]?.status || null,
   };
 };
 
-const payDue = async (userId, payload) => {
-  const { method, reference_id } = payload;
+/* =========================
+   ADD DUE (SYSTEM)
+========================= */
+const addDue = async ({ userId, amount, referenceId, method }) => {
+  await rideDb.query(
+    `
+    UPDATE users
+    SET due_balance = due_balance + $1
+    WHERE user_id = $2
+  `,
+    [amount, userId]
+  );
 
-  if (!method || !reference_id || !String(reference_id).trim()) {
-    throw new Error('Invalid payment request.');
-  }
+  await rideDb.query(
+    `
+    INSERT INTO transactions
+    (user_id, amount, type, method, reference_id, status)
+    VALUES ($1, $2, 'debit', $3, $4, 'completed')
+  `,
+    [userId, amount, method, referenceId]
+  );
+};
 
-  if (!['bKash', 'Nagad'].includes(method)) {
-    throw new Error('Invalid payment request.');
-  }
+/* =========================
+   USER PAYMENT SUBMIT
+========================= */
+const submitPayment = async ({ userId, method, transactionId, amount }) => {
+  await rideDb.query(
+    `
+    INSERT INTO transactions
+    (user_id, amount, type, method, reference_id, status)
+    VALUES ($1, $2, 'credit', $3, $4, 'pending')
+  `,
+    [userId, amount, method, transactionId]
+  );
 
-  const trimmedReferenceId = String(reference_id).trim();
-  const client = await rideDb.connect();
+  return {
+    method,
+    transactionId,
+    amount,
+    status: 'pending',
+  };
+};
 
-  try {
-    await client.query('BEGIN');
+/* =========================
+   ADMIN: GET PENDING
+========================= */
+const getPendingPayments = async () => {
+  const res = await rideDb.query(`
+    SELECT *
+    FROM transactions
+    WHERE type = 'credit' AND status = 'pending'
+    ORDER BY created_at DESC
+  `);
 
-    const userResult = await client.query(
-      `SELECT user_id, due_balance, account_status
-       FROM users
-       WHERE user_id = $1
-       FOR UPDATE`,
-      [userId]
-    );
+  return res.rows;
+};
 
-    if (userResult.rowCount === 0) {
-      throw new Error('User account not found.');
-    }
+/* =========================
+   ADMIN: VERIFY PAYMENT
+========================= */
+const verifyPayment = async (transactionId) => {
+  const txRes = await rideDb.query(
+    `SELECT * FROM transactions WHERE transaction_id = $1`,
+    [transactionId]
+  );
 
-    const user = userResult.rows[0];
+  const tx = txRes.rows[0];
 
-    if (String(user.account_status).toLowerCase() !== 'active') {
-      throw new Error('Your account is not active.');
-    }
+  if (!tx) throw new Error('Transaction not found');
 
-    const currentDue = Number(user.due_balance || 0);
+  await rideDb.query(
+    `
+    UPDATE transactions
+    SET status = 'completed'
+    WHERE transaction_id = $1
+  `,
+    [transactionId]
+  );
 
-    if (currentDue <= 0) {
-      throw new Error('No due payment found.');
-    }
+  await rideDb.query(
+    `
+    UPDATE users
+    SET due_balance = GREATEST(due_balance - $1, 0),
+        account_status = 'active'
+    WHERE user_id = $2
+  `,
+    [tx.amount, tx.user_id]
+  );
 
-    const duplicateResult = await client.query(
-      `SELECT transaction_id
-       FROM transactions
-       WHERE reference_id = $1
-       LIMIT 1`,
-      [trimmedReferenceId]
-    );
+  return { transactionId, status: 'completed' };
+};
 
-    if (duplicateResult.rowCount > 0) {
-      throw new Error('This transaction ID has already been used.');
-    }
+/* =========================
+   ADMIN: REJECT PAYMENT
+========================= */
+const rejectPayment = async (transactionId) => {
+  await rideDb.query(
+    `
+    UPDATE transactions
+    SET status = 'rejected'
+    WHERE transaction_id = $1
+  `,
+    [transactionId]
+  );
 
-    await client.query(
-      `INSERT INTO transactions (
-        user_id,
-        amount,
-        type,
-        method,
-        reference_id,
-        status
-      )
-      VALUES ($1, $2, $3, $4, $5, $6)`,
-      [
-        userId,
-        currentDue,
-        'credit',
-        method,
-        trimmedReferenceId,
-        'paid',
-      ]
-    );
-
-    await client.query(
-      `UPDATE users
-       SET due_balance = 0
-       WHERE user_id = $1`,
-      [userId]
-    );
-
-    await client.query('COMMIT');
-
-    return {
-      paidAmount: currentDue,
-      method,
-      reference_id: trimmedReferenceId,
-      remainingDue: 0,
-    };
-  } catch (error) {
-    await client.query('ROLLBACK');
-
-    if (error.code === '23505') {
-      throw new Error('This transaction ID has already been used.');
-    }
-
-    throw error;
-  } finally {
-    client.release();
-  }
+  return { transactionId, status: 'rejected' };
 };
 
 module.exports = {
   getWalletSummary,
-  payDue,
+  addDue,
+  submitPayment,
+  getPendingPayments,
+  verifyPayment,
+  rejectPayment,
 };
