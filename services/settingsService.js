@@ -24,7 +24,7 @@ const getSettingsSummary = async (userId) => {
   const user = result.rows[0];
 
   // account check
-  if (user.account_status !== 'Active') {
+  if (String(user.account_status).toLowerCase() !== 'active') {
     throw new Error('Your account is not active.');
   }
 
