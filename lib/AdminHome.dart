@@ -9,6 +9,7 @@ import 'AppStats.dart';
 import 'TopLocationPage.dart';
 import 'RideSharingHistory.dart';
 import 'SharingCaringHistory.dart';
+import 'AdminPaymentApproval.dart';
 
 void main() {
   runApp(MyApp());
@@ -305,6 +306,22 @@ class _AdminDashboardState extends State<AdminDashboard>
                   context,
                   MaterialPageRoute(
                     builder: (context) => const AllPassengersPage(),
+                  ),
+                );
+              },
+            ),
+
+            ListTile(
+              title: const Text(
+                "Payment Requests",
+                style: TextStyle(color: Colors.white),
+              ),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const AdminPaymentApproval(),
                   ),
                 );
               },

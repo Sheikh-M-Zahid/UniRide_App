@@ -2,16 +2,18 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'otp_verification_page.dart';
+import 'services/auth_api_service.dart';
 
-class GmailconfirmPage extends StatefulWidget {
-  const GmailconfirmPage({super.key});
+class GmailConfirmPage extends StatefulWidget {
+  const GmailConfirmPage({super.key});
 
   @override
-  State<GmailconfirmPage> createState() => _GmailconfirmPageState();
+  State<GmailConfirmPage> createState() => _GmailConfirmPageState();
 }
 
-class _GmailconfirmPageState extends State<GmailconfirmPage> {
+class _GmailConfirmPageState extends State<GmailConfirmPage> {
   final TextEditingController _emailController = TextEditingController();
+  final AuthApiService _authApiService = AuthApiService();
 
   bool _isLoading = false;
   bool _isGoogleLoading = false;
@@ -73,7 +75,8 @@ class _GmailconfirmPageState extends State<GmailconfirmPage> {
     });
 
     try {
-      // TODO: এখানে backend OTP send API call বসবে
+
+      await _authApiService.sendSignupOtp(email: email);
 
       if (!mounted) return;
 
@@ -82,7 +85,6 @@ class _GmailconfirmPageState extends State<GmailconfirmPage> {
         MaterialPageRoute(
           builder: (context) => OTPVerificationPage(
             email: email,
-            generatedOtp: '',
           ),
         ),
       );
@@ -90,8 +92,10 @@ class _GmailconfirmPageState extends State<GmailconfirmPage> {
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Failed to send OTP. Please try again."),
+        SnackBar(
+          content: Text(
+            e.toString().replaceFirst('Exception: ', ''),
+          ),
         ),
       );
     } finally {
@@ -159,19 +163,25 @@ class _GmailconfirmPageState extends State<GmailconfirmPage> {
 
       if (!mounted) return;
 
-      // TODO:
-      // এখানে backend এ email পাঠাবে
-      // backend check করবে:
-      // 1) EWU approved user কিনা
-      // 2) admin কিনা
-      // 3) rider/passenger flow কোথায় যাবে
+      final response = await _authApiService.googleSignupCheck(email: email);
+      final data = response['data'] ?? {};
+
+      if (!mounted) return;
+
+      if (data['accountExists'] == true) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('This account already exists. Please log in instead.'),
+          ),
+        );
+        return;
+      }
 
       Navigator.push(
         context,
         MaterialPageRoute(
           builder: (context) => OTPVerificationPage(
             email: email,
-            generatedOtp: '',
           ),
         ),
       );
@@ -195,8 +205,10 @@ class _GmailconfirmPageState extends State<GmailconfirmPage> {
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Google sign-in failed. Please try again."),
+        SnackBar(
+          content: Text(
+            e.toString().replaceFirst('Exception: ', ''),
+          ),
         ),
       );
     } finally {

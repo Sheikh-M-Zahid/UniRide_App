@@ -7,6 +7,7 @@ import 'package:uni_ride/LogIn.dart';
 import 'UserProfile.dart';
 import 'app_storage.dart';
 import 'saved_places_page.dart';
+import 'services/auth_api_service.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 class AppColors {
@@ -42,6 +43,8 @@ class _SettingsPageState extends State<SettingsPage> {
   String? userPhotoUrl;
   String? userPhotoPath;
   double userRating = 5.0;
+  final AuthApiService _authApiService = AuthApiService();
+  bool _isLoading = false;
 
   @override
   void initState() {
@@ -57,43 +60,84 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   Future<void> _loadUserData() async {
-    final data = await AppStorage.getUserData();
-
-    if (!mounted) return;
-
     setState(() {
-      displayName =
-      (widget.userName != null && widget.userName!.trim().isNotEmpty)
-          ? widget.userName!.trim()
-          : ((data['name'] ?? '').toString().trim().isNotEmpty
-          ? data['name'].toString().trim()
-          : 'User Name');
-
-      displayEmail =
-      (widget.userEmail != null && widget.userEmail!.trim().isNotEmpty)
-          ? widget.userEmail!.trim()
-          : ((data['email'] ?? '').toString().trim().isNotEmpty
-          ? data['email'].toString().trim()
-          : 'user@email.com');
-
-      userPhotoUrl =
-      (widget.userPhotoUrl != null && widget.userPhotoUrl!.trim().isNotEmpty)
-          ? widget.userPhotoUrl!.trim()
-          : ((data['photoUrl'] ?? '').toString().trim().isNotEmpty
-          ? data['photoUrl'].toString().trim()
-          : null);
-
-      userPhotoPath = ((data['photoPath'] ?? '').toString().trim().isNotEmpty)
-          ? data['photoPath'].toString().trim()
-          : null;
-
-      final dynamic ratingValue = data['rating'];
-      if (ratingValue is num) {
-        userRating = ratingValue.toDouble();
-      } else {
-        userRating = 5.0;
-      }
+      _isLoading = true;
     });
+
+    try {
+      final response = await _authApiService.getSettingsSummary();
+      final data = response['data'] ?? {};
+
+      if (!mounted) return;
+
+      setState(() {
+        displayName = ((data['name'] ?? '').toString().trim().isNotEmpty)
+            ? data['name'].toString().trim()
+            : ((widget.userName ?? '').trim().isNotEmpty
+            ? widget.userName!.trim()
+            : 'User Name');
+
+        displayEmail = ((data['email'] ?? '').toString().trim().isNotEmpty)
+            ? data['email'].toString().trim()
+            : ((widget.userEmail ?? '').trim().isNotEmpty
+            ? widget.userEmail!.trim()
+            : 'user@email.com');
+
+        final profilePicture = (data['profile_picture'] ?? '').toString().trim();
+
+        userPhotoUrl = profilePicture.isNotEmpty
+            ? _authApiService.getFullImageUrl(profilePicture)
+            : ((widget.userPhotoUrl ?? '').trim().isNotEmpty
+            ? widget.userPhotoUrl!.trim()
+            : null);
+
+        userPhotoPath = null;
+
+        final dynamic ratingValue = data['rating'];
+        if (ratingValue is num) {
+          userRating = ratingValue.toDouble();
+        } else {
+          userRating = double.tryParse(ratingValue.toString()) ?? 5.0;
+        }
+
+        _isLoading = false;
+      });
+    } catch (e) {
+      final data = await AppStorage.getUserData();
+
+      if (!mounted) return;
+
+      setState(() {
+        displayName =
+        ((data['name'] ?? '').toString().trim().isNotEmpty)
+            ? data['name'].toString().trim()
+            : 'User Name';
+
+        displayEmail =
+        ((data['email'] ?? '').toString().trim().isNotEmpty)
+            ? data['email'].toString().trim()
+            : 'user@email.com';
+
+        userPhotoUrl =
+        ((data['photoUrl'] ?? '').toString().trim().isNotEmpty)
+            ? data['photoUrl'].toString().trim()
+            : null;
+
+        userPhotoPath =
+        ((data['photoPath'] ?? '').toString().trim().isNotEmpty)
+            ? data['photoPath'].toString().trim()
+            : null;
+
+        final dynamic ratingValue = data['rating'];
+        if (ratingValue is num) {
+          userRating = ratingValue.toDouble();
+        } else {
+          userRating = 5.0;
+        }
+
+        _isLoading = false;
+      });
+    }
   }
 
   Future<void> _logout() async {
@@ -160,7 +204,9 @@ class _SettingsPageState extends State<SettingsPage> {
         backgroundColor: AppColors.background,
         elevation: 0,
       ),
-      body: SingleChildScrollView(
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : SingleChildScrollView(
         child: Column(
           children: [
             InkWell(

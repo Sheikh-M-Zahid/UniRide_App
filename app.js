@@ -5,7 +5,7 @@ const path = require('path');
 
 const authRoutes = require('./routes/authRoutes');
 const userRoutes = require('./routes/userRoutes');
-const vehicleRoutes = require('./routes/riderBikeRoutes');
+const vehicleRoutes = require('./routes/vehicleRoutes');
 const rideRoutes = require('./routes/rideRoutes');
 const rideChatRoutes = require('./routes/rideChatRoutes');
 const ratingRoutes = require('./routes/ratingRoutes');
@@ -23,18 +23,7 @@ const supportRoutes = require('./routes/supportRoutes');
 const reserveRoutes = require('./routes/reserveRoutes');
 const activeRiderRoutes = require('./routes/activeRiderRoutes');
 const earningsRoutes = require('./routes/earningsRoutes');
-const activityRoutes = require('./routes/activityRoutes');
-const riderActiveRideRoutes = require('./routes/riderActiveRideRoutes');
-const riderDashboardRoutes = require('./routes/riderDashboardRoutes');
-const passengerRideRequestRoutes = require('./routes/passengerRideRequestRoutes');
-const riderRideHistoryRoutes = require('./routes/riderRideHistoryRoutes');
-const riderMapRoutes = require('./routes/riderMapRoutes');
-const riderProfileRoutes = require('./routes/riderProfileRoutes');
-const riderSettingsRoutes = require('./routes/riderSettingsRoutes');
-const confirmationRoutes = require('./routes/confirmationRoutes');
-const riderVehicleSelectionRoutes = require('./routes/riderVehicleSelectionRoutes');
-const riderBikeRoutes = require('./routes/riderBikeRoutes');
-const riderCarRoutes = require('./routes/riderCarRoutes');
+const activeRideRoutes = require('./routes/activeRideRoutes');
 
 const errorMiddleware = require('./middlewares/errorMiddleware');
 
@@ -73,18 +62,7 @@ app.use('/api/support', supportRoutes);
 app.use('/api/rider/active-riders', activeRiderRoutes);
 app.use('/api/reserve', reserveRoutes); 
 app.use('/api/rider/earnings', earningsRoutes);
-app.use('/api/rider/activity', activityRoutes);
-app.use('/api/rider/active-ride', riderActiveRideRoutes);
-app.use('/api/rider/dashboard', riderDashboardRoutes);
-app.use('/api/passenger/ride-requests', passengerRideRequestRoutes);
-app.use('/api/rider/ride-history', riderRideHistoryRoutes);
-app.use('/api/rider/map', riderMapRoutes);
-app.use('/api/rider/profile', riderProfileRoutes);
-app.use('/api/rider/settings', riderSettingsRoutes);
-app.use('/api/confirmation', confirmationRoutes);
-app.use('/api/rider/vehicle-selection', riderVehicleSelectionRoutes);
-app.use('/api/rider/bike', riderBikeRoutes);
-app.use('/api/rider/car', riderCarRoutes);
+app.use('/api/rider/active-ride', activeRideRoutes);
 
 app.use(errorMiddleware);
 

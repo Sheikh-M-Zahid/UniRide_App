@@ -6,8 +6,16 @@ class RideRequestService {
   RideRequestService._();
 
   static final Queue<RideRequestModel> _queue = Queue<RideRequestModel>();
+  static final List<ConfirmedRideData> _confirmedRides = [];
+
   static GlobalKey<NavigatorState>? _navigatorKey;
   static bool _isDialogShowing = false;
+
+  // Wallet due / fine tracking
+  static final ValueNotifier<double> dueFineNotifier = ValueNotifier<double>(0);
+
+  static const int freeCancelMinutes = 5;
+  static const double lateCancelFine = 50;
 
   static void initialize(GlobalKey<NavigatorState> navigatorKey) {
     _navigatorKey = navigatorKey;
@@ -16,6 +24,49 @@ class RideRequestService {
   static void addRequest(RideRequestModel request) {
     _queue.add(request);
     _showNextIfPossible();
+  }
+
+  static List<ConfirmedRideData> getConfirmedRides() {
+    return List.unmodifiable(_confirmedRides);
+  }
+
+  static void removeConfirmedRide(String confirmedRideId) {
+    _confirmedRides.removeWhere((ride) => ride.confirmedRideId == confirmedRideId);
+  }
+
+  static CancelRideResult rejectConfirmedRide(String confirmedRideId) {
+    final index = _confirmedRides.indexWhere(
+          (ride) => ride.confirmedRideId == confirmedRideId,
+    );
+
+    if (index == -1) {
+      return CancelRideResult(
+        success: false,
+        message: "Ride not found.",
+        fineAdded: 0,
+      );
+    }
+
+    final ride = _confirmedRides[index];
+    final now = DateTime.now();
+    final difference = now.difference(ride.confirmedAt);
+
+    double fine = 0;
+
+    if (difference.inMinutes >= freeCancelMinutes) {
+      fine = lateCancelFine;
+      dueFineNotifier.value += fine;
+    }
+
+    _confirmedRides.removeAt(index);
+
+    return CancelRideResult(
+      success: true,
+      message: fine > 0
+          ? "Ride cancelled. ৳${fine.toStringAsFixed(0)} fine added to due."
+          : "Ride cancelled successfully within 5 minutes.",
+      fineAdded: fine,
+    );
   }
 
   static void _showNextIfPossible() {
@@ -38,6 +89,38 @@ class RideRequestService {
         _showNextIfPossible();
       });
     });
+  }
+
+  static void confirmRequest(BuildContext context, RideRequestModel request) {
+    final confirmedRide = ConfirmedRideData(
+      confirmedRideId: DateTime.now().microsecondsSinceEpoch.toString(),
+      request: request,
+      confirmedAt: DateTime.now(),
+    );
+
+    _confirmedRides.add(confirmedRide);
+
+    Navigator.pop(context);
+
+    ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+      SnackBar(
+        content: Text(
+          "Ride confirmed for ${request.passengerName}",
+        ),
+      ),
+    );
+  }
+
+  static void rejectIncomingRequest(BuildContext context, RideRequestModel request) {
+    Navigator.pop(context);
+
+    ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+      SnackBar(
+        content: Text(
+          "Ride request rejected for ${request.passengerName}",
+        ),
+      ),
+    );
   }
 }
 
@@ -77,33 +160,49 @@ class _RideRequestDialog extends StatelessWidget {
         ),
       ),
       actions: [
-        SizedBox(
-          width: double.infinity,
-          child: ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-                SnackBar(
-                  content: Text(
-                    "Ride confirmed for ${request.passengerName}",
+        Row(
+          children: [
+            Expanded(
+              child: OutlinedButton(
+                onPressed: () {
+                  RideRequestService.rejectIncomingRequest(context, request);
+                },
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: const Color(0xFFDC2626),
+                  side: const BorderSide(color: Color(0xFFDC2626)),
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
                   ),
                 ),
-              );
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF14B8A6),
-              foregroundColor: Colors.white,
-              elevation: 0,
-              padding: const EdgeInsets.symmetric(vertical: 14),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
+                child: const Text(
+                  "Reject",
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
               ),
             ),
-            child: const Text(
-              "Confirm",
-              style: TextStyle(fontWeight: FontWeight.bold),
+            const SizedBox(width: 10),
+            Expanded(
+              child: ElevatedButton(
+                onPressed: () {
+                  RideRequestService.confirmRequest(context, request);
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF14B8A6),
+                  foregroundColor: Colors.white,
+                  elevation: 0,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                child: const Text(
+                  "Confirm",
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+              ),
             ),
-          ),
+          ],
         ),
       ],
     );
@@ -137,4 +236,39 @@ class _RideRequestDialog extends StatelessWidget {
       ),
     );
   }
+}
+
+class ConfirmedRideData {
+  final String confirmedRideId;
+  final RideRequestModel request;
+  final DateTime confirmedAt;
+
+  ConfirmedRideData({
+    required this.confirmedRideId,
+    required this.request,
+    required this.confirmedAt,
+  });
+
+  bool get isFreeCancelAvailable {
+    return DateTime.now().difference(confirmedAt).inMinutes < RideRequestService.freeCancelMinutes;
+  }
+
+  int get remainingFreeCancelSeconds {
+    final passed = DateTime.now().difference(confirmedAt).inSeconds;
+    final total = RideRequestService.freeCancelMinutes * 60;
+    final left = total - passed;
+    return left > 0 ? left : 0;
+  }
+}
+
+class CancelRideResult {
+  final bool success;
+  final String message;
+  final double fineAdded;
+
+  CancelRideResult({
+    required this.success,
+    required this.message,
+    required this.fineAdded,
+  });
 }

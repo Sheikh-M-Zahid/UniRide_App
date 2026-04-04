@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'services/auth_api_service.dart';
 
 class ActiveRiderPage extends StatefulWidget {
   const ActiveRiderPage({super.key});
@@ -16,27 +17,12 @@ class _ActiveRiderPageState extends State<ActiveRiderPage>
 
   TextEditingController searchController = TextEditingController();
   String selectedFilter = "All Active";
+  bool isLoading = true;
+  final AuthApiService _authApiService = AuthApiService();
+  Map<String, dynamic>? statsData;
+  List<Map<String, dynamic>> allActiveRiders = [];
 
-  List<Map<String, dynamic>> activeRiders = [
-    {
-      "name": "Rahim Uddin",
-      "phone": "01700000000",
-      "location": "Dhaka - Dhanmondi",
-      "activeSince": "10:30 AM",
-      "vehicle": "Private Car",
-      "todayRide": 5,
-      "earning": 1200,
-    },
-    {
-      "name": "Karim Hasan",
-      "phone": "01800000000",
-      "location": "Chittagong - GEC",
-      "activeSince": "09:15 AM",
-      "vehicle": "CNG",
-      "todayRide": 3,
-      "earning": 800,
-    },
-  ];
+  List<Map<String, dynamic>> activeRiders = [];
 
   @override
   void initState() {
@@ -56,6 +42,60 @@ class _ActiveRiderPageState extends State<ActiveRiderPage>
     ).animate(_fadeAnimation);
 
     _controller.forward();
+
+    _loadActiveRiders();
+  }
+
+  Future<void> _loadActiveRiders() async {
+    setState(() {
+      isLoading = true;
+    });
+
+    try {
+      final response = await _authApiService.getActiveRiders(
+        search: searchController.text.trim(),
+        filter: _mapFilter(selectedFilter),
+        location: '',
+        page: 1,
+        limit: 20,
+      );
+
+      final data = response['data'] ?? response;
+
+      if (!mounted) return;
+
+      setState(() {
+        statsData = data['stats'];
+        allActiveRiders =
+        List<Map<String, dynamic>>.from(data['riders'] ?? []);
+        activeRiders = allActiveRiders;
+        isLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        isLoading = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString())),
+      );
+    }
+  }
+
+  String _mapFilter(String value) {
+    switch (value) {
+      case "Location Wise":
+        return "location_wise";
+      case "Longest Active":
+        return "longest_active";
+      case "Recently Activated":
+        return "recently_activated";
+      case "All Active":
+      default:
+        return "all_active";
+    }
   }
 
   @override
@@ -122,12 +162,20 @@ class _ActiveRiderPageState extends State<ActiveRiderPage>
                     /// ===== Quick Stats =====
                     Row(
                       children: [
-                        statBox("Total Active",
-                            activeRiders.length.toString()),
+                        statBox(
+                          "Total Active",
+                          "${statsData?['totalActiveRiders'] ?? 0}",
+                        ),
                         SizedBox(width: 10),
-                        statBox("Avg Time", "2h 30m"),
+                        statBox(
+                          "Avg Time",
+                          "${statsData?['avgActiveTime'] ?? 0} min",
+                        ),
                         SizedBox(width: 10),
-                        statBox("Today Active", "12"),
+                        statBox(
+                          "Today Active",
+                          "${statsData?['todayActiveRiders'] ?? 0}",
+                        ),
                       ],
                     ),
 
@@ -157,7 +205,7 @@ class _ActiveRiderPageState extends State<ActiveRiderPage>
                         ),
                       ),
                       onChanged: (value) {
-                        setState(() {});
+                        _loadActiveRiders();
                       },
                     ),
 
@@ -195,6 +243,7 @@ class _ActiveRiderPageState extends State<ActiveRiderPage>
                         setState(() {
                           selectedFilter = val!;
                         });
+                        _loadActiveRiders();
                       },
                     ),
 
@@ -202,7 +251,9 @@ class _ActiveRiderPageState extends State<ActiveRiderPage>
 
                     /// ===== Rider List =====
                     Expanded(
-                      child: ListView.builder(
+                      child: isLoading
+                          ? const Center(child: CircularProgressIndicator())
+                          : ListView.builder(
                         itemCount: activeRiders.length,
                         itemBuilder: (context, index) {
 

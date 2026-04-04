@@ -6,7 +6,12 @@ import 'package:shared_preferences/shared_preferences.dart';
 class AuthApiService {
   // Android emulator হলে 10.0.2.2 ব্যবহার করবা
   // Real phone হলে তোমার PC এর local IP দিতে হবে
-  static const String baseUrl = 'http://10.0.2.2:5000/api';
+  static String get baseUrl {
+    if (Platform.isAndroid) {
+      return 'http://10.0.2.2:5000/api'; // Android emulator
+    }
+    return 'http://192.168.0.105:5000/api'; // real device
+  }
 
   Future<Map<String, dynamic>> login({
     required String email,
@@ -419,6 +424,364 @@ class AuthApiService {
       return data;
     } else {
       throw Exception(data['message'] ?? 'Failed to resend OTP');
+    }
+  }
+
+  //RiderDashboard
+  Future<Map<String, dynamic>> getRiderDashboardSummary() async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+
+    final url = Uri.parse('$baseUrl/rider/dashboard-summary');
+
+    final response = await http.get(
+      url,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    );
+
+    final data = jsonDecode(response.body);
+
+    if (response.statusCode == 200) {
+      return data;
+    } else {
+      throw Exception(data['message'] ?? 'Failed to load dashboard');
+    }
+  }
+
+  Future<Map<String, dynamic>> updateRiderStatus({
+    required bool isOnline,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+
+    final url = Uri.parse('$baseUrl/rider/status');
+
+    final response = await http.patch(
+      url,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode({
+        'is_online': isOnline,
+      }),
+    );
+
+    final data = jsonDecode(response.body);
+
+    if (response.statusCode == 200) {
+      return data;
+    } else {
+      throw Exception(data['message'] ?? 'Failed to update status');
+    }
+  }
+
+  //ActiveRiderPage.dart
+  Future<Map<String, dynamic>> getActiveRiders({
+    String search = '',
+    String filter = 'all_active',
+    String location = '',
+    int page = 1,
+    int limit = 20,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+
+    final uri = Uri.parse('$baseUrl/active-riders/').replace(
+      queryParameters: {
+        'search': search,
+        'filter': filter,
+        'location': location,
+        'page': page.toString(),
+        'limit': limit.toString(),
+      },
+    );
+
+    final response = await http.get(
+      uri,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    );
+
+    final data = jsonDecode(response.body);
+
+    if (response.statusCode == 200) {
+      return data;
+    } else {
+      throw Exception(data['message'] ?? 'Failed to load active riders');
+    }
+  }
+
+  //EarningPage.dart
+  Future<Map<String, dynamic>> getEarningsDashboard({
+    String range = 'today',
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+
+    final uri = Uri.parse('$baseUrl/earnings').replace(
+      queryParameters: {
+        'range': range,
+      },
+    );
+
+    final response = await http.get(
+      uri,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    );
+
+    final data = jsonDecode(response.body);
+
+    if (response.statusCode == 200) {
+      return data;
+    } else {
+      throw Exception(data['message'] ?? 'Failed to load earnings dashboard');
+    }
+  }
+
+  //GmailConfirm.dart
+  Future<Map<String, dynamic>> sendSignupOtp({
+    required String email,
+  }) async {
+    try {
+      final url = Uri.parse('$baseUrl/auth/send-signup-otp');
+
+      final response = await http
+          .post(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({
+          'email': email,
+        }),
+      )
+          .timeout(const Duration(seconds: 15));
+
+      final data = jsonDecode(response.body);
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        return data;
+      } else {
+        throw Exception(data['message'] ?? 'Failed to send signup OTP');
+      }
+    } on SocketException {
+      throw Exception(
+        'Cannot connect to backend server. Check IP, Wi-Fi, and server status.',
+      );
+    } on http.ClientException {
+      throw Exception(
+        'Request failed. Check backend URL and internet permission.',
+      );
+    }
+  }
+
+  Future<Map<String, dynamic>> googleSignupCheck({
+    required String email,
+  }) async {
+    final url = Uri.parse('$baseUrl/auth/google-signup-check');
+
+    final response = await http.post(
+      url,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({
+        'email': email,
+      }),
+    );
+
+    final data = jsonDecode(response.body);
+
+    if (response.statusCode == 200 || response.statusCode == 201) {
+      return data;
+    } else {
+      throw Exception(data['message'] ?? 'Google signup check failed');
+    }
+  }
+
+  //OTPVerificationPage.dart
+  Future<Map<String, dynamic>> verifySignupOtp({
+    required String email,
+    required String otp,
+  }) async {
+    final url = Uri.parse('$baseUrl/auth/verify-signup-otp');
+
+    final response = await http.post(
+      url,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({
+        'email': email,
+        'otp': otp,
+      }),
+    );
+
+    final data = jsonDecode(response.body);
+
+    if (response.statusCode == 200 || response.statusCode == 201) {
+      return data;
+    } else {
+      throw Exception(data['message'] ?? 'OTP verification failed');
+    }
+  }
+
+  Future<Map<String, dynamic>> resendSignupOtp({
+    required String email,
+  }) async {
+    final url = Uri.parse('$baseUrl/auth/resend-signup-otp');
+
+    final response = await http.post(
+      url,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({
+        'email': email,
+      }),
+    );
+
+    final data = jsonDecode(response.body);
+
+    if (response.statusCode == 200 || response.statusCode == 201) {
+      return data;
+    } else {
+      throw Exception(data['message'] ?? 'Failed to resend OTP');
+    }
+  }
+
+  //UserSetting.dart
+  Future<Map<String, dynamic>> getSettingsSummary() async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+
+    final url = Uri.parse('$baseUrl/settings/summary');
+
+    final response = await http.get(
+      url,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    );
+
+    final data = jsonDecode(response.body);
+
+    if (response.statusCode == 200) {
+      return data;
+    } else {
+      throw Exception(data['message'] ?? 'Failed to load settings summary');
+    }
+  }
+
+  //WalletPage.dart
+  Future<Map<String, dynamic>> getWalletSummary() async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+
+    final url = Uri.parse('$baseUrl/wallet/summary');
+
+    final response = await http.get(
+      url,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    );
+
+    final data = jsonDecode(response.body);
+
+    if (response.statusCode == 200) {
+      return data;
+    } else {
+      throw Exception(data['message'] ?? 'Failed to load wallet summary');
+    }
+  }
+  Future<Map<String, dynamic>> payDue({
+    required String method,
+    required String referenceId,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+
+    final url = Uri.parse('$baseUrl/wallet/pay-due');
+
+    final response = await http.post(
+      url,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode({
+        'method': method,
+        'reference_id': referenceId,
+      }),
+    );
+
+    final data = jsonDecode(response.body);
+
+    if (response.statusCode == 200 || response.statusCode == 201) {
+      return data;
+    } else {
+      throw Exception(data['message'] ?? 'Due payment failed');
+    }
+  }
+
+  //RegistrationPage.dart
+  Future<Map<String, dynamic>> registerUser({
+    required String signupToken,
+    required String firstName,
+    required String lastName,
+    required String phone,
+    String? recoveryPhone,
+    String? emergencyPhone,
+    required String gender,
+    String? bloodGroup,
+    required String dateOfBirth,
+    required String homeAddress,
+    required String hostelAddress,
+    String? campusAddress,
+    required String password,
+  }) async {
+    final url = Uri.parse('$baseUrl/auth/register');
+
+    final response = await http.post(
+      url,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({
+        'signupToken': signupToken,
+        'first_name': firstName,
+        'last_name': lastName,
+        'phone': phone,
+        'recovery_phone': recoveryPhone,
+        'emergency_phone': emergencyPhone,
+        'gender': gender,
+        'blood_group': bloodGroup,
+        'date_of_birth': dateOfBirth,
+        'home_address': homeAddress,
+        'hostel_address': hostelAddress,
+        'campus_address': campusAddress,
+        'password': password,
+      }),
+    );
+
+    final data = jsonDecode(response.body);
+
+    if (response.statusCode == 200 || response.statusCode == 201) {
+      return data;
+    } else {
+      throw Exception(data['message'] ?? 'Registration failed');
     }
   }
 }

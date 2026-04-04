@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'RideRequestModel.dart';
 import 'RideRequestService.dart';
@@ -11,6 +13,37 @@ class ActiveRidesPage extends StatefulWidget {
 
 class _ActiveRidesPageState extends State<ActiveRidesPage> {
   bool rideIsActive = false;
+  Timer? _timer;
+
+  ConfirmedRideData? get _currentRide {
+    final rides = RideRequestService.getConfirmedRides();
+    if (rides.isEmpty) return null;
+    return rides.last;
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _startTimerIfNeeded();
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  void _startTimerIfNeeded() {
+    _timer?.cancel();
+
+    if (_currentRide != null) {
+      _timer = Timer.periodic(const Duration(seconds: 1), (_) {
+        if (mounted) {
+          setState(() {});
+        }
+      });
+    }
+  }
 
   void _toggleRideStatus() {
     setState(() {
@@ -22,6 +55,30 @@ class _ActiveRidesPageState extends State<ActiveRidesPage> {
         content: Text(
           rideIsActive ? "Ride activated" : "Ride deactivated",
         ),
+      ),
+    );
+  }
+
+  void _cancelConfirmedRide() {
+    final currentRide = _currentRide;
+    if (currentRide == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("No confirmed ride found"),
+        ),
+      );
+      return;
+    }
+
+    final result = RideRequestService.rejectConfirmedRide(
+      currentRide.confirmedRideId,
+    );
+
+    setState(() {});
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(result.message),
       ),
     );
   }
@@ -59,10 +116,14 @@ class _ActiveRidesPageState extends State<ActiveRidesPage> {
         estimatedMinutes: 13,
       ),
     );
+
+    _startTimerIfNeeded();
   }
 
   @override
   Widget build(BuildContext context) {
+
+    final currentRide = _currentRide;
     return Scaffold(
       backgroundColor: const Color(0xFFF9FAFB),
       appBar: AppBar(
@@ -128,10 +189,10 @@ class _ActiveRidesPageState extends State<ActiveRidesPage> {
                   ),
                 ],
               ),
-              child: const Column(
+              child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
+                  const Text(
                     "Current Ride Summary",
                     style: TextStyle(
                       fontSize: 17,
@@ -139,12 +200,60 @@ class _ActiveRidesPageState extends State<ActiveRidesPage> {
                       color: Color(0xFF1F2937),
                     ),
                   ),
-                  SizedBox(height: 12),
-                  _RideInfoRow(label: "Passenger", value: "No current ride"),
-                  _RideInfoRow(label: "Pickup", value: "-"),
-                  _RideInfoRow(label: "Destination", value: "-"),
-                  _RideInfoRow(label: "Fare", value: "-"),
-                  _RideInfoRow(label: "Time", value: "-"),
+                  const SizedBox(height: 12),
+                  _RideInfoRow(
+                    label: "Passenger",
+                    value: currentRide?.request.passengerName ?? "No current ride",
+                  ),
+                  _RideInfoRow(
+                    label: "Phone",
+                    value: currentRide?.request.phoneNumber ?? "-",
+                  ),
+                  _RideInfoRow(
+                    label: "Pickup",
+                    value: currentRide?.request.currentLocation ?? "-",
+                  ),
+                  _RideInfoRow(
+                    label: "Destination",
+                    value: currentRide?.request.destination ?? "-",
+                  ),
+                  _RideInfoRow(
+                    label: "Fare",
+                    value: currentRide != null
+                        ? "৳${currentRide.request.fare.toStringAsFixed(0)}"
+                        : "-",
+                  ),
+                  _RideInfoRow(
+                    label: "Time",
+                    value: currentRide != null
+                        ? "${currentRide.request.estimatedMinutes} min"
+                        : "-",
+                  ),
+                  if (currentRide != null) ...[
+                    _RideInfoRow(
+                      label: "Free Cancel",
+                      value: currentRide.isFreeCancelAvailable
+                          ? "${currentRide.remainingFreeCancelSeconds}s left"
+                          : "Expired",
+                    ),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        onPressed: _cancelConfirmedRide,
+                        icon: const Icon(Icons.close),
+                        label: const Text("Cancel / Reject Ride"),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: const Color(0xFFDC2626),
+                          side: const BorderSide(color: Color(0xFFDC2626)),
+                          padding: const EdgeInsets.symmetric(vertical: 13),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),

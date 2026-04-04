@@ -1,6 +1,7 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
+import 'services/auth_api_service.dart';
 
 class EarningsPage extends StatefulWidget {
   const EarningsPage({super.key});
@@ -12,79 +13,81 @@ class EarningsPage extends StatefulWidget {
 class _EarningsPageState extends State<EarningsPage> {
   String selectedRange = "Today";
 
-  double rating = 4.8;
-  double todayEarnings = 450;
-  double weekEarnings = 1850;
-  double monthEarnings = 7200;
-  int completedRides = 58;
+  final AuthApiService _authApiService = AuthApiService();
 
-  /// 6 AM to 11 PM = 18 values
-  final List<double> todayData = [
-    20,
-    30,
-    50,
-    10,
-    80,
-    40,
-    70,
-    60,
-    20,
-    30,
-    10,
-    15,
-    25,
-    40,
-    50,
-    60,
-    20,
-    10,
-  ];
+  double rating = 5.0;
+  double todayEarnings = 0;
+  double weekEarnings = 0;
+  double monthEarnings = 0;
+  int completedRides = 0;
 
-  /// Sun to Sat
-  final List<double> weeklyData = [
-    400,
-    300,
-    250,
-    500,
-    450,
-    350,
-    600,
-  ];
+  bool isLoading = true;
+  List<double> chartValues = [];
+  List<String> chartLabels = [];
 
-  late List<double> monthlyData;
+  List<Map<String, dynamic>> chartDataList = [];
 
   @override
   void initState() {
     super.initState();
-    monthlyData = List.generate(
-      _daysInCurrentMonth(),
-          (index) => (index + 1) * 20.0,
-    );
+    _loadEarningsDashboard();
   }
 
-  int _daysInCurrentMonth() {
-    final now = DateTime.now();
-    final firstDayNextMonth = now.month < 12
-        ? DateTime(now.year, now.month + 1, 1)
-        : DateTime(now.year + 1, 1, 1);
+  Future<void> _loadEarningsDashboard() async {
+    setState(() {
+      isLoading = true;
+    });
 
-    final lastDayCurrentMonth =
-    firstDayNextMonth.subtract(const Duration(days: 1));
+    try {
+      final response = await _authApiService.getEarningsDashboard(
+        range: _mapRange(selectedRange),
+      );
 
-    return lastDayCurrentMonth.day;
+      final data = response['data'] ?? response;
+      final summary = data['summary'] ?? {};
+      final chart = data['chart'] ?? {};
+      final List<dynamic> rawChart = chart['data'] ?? [];
+
+      if (!mounted) return;
+
+      setState(() {
+        rating = (data['rating'] ?? 5).toDouble();
+        todayEarnings = (summary['todayEarnings'] ?? 0).toDouble();
+        weekEarnings = (summary['weekEarnings'] ?? 0).toDouble();
+        monthEarnings = (summary['monthEarnings'] ?? 0).toDouble();
+        completedRides = (summary['completedRides'] ?? 0).toInt();
+        chartDataList = List<Map<String, dynamic>>.from(rawChart);
+        isLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        isLoading = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString())),
+      );
+    }
+  }
+
+  String _mapRange(String value) {
+    switch (value) {
+      case "Weekly":
+        return "weekly";
+      case "Monthly":
+        return "monthly";
+      case "Today":
+      default:
+        return "today";
+    }
   }
 
   List<double> getChartData() {
-    switch (selectedRange) {
-      case "Today":
-        return todayData;
-      case "Weekly":
-        return weeklyData;
-      case "Monthly":
-        return monthlyData;
-      default:
-        return todayData;
-    }
+    return chartDataList
+        .map<double>((e) => (e['value'] ?? 0).toDouble())
+        .toList();
   }
 
   double getMaxY() {
@@ -107,20 +110,9 @@ class _EarningsPageState extends State<EarningsPage> {
     return 1000;
   }
 
-  String _formatTodayHourLabel(int index) {
-    final hour24 = index + 6;
-
-    if (hour24 == 0) return "12AM";
-    if (hour24 == 12) return "12PM";
-    if (hour24 > 12) return "${hour24 - 12}PM";
-    return "${hour24}AM";
-  }
-
   Widget _bottomTitleWidgets(double value, TitleMeta meta) {
     final index = value.toInt();
-    final data = getChartData();
-
-    if (index < 0 || index >= data.length) {
+    if (index < 0 || index >= chartDataList.length) {
       return const SizedBox.shrink();
     }
 
@@ -130,58 +122,28 @@ class _EarningsPageState extends State<EarningsPage> {
       color: Color(0xFF1F2937),
     );
 
-    if (selectedRange == "Today") {
-      if (index % 2 != 0) {
-        return const SizedBox.shrink();
-      }
+    final label = chartDataList[index]['label']?.toString() ?? '';
 
-      return SideTitleWidget(
-        axisSide: meta.axisSide,
-        child: Text(
-          _formatTodayHourLabel(index),
-          style: style,
-        ),
-      );
-    }
-
-    if (selectedRange == "Weekly") {
-      const List<String> days = [
-        "Sun",
-        "Mon",
-        "Tue",
-        "Wed",
-        "Thu",
-        "Fri",
-        "Sat",
-      ];
-
-      if (index >= days.length) {
-        return const SizedBox.shrink();
-      }
-
-      return SideTitleWidget(
-        axisSide: meta.axisSide,
-        child: Text(
-          days[index],
-          style: style,
-        ),
-      );
-    }
-
-    if (!(index == 0 ||
-        index == 4 ||
-        index == 9 ||
-        index == 14 ||
-        index == 19 ||
-        index == 24 ||
-        index == data.length - 1)) {
+    if (selectedRange == "Today" && index % 2 != 0) {
       return const SizedBox.shrink();
+    }
+
+    if (selectedRange == "Monthly") {
+      if (!(index == 0 ||
+          index == 4 ||
+          index == 9 ||
+          index == 14 ||
+          index == 19 ||
+          index == 24 ||
+          index == chartDataList.length - 1)) {
+        return const SizedBox.shrink();
+      }
     }
 
     return SideTitleWidget(
       axisSide: meta.axisSide,
       child: Text(
-        "${index + 1}",
+        label,
         style: style,
       ),
     );
@@ -213,7 +175,9 @@ class _EarningsPageState extends State<EarningsPage> {
         centerTitle: true,
         elevation: 0,
       ),
-      body: SingleChildScrollView(
+      body: isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
@@ -370,6 +334,7 @@ class _EarningsPageState extends State<EarningsPage> {
                       setState(() {
                         selectedRange = value;
                       });
+                      _loadEarningsDashboard();
                     },
                   ),
                 ),

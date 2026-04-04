@@ -339,7 +339,7 @@ class _UniRideLoginState extends State<UniRideLogin> {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (context) => GmailconfirmPage(),
+                      builder: (context) => GmailConfirmPage(),
                     ),
                   );
                 },
