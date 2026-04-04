@@ -1,0 +1,16 @@
+const express = require('express');
+const router = express.Router();
+
+const authMiddleware = require('../middlewares/authMiddleware');
+const riderDeliveryController = require('../controllers/riderDeliveryController');
+
+router.use(authMiddleware);
+
+router.get('/dashboard', riderDeliveryController.getDashboard);
+
+router.post('/requests/:id/accept', riderDeliveryController.acceptRequest);
+router.post('/requests/:id/reject', riderDeliveryController.rejectRequest);
+
+router.post('/:id/mark-delivered', riderDeliveryController.markDelivered);
+
+module.exports = router;

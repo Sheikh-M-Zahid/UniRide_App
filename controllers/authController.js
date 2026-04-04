@@ -4,7 +4,6 @@ const authService = require('../services/authService');
 
 /* =========================
    SIGNUP EMAIL VERIFY FLOW
-   GmailconfirmPage support
 ========================= */
 const sendSignupOtp = asyncHandler(async (req, res) => {
   try {
@@ -21,7 +20,6 @@ const verifySignupOtp = asyncHandler(async (req, res) => {
       req.body.email,
       req.body.otp
     );
-
     return successResponse(res, 'OTP verified successfully.', data);
   } catch (error) {
     return errorResponse(res, error.message, 400);
@@ -30,12 +28,8 @@ const verifySignupOtp = asyncHandler(async (req, res) => {
 
 const resendSignupOtp = asyncHandler(async (req, res) => {
   try {
-    await authService.resendSignupOtp(req.body.email);
-
-    return successResponse(
-      res,
-      'A new code has been sent to your email.'
-    );
+    const data = await authService.resendSignupOtp(req.body.email);
+    return successResponse(res, 'A new code has been sent to your email.', data);
   } catch (error) {
     return errorResponse(res, error.message, 400);
   }
@@ -53,13 +47,7 @@ const googleSignupCheck = asyncHandler(async (req, res) => {
 const register = asyncHandler(async (req, res) => {
   try {
     const data = await authService.register(req.body);
-
-    return successResponse(
-      res,
-      'Account created successfully.',
-      data,
-      201
-    );
+    return successResponse(res, 'Account created successfully.', data, 201);
   } catch (error) {
     return errorResponse(res, error.message, 400);
   }

@@ -27,6 +27,12 @@ const earningsRoutes = require('./routes/earningsRoutes');
 const activeRideRoutes = require('./routes/activeRideRoutes');
 const activityRoutes = require('./routes/activityRoutes');
 const riderActiveRideRoutes = require('./routes/riderActiveRideRoutes');
+const riderDashboardRoutes = require('./routes/riderDashboardRoutes');
+const passengerRideRequestRoutes = require('./routes/passengerRideRequestRoutes');
+const riderRideHistoryRoutes = require('./routes/riderRideHistoryRoutes');
+const riderMapRoutes = require('./routes/riderMapRoutes');
+const riderProfileRoutes = require('./routes/riderProfileRoutes');
+const riderSettingsRoutes = require('./routes/riderSettingsRoutes');
 
 const errorMiddleware = require('./middlewares/errorMiddleware');
 
@@ -69,6 +75,13 @@ app.use('/api/rider/earnings', earningsRoutes);
 app.use('/api/rider/active-ride', activeRideRoutes);
 app.use('/api/rider/activity', activityRoutes);
 app.use('/api/rider/active-ride', riderActiveRideRoutes);
+app.use('/api/rider/dashboard', riderDashboardRoutes);
+app.use('/api/passenger/ride-requests', passengerRideRequestRoutes);
+app.use('/api/rider/ride-history', riderRideHistoryRoutes);
+app.use('/api/rider/map', riderMapRoutes);
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+app.use('/api/rider/profile', riderProfileRoutes);
+app.use('/api/rider/settings', riderSettingsRoutes);
 
 app.use(errorMiddleware);
 

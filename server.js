@@ -8,6 +8,9 @@ const { initSocket } = require('./config/socket');
 
 const riderSocket = require('./sockets/riderSocket');
 const riderActiveRideSocket = require('./sockets/riderActiveRideSocket');
+const riderDashboardSocket = require('./sockets/riderDashboardSocket');
+const rideRequestSocket = require('./sockets/rideRequestSocket');
+const riderDeliverySocket = require('./sockets/riderDeliverySocket');
 setInterval(async () => {
   try {
     await riderActiveRideService.expirePendingRequests({ io });
@@ -25,7 +28,9 @@ const io = initSocket(server);
 
 riderSocket(io);
 riderActiveRideSocket(io);
-
+riderDashboardSocket(io);
+rideRequestSocket(io);
+riderDeliverySocket(io);
 app.set('io', io);
 
 
