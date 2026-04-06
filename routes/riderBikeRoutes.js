@@ -3,7 +3,6 @@ const router = express.Router();
 
 const auth = require('../middlewares/authMiddleware');
 const { vehicleUpload } = require('../middlewares/uploadMiddleware');
-
 const controller = require('../controllers/riderBikeController');
 
 router.use(auth);

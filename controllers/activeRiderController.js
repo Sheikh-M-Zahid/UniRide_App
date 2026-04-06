@@ -22,7 +22,7 @@ const getActiveRiders = async (req, res) => {
     return successResponse(res, 'Active riders fetched successfully.', result);
   } catch (error) {
     console.error('getActiveRiders error:', error);
-    return errorResponse(res, error.message || 'Failed to fetch active riders.', 500);
+    return errorResponse(res, error.message, 500);
   }
 };
 
