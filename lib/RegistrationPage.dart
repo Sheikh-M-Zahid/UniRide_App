@@ -1,35 +1,68 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'ConfirmationPage.dart';
+import 'services/auth_api_service.dart';
 
 void main() {
   runApp(
     const MaterialApp(
       debugShowCheckedModeBanner: false,
-      home: PersonalInfoForm(),
+      home: PersonalInfoForm(
+        signupToken: '',
+        email: '',
+      ),
     ),
   );
 }
 
 class PersonalInfoForm extends StatefulWidget {
-  const PersonalInfoForm({super.key});
+  final String signupToken;
+  final String email;
+
+  const PersonalInfoForm({
+    super.key,
+    required this.signupToken,
+    required this.email,
+  });
 
   @override
   State<PersonalInfoForm> createState() => _PersonalInfoFormState();
 }
 
 class _PersonalInfoFormState extends State<PersonalInfoForm> {
+  final AuthApiService _authApiService = AuthApiService();
+
+  bool _isSubmitting = false;
+  String? signupToken;
+  String? userEmail;
+
   bool _isObscure = true;
   bool _isObscureConfirm = true;
+
   String? selectedBloodGroup;
   String? selectedOccupation;
   String? selectedGender;
 
   final _formKey = GlobalKey<FormState>();
+
+  final TextEditingController _firstNameController = TextEditingController();
+  final TextEditingController _lastNameController = TextEditingController();
+  final TextEditingController _phoneController = TextEditingController();
+  final TextEditingController _recoveryPhoneController =
+  TextEditingController();
+  final TextEditingController _emergencyPhoneController =
+  TextEditingController();
+  final TextEditingController _dateOfBirthController =
+  TextEditingController();
+  final TextEditingController _homeAddressController =
+  TextEditingController();
+  final TextEditingController _hostelAddressController =
+  TextEditingController();
+  final TextEditingController _campusAddressController =
+  TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   final TextEditingController _confirmPasswordController =
   TextEditingController();
-  final TextEditingController _phoneController = TextEditingController();
 
   final List<Map<String, String>> _countryList = [
     {'name': 'Bangladesh', 'code': '+880'},
@@ -37,6 +70,17 @@ class _PersonalInfoFormState extends State<PersonalInfoForm> {
     {'name': 'Pakistan', 'code': '+92'},
     {'name': 'USA', 'code': '+1'},
     {'name': 'AUS', 'code': '+61'},
+  ];
+
+  final List<String> _bloodGroups = const [
+    'A+',
+    'A-',
+    'B+',
+    'B-',
+    'AB+',
+    'AB-',
+    'O+',
+    'O-',
   ];
 
   String selectedCountry = 'Bangladesh';
@@ -48,10 +92,25 @@ class _PersonalInfoFormState extends State<PersonalInfoForm> {
   }
 
   @override
+  void initState() {
+    super.initState();
+    signupToken = widget.signupToken;
+    userEmail = widget.email;
+  }
+
+  @override
   void dispose() {
+    _firstNameController.dispose();
+    _lastNameController.dispose();
+    _phoneController.dispose();
+    _recoveryPhoneController.dispose();
+    _emergencyPhoneController.dispose();
+    _dateOfBirthController.dispose();
+    _homeAddressController.dispose();
+    _hostelAddressController.dispose();
+    _campusAddressController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
-    _phoneController.dispose();
     super.dispose();
   }
 
@@ -59,6 +118,7 @@ class _PersonalInfoFormState extends State<PersonalInfoForm> {
     required String labelText,
     required String hintText,
     required IconData prefixIcon,
+    Widget? suffixIcon,
   }) {
     return InputDecoration(
       border: OutlineInputBorder(
@@ -75,6 +135,14 @@ class _PersonalInfoFormState extends State<PersonalInfoForm> {
           width: 1.8,
         ),
       ),
+      errorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(10),
+        borderSide: const BorderSide(color: Colors.red),
+      ),
+      focusedErrorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(10),
+        borderSide: const BorderSide(color: Colors.red, width: 1.8),
+      ),
       labelText: labelText,
       hintText: hintText,
       labelStyle: const TextStyle(color: Color(0xFF1F2937)),
@@ -83,9 +151,92 @@ class _PersonalInfoFormState extends State<PersonalInfoForm> {
         prefixIcon,
         color: const Color(0xFF0F766E),
       ),
+      suffixIcon: suffixIcon,
       filled: true,
       fillColor: Colors.white,
     );
+  }
+
+  Future<void> _registerUser() async {
+    FocusScope.of(context).unfocus();
+
+    if (!_formKey.currentState!.validate()) return;
+
+    if ((signupToken ?? '').trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Invalid signup session. Please verify OTP again.',
+          ),
+        ),
+      );
+      return;
+    }
+
+    if (_passwordController.text.trim() !=
+        _confirmPasswordController.text.trim()) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Passwords do not match'),
+        ),
+      );
+      return;
+    }
+
+    setState(() {
+      _isSubmitting = true;
+    });
+
+    try {
+      await _authApiService.registerUser(
+        signupToken: signupToken!.trim(),
+        firstName: _firstNameController.text.trim(),
+        lastName: _lastNameController.text.trim(),
+        phone: _phoneController.text.trim(),
+        recoveryPhone: _recoveryPhoneController.text.trim().isEmpty
+            ? null
+            : _recoveryPhoneController.text.trim(),
+        emergencyPhone: _emergencyPhoneController.text.trim().isEmpty
+            ? null
+            : _emergencyPhoneController.text.trim(),
+        gender: (selectedGender ?? '').trim(),
+        bloodGroup: selectedBloodGroup,
+        dateOfBirth: _dateOfBirthController.text.trim(),
+        homeAddress: _homeAddressController.text.trim(),
+        hostelAddress: _hostelAddressController.text.trim(),
+        campusAddress: _campusAddressController.text.trim().isEmpty
+            ? null
+            : _campusAddressController.text.trim(),
+        password: _passwordController.text.trim(),
+      );
+
+      if (!mounted) return;
+
+      setState(() {
+        _isSubmitting = false;
+      });
+
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (context) => const ConfirmationPage(),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        _isSubmitting = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            e.toString().replaceFirst('Exception: ', ''),
+          ),
+        ),
+      );
+    }
   }
 
   @override
@@ -107,26 +258,65 @@ class _PersonalInfoFormState extends State<PersonalInfoForm> {
           key: _formKey,
           child: Column(
             children: [
+              if ((userEmail ?? '').trim().isNotEmpty) ...[
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: const Color(0xFFD1D5DB)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.email_outlined,
+                        color: Color(0xFF0F766E),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          userEmail!,
+                          style: const TextStyle(
+                            color: Color(0xFF1F2937),
+                            fontSize: 15,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 15),
+              ],
+
               TextFormField(
+                controller: _firstNameController,
                 textInputAction: TextInputAction.next,
                 decoration: _buildInputDecoration(
                   labelText: "First Name",
                   hintText: "Enter Your First Name",
                   prefixIcon: Icons.person,
                 ),
-                validator: (value) => (value == null || value.trim().isEmpty)
+                validator: (value) =>
+                (value == null || value.trim().isEmpty)
                     ? 'First Name is required'
                     : null,
               ),
               const SizedBox(height: 15),
 
               TextFormField(
+                controller: _lastNameController,
                 textInputAction: TextInputAction.next,
                 decoration: _buildInputDecoration(
                   labelText: "Last Name",
                   hintText: "Enter Your Last Name",
                   prefixIcon: Icons.person,
                 ),
+                validator: (value) =>
+                (value == null || value.trim().isEmpty)
+                    ? 'Last Name is required'
+                    : null,
               ),
               const SizedBox(height: 15),
 
@@ -222,7 +412,8 @@ class _PersonalInfoFormState extends State<PersonalInfoForm> {
                         const TextStyle(color: Color(0xFF1F2937)),
                         hintStyle: const TextStyle(color: Colors.grey),
                         prefixIcon: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          padding:
+                          const EdgeInsets.symmetric(horizontal: 12),
                           child: SizedBox(
                             width: 42,
                             child: Center(
@@ -270,7 +461,8 @@ class _PersonalInfoFormState extends State<PersonalInfoForm> {
                   ),
                   enabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(10),
-                    borderSide: const BorderSide(color: Color(0xFFD1D5DB)),
+                    borderSide:
+                    const BorderSide(color: Color(0xFFD1D5DB)),
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(10),
@@ -281,7 +473,8 @@ class _PersonalInfoFormState extends State<PersonalInfoForm> {
                   ),
                   labelText: "Occupation",
                   hintText: "Enter Your University Role",
-                  labelStyle: const TextStyle(color: Color(0xFF1F2937)),
+                  labelStyle:
+                  const TextStyle(color: Color(0xFF1F2937)),
                   prefixIcon: const Icon(
                     Icons.work,
                     color: Color(0xFF0F766E),
@@ -315,7 +508,8 @@ class _PersonalInfoFormState extends State<PersonalInfoForm> {
                   ),
                   enabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(10),
-                    borderSide: const BorderSide(color: Color(0xFFD1D5DB)),
+                    borderSide:
+                    const BorderSide(color: Color(0xFFD1D5DB)),
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(10),
@@ -326,7 +520,8 @@ class _PersonalInfoFormState extends State<PersonalInfoForm> {
                   ),
                   labelText: "Gender",
                   hintText: "Select Your Gender",
-                  labelStyle: const TextStyle(color: Color(0xFF1F2937)),
+                  labelStyle:
+                  const TextStyle(color: Color(0xFF1F2937)),
                   prefixIcon: const Icon(
                     Icons.person_outline,
                     color: Color(0xFF0F766E),
@@ -334,7 +529,7 @@ class _PersonalInfoFormState extends State<PersonalInfoForm> {
                   filled: true,
                   fillColor: Colors.white,
                 ),
-                items: ['Male', 'Female', 'Other']
+                items: ['male', 'female']
                     .map(
                       (gender) => DropdownMenuItem<String>(
                     value: gender,
@@ -352,30 +547,16 @@ class _PersonalInfoFormState extends State<PersonalInfoForm> {
               ),
               const SizedBox(height: 15),
 
-              TextFormField(
-                textInputAction: TextInputAction.next,
-                decoration: _buildInputDecoration(
-                  labelText: "Present Area",
-                  hintText: "e.g: Narayanganj",
-                  prefixIcon: Icons.location_on,
-                ),
-                validator: (value) => (value == null || value.trim().isEmpty)
-                    ? 'Address is required'
-                    : null,
-              ),
-              const SizedBox(height: 15),
-
-              TextFormField(
-                controller: _passwordController,
-                obscureText: _isObscure,
-                textInputAction: TextInputAction.next,
+              DropdownButtonFormField<String>(
+                value: selectedBloodGroup,
                 decoration: InputDecoration(
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(10),
                   ),
                   enabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(10),
-                    borderSide: const BorderSide(color: Color(0xFFD1D5DB)),
+                    borderSide:
+                    const BorderSide(color: Color(0xFFD1D5DB)),
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(10),
@@ -384,30 +565,152 @@ class _PersonalInfoFormState extends State<PersonalInfoForm> {
                       width: 1.8,
                     ),
                   ),
-                  labelText: "Password",
-                  hintText: "Current Password",
-                  labelStyle: const TextStyle(color: Color(0xFF1F2937)),
-                  hintStyle: const TextStyle(color: Colors.grey),
+                  labelText: "Blood Group (Optional)",
+                  hintText: "Select Blood Group",
+                  labelStyle:
+                  const TextStyle(color: Color(0xFF1F2937)),
                   prefixIcon: const Icon(
-                    Icons.lock,
+                    Icons.bloodtype,
                     color: Color(0xFF0F766E),
-                  ),
-                  suffixIcon: IconButton(
-                    icon: Icon(
-                      _isObscure ? Icons.visibility_off : Icons.visibility,
-                      color: const Color(0xFF0F766E),
-                    ),
-                    onPressed: () =>
-                        setState(() => _isObscure = !_isObscure),
                   ),
                   filled: true,
                   fillColor: Colors.white,
                 ),
+                items: _bloodGroups
+                    .map(
+                      (group) => DropdownMenuItem<String>(
+                    value: group,
+                    child: Text(group),
+                  ),
+                )
+                    .toList(),
+                onChanged: (value) {
+                  setState(() {
+                    selectedBloodGroup = value;
+                  });
+                },
+              ),
+              const SizedBox(height: 15),
+
+              TextFormField(
+                controller: _hostelAddressController,
+                textInputAction: TextInputAction.next,
+                decoration: _buildInputDecoration(
+                  labelText: "Hostel Address",
+                  hintText: "Enter Your Hostel Address",
+                  prefixIcon: Icons.location_on,
+                ),
+                validator: (value) =>
+                (value == null || value.trim().isEmpty)
+                    ? 'Hostel address is required'
+                    : null,
+              ),
+              const SizedBox(height: 15),
+
+              TextFormField(
+                controller: _homeAddressController,
+                textInputAction: TextInputAction.next,
+                decoration: _buildInputDecoration(
+                  labelText: "Home Address",
+                  hintText: "Enter Your Home Address",
+                  prefixIcon: Icons.home,
+                ),
+                validator: (value) =>
+                (value == null || value.trim().isEmpty)
+                    ? 'Home address is required'
+                    : null,
+              ),
+              const SizedBox(height: 15),
+
+              TextFormField(
+                controller: _campusAddressController,
+                textInputAction: TextInputAction.next,
+                decoration: _buildInputDecoration(
+                  labelText: "Campus Address (Optional)",
+                  hintText: "Enter Campus Address",
+                  prefixIcon: Icons.location_city,
+                ),
+              ),
+              const SizedBox(height: 15),
+
+              TextFormField(
+                controller: _recoveryPhoneController,
+                textInputAction: TextInputAction.next,
+                keyboardType: TextInputType.phone,
+                inputFormatters: [
+                  FilteringTextInputFormatter.allow(
+                    RegExp(r'[0-9+]'),
+                  ),
+                  LengthLimitingTextInputFormatter(15),
+                ],
+                decoration: _buildInputDecoration(
+                  labelText: "Recovery Phone (Optional)",
+                  hintText: "Enter Recovery Phone",
+                  prefixIcon: Icons.phone_in_talk,
+                ),
+              ),
+              const SizedBox(height: 15),
+
+              TextFormField(
+                controller: _emergencyPhoneController,
+                textInputAction: TextInputAction.next,
+                keyboardType: TextInputType.phone,
+                inputFormatters: [
+                  FilteringTextInputFormatter.allow(
+                    RegExp(r'[0-9+]'),
+                  ),
+                  LengthLimitingTextInputFormatter(15),
+                ],
+                decoration: _buildInputDecoration(
+                  labelText: "Emergency Phone (Optional)",
+                  hintText: "Enter Emergency Phone",
+                  prefixIcon: Icons.emergency,
+                ),
+              ),
+              const SizedBox(height: 15),
+
+              TextFormField(
+                controller: _dateOfBirthController,
+                textInputAction: TextInputAction.next,
+                decoration: _buildInputDecoration(
+                  labelText: "Date of Birth",
+                  hintText: "YYYY-MM-DD",
+                  prefixIcon: Icons.calendar_today,
+                ),
+                validator: (value) =>
+                (value == null || value.trim().isEmpty)
+                    ? 'Date of birth is required'
+                    : null,
+              ),
+              const SizedBox(height: 15),
+
+              TextFormField(
+                controller: _passwordController,
+                obscureText: _isObscure,
+                textInputAction: TextInputAction.next,
+                decoration: _buildInputDecoration(
+                  labelText: "Password",
+                  hintText: "Enter Password",
+                  prefixIcon: Icons.lock,
+                  suffixIcon: IconButton(
+                    icon: Icon(
+                      _isObscure
+                          ? Icons.visibility_off
+                          : Icons.visibility,
+                      color: const Color(0xFF0F766E),
+                    ),
+                    onPressed: () {
+                      setState(() {
+                        _isObscure = !_isObscure;
+                      });
+                    },
+                  ),
+                ),
                 validator: (value) {
-                  if (value == null || value.isEmpty) {
+                  if (value == null || value.trim().isEmpty) {
                     return 'Password is required';
                   }
-                  if (value.length < 6) {
+                  if (value.trim().length < 6) {
                     return 'At least 6 characters';
                   }
                   return null;
@@ -419,29 +722,10 @@ class _PersonalInfoFormState extends State<PersonalInfoForm> {
                 controller: _confirmPasswordController,
                 obscureText: _isObscureConfirm,
                 textInputAction: TextInputAction.done,
-                decoration: InputDecoration(
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10),
-                    borderSide: const BorderSide(color: Color(0xFFD1D5DB)),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10),
-                    borderSide: const BorderSide(
-                      color: Color(0xFF0F766E),
-                      width: 1.8,
-                    ),
-                  ),
+                decoration: _buildInputDecoration(
                   labelText: "Confirm Password",
                   hintText: "Confirm Password",
-                  labelStyle: const TextStyle(color: Color(0xFF1F2937)),
-                  hintStyle: const TextStyle(color: Colors.grey),
-                  prefixIcon: const Icon(
-                    Icons.lock_clock,
-                    color: Color(0xFF0F766E),
-                  ),
+                  prefixIcon: Icons.lock_clock,
                   suffixIcon: IconButton(
                     icon: Icon(
                       _isObscureConfirm
@@ -449,18 +733,18 @@ class _PersonalInfoFormState extends State<PersonalInfoForm> {
                           : Icons.visibility,
                       color: const Color(0xFF0F766E),
                     ),
-                    onPressed: () => setState(
-                          () => _isObscureConfirm = !_isObscureConfirm,
-                    ),
+                    onPressed: () {
+                      setState(() {
+                        _isObscureConfirm = !_isObscureConfirm;
+                      });
+                    },
                   ),
-                  filled: true,
-                  fillColor: Colors.white,
                 ),
                 validator: (value) {
-                  if (value == null || value.isEmpty) {
+                  if (value == null || value.trim().isEmpty) {
                     return 'Confirm Password is required';
                   }
-                  if (value != _passwordController.text) {
+                  if (value.trim() != _passwordController.text.trim()) {
                     return 'Passwords do not match!';
                   }
                   return null;
@@ -478,17 +762,17 @@ class _PersonalInfoFormState extends State<PersonalInfoForm> {
                       borderRadius: BorderRadius.circular(10),
                     ),
                   ),
-                  onPressed: () {
-                    if (_formKey.currentState!.validate()) {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const ConfirmationPage(),
-                        ),
-                      );
-                    }
-                  },
-                  child: const Text(
+                  onPressed: _isSubmitting ? null : _registerUser,
+                  child: _isSubmitting
+                      ? const SizedBox(
+                    height: 22,
+                    width: 22,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2.2,
+                      color: Colors.white,
+                    ),
+                  )
+                      : const Text(
                     'Submit Information',
                     style: TextStyle(
                       color: Colors.white,

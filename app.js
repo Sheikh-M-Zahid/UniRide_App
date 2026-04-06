@@ -5,7 +5,7 @@ const path = require('path');
 
 const authRoutes = require('./routes/authRoutes');
 const userRoutes = require('./routes/userRoutes');
-const vehicleRoutes = require('./routes/riderBikeRoutes');
+const vehicleRoutes = require('./routes/vehicleRoutes');
 const rideRoutes = require('./routes/rideRoutes');
 const rideChatRoutes = require('./routes/rideChatRoutes');
 const ratingRoutes = require('./routes/ratingRoutes');

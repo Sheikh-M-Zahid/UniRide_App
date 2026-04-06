@@ -9,6 +9,7 @@ import 'RiderProfile.dart';
 import 'RiderDelivery.dart';
 import 'EarningsPage.dart';
 import 'NotificationsPage.dart';
+import 'services/auth_api_service.dart';
 
 class RiderDashboard extends StatefulWidget {
   const RiderDashboard({super.key});
@@ -20,6 +21,42 @@ class RiderDashboard extends StatefulWidget {
 class _RiderDashboardState extends State<RiderDashboard> {
   int _selectedIndex = 0;
   bool isOnline = true;
+
+  final AuthApiService _authApiService = AuthApiService();
+
+  bool _isLoading = true;
+  Map<String, dynamic>? _dashboardData;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadDashboard();
+  }
+
+  Future<void> _loadDashboard() async {
+    try {
+      final response = await _authApiService.getRiderDashboardSummary();
+      final data = response['data'] ?? response;
+
+      if (!mounted) return;
+
+      setState(() {
+        _dashboardData = data;
+        isOnline = data['is_online'] == true;
+        _isLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        _isLoading = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString())),
+      );
+    }
+  }
 
   void _onItemTapped(int index) {
     setState(() {
@@ -48,6 +85,32 @@ class _RiderDashboardState extends State<RiderDashboard> {
         MaterialPageRoute(
           builder: (_) => const RiderProfile(),
         ),
+      );
+    }
+  }
+
+  Future<void> _updateOnlineStatus(bool value) async {
+    try {
+      await _authApiService.updateRiderStatus(isOnline: value);
+
+      if (!mounted) return;
+
+      setState(() {
+        isOnline = value;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            isOnline ? "You are now Online" : "You are now Offline",
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString())),
       );
     }
   }
@@ -158,19 +221,7 @@ class _RiderDashboardState extends State<RiderDashboard> {
                         inactiveThumbColor: Colors.white,
                         inactiveTrackColor: Colors.white54,
                         onChanged: (value) {
-                          setState(() {
-                            isOnline = value;
-                          });
-
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(
-                                isOnline
-                                    ? "You are now Online"
-                                    : "You are now Offline",
-                              ),
-                            ),
-                          );
+                          _updateOnlineStatus(value);
                         },
                       ),
                     ],
@@ -184,10 +235,10 @@ class _RiderDashboardState extends State<RiderDashboard> {
             /// Top Summary
             Row(
               children: [
-                const Expanded(
+                Expanded(
                   child: _InfoCard(
                     title: "Today Earnings",
-                    value: "৳450",
+                    value: "৳${_dashboardData?['today_earnings'] ?? 0}",
                     icon: Icons.account_balance_wallet,
                   ),
                 ),
@@ -204,9 +255,9 @@ class _RiderDashboardState extends State<RiderDashboard> {
                         ),
                       );
                     },
-                    child: const _InfoCard(
+                    child: _InfoCard(
                       title: "Notifications",
-                      value: "3 New",
+                      value: "${_dashboardData?['notification_count'] ?? 0} New",
                       icon: Icons.notifications_active,
                     ),
                   ),
@@ -234,8 +285,8 @@ class _RiderDashboardState extends State<RiderDashboard> {
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
-                children: const [
-                  Text(
+                children: [
+                  const Text(
                     "Active Ride Summary",
                     style: TextStyle(
                       fontSize: 17,
@@ -243,12 +294,29 @@ class _RiderDashboardState extends State<RiderDashboard> {
                       color: Color(0xFF1F2937),
                     ),
                   ),
-                  SizedBox(height: 12),
-                  _SummaryRow(label: "Passenger", value: "Rahim"),
-                  _SummaryRow(label: "Pickup", value: "Hall Gate"),
-                  _SummaryRow(label: "Destination", value: "Main Gate"),
-                  _SummaryRow(label: "Fare", value: "৳80"),
-                  _SummaryRow(label: "Status", value: "Waiting for pickup"),
+                  const SizedBox(height: 12),
+                  if (_dashboardData?['active_ride'] != null) ...[
+                    _SummaryRow(
+                      label: "Pickup",
+                      value: "${_dashboardData?['active_ride']?['start_location'] ?? ''}",
+                    ),
+                    _SummaryRow(
+                      label: "Destination",
+                      value: "${_dashboardData?['active_ride']?['destination'] ?? ''}",
+                    ),
+                    _SummaryRow(
+                      label: "Fare",
+                      value: "৳${_dashboardData?['active_ride']?['total_fare'] ?? 0}",
+                    ),
+                    _SummaryRow(
+                      label: "Status",
+                      value: "${_dashboardData?['active_ride']?['status'] ?? ''}",
+                    ),
+                  ] else
+                    const Text(
+                      "No active ride",
+                      style: TextStyle(color: Color(0xFF6B7280)),
+                    ),
                 ],
               ),
             ),
@@ -273,8 +341,8 @@ class _RiderDashboardState extends State<RiderDashboard> {
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
-                children: const [
-                  Text(
+                children: [
+                  const Text(
                     "Upcoming Reserved Ride",
                     style: TextStyle(
                       fontSize: 17,
@@ -282,11 +350,29 @@ class _RiderDashboardState extends State<RiderDashboard> {
                       color: Color(0xFF1F2937),
                     ),
                   ),
-                  SizedBox(height: 12),
-                  _SummaryRow(label: "Date", value: "Tomorrow"),
-                  _SummaryRow(label: "Time", value: "8:30 AM"),
-                  _SummaryRow(label: "Pickup", value: "Dormitory"),
-                  _SummaryRow(label: "Destination", value: "University Gate"),
+                  const SizedBox(height: 12),
+                  if (_dashboardData?['upcoming_reserved_ride'] != null) ...[
+                    _SummaryRow(
+                      label: "Date",
+                      value: "${_dashboardData?['upcoming_reserved_ride']?['travel_date'] ?? ''}",
+                    ),
+                    _SummaryRow(
+                      label: "Time",
+                      value: "${_dashboardData?['upcoming_reserved_ride']?['travel_time'] ?? ''}",
+                    ),
+                    _SummaryRow(
+                      label: "Pickup",
+                      value: "${_dashboardData?['upcoming_reserved_ride']?['start_location'] ?? ''}",
+                    ),
+                    _SummaryRow(
+                      label: "Destination",
+                      value: "${_dashboardData?['upcoming_reserved_ride']?['destination'] ?? ''}",
+                    ),
+                  ] else
+                    const Text(
+                      "No upcoming reserved ride",
+                      style: TextStyle(color: Color(0xFF6B7280)),
+                    ),
                 ],
               ),
             ),
@@ -419,9 +505,9 @@ class _RiderDashboardState extends State<RiderDashboard> {
             SizedBox(
               width: double.infinity,
               child: ElevatedButton.icon(
-                onPressed: isOnline ? _simulateIncomingRequests : null,
+                onPressed: null,
                 icon: const Icon(Icons.add_alert),
-                label: const Text("Simulate Ride Requests"),
+                label: const Text("Live requests will appear here"),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF14B8A6),
                   foregroundColor: Colors.white,

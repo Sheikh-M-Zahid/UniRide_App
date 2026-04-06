@@ -2,15 +2,14 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'RegistrationPage.dart';
+import 'services/auth_api_service.dart';
 
 class OTPVerificationPage extends StatefulWidget {
   final String email;
-  final String generatedOtp;
 
   const OTPVerificationPage({
     super.key,
     required this.email,
-    required this.generatedOtp,
   });
 
   @override
@@ -18,16 +17,18 @@ class OTPVerificationPage extends StatefulWidget {
 }
 
 class _OTPVerificationPageState extends State<OTPVerificationPage> {
-  // ৪টি ঘরের জন্য ৪টি কন্ট্রোলার
+  // 6টি ঘরের জন্য ৪টি কন্ট্রোলার
   final List<TextEditingController> _controllers =
-  List.generate(4, (_) => TextEditingController());
+  List.generate(6, (_) => TextEditingController());
 
   final List<FocusNode> _focusNodes =
-  List.generate(4, (_) => FocusNode());
+  List.generate(6, (_) => FocusNode());
 
   bool _isButtonActive = false;
   bool _isLoading = false;
   bool _isOtpInvalid = false;
+  final AuthApiService _authApiService = AuthApiService();
+  String _signupToken = '';
 
   int _resendSeconds = 30;
   Timer? _resendTimer;
@@ -64,7 +65,7 @@ class _OTPVerificationPageState extends State<OTPVerificationPage> {
     });
   }
 
-  // ৪টি ঘর পূরণ হয়েছে কিনা চেক
+  // 6টি ঘর পূরণ হয়েছে কিনা চেক
   void _checkOtpComplete() {
     bool isComplete = _controllers.every((c) => c.text.isNotEmpty);
 
@@ -82,8 +83,8 @@ class _OTPVerificationPageState extends State<OTPVerificationPage> {
   }
 
   void _fillOtpFromPaste(String value) {
-    if (value.length == 4) {
-      for (int i = 0; i < 4; i++) {
+    if (value.length == 6) {
+      for (int i = 0; i < 6; i++) {
         _controllers[i].text = value[i];
       }
       FocusScope.of(context).unfocus();
@@ -104,13 +105,19 @@ class _OTPVerificationPageState extends State<OTPVerificationPage> {
     );
   }
 
-  void _resendCode() {
+  Future<void> _resendCode() async {
     if (_resendSeconds > 0) return;
 
-    _clearOtpFields();
-    _startResendTimer();
+    try {
+      await _authApiService.resendSignupOtp(email: widget.email);
 
-    _showSnackBar("A new code has been sent to your email.");
+      _clearOtpFields();
+      _startResendTimer();
+
+      _showSnackBar("A new code has been sent to your email.");
+    } catch (e) {
+      _showSnackBar(e.toString());
+    }
   }
 
   void _sendCodeBySms() {
@@ -123,8 +130,8 @@ class _OTPVerificationPageState extends State<OTPVerificationPage> {
 
     String enteredOtp = _controllers.map((c) => c.text).join();
 
-    if (enteredOtp.length != 4) {
-      _showSnackBar("Please enter the complete 4-digit code.");
+    if (enteredOtp.length != 6) {
+      _showSnackBar("Please enter the complete 6-digit code.");
       return;
     }
 
@@ -132,24 +139,39 @@ class _OTPVerificationPageState extends State<OTPVerificationPage> {
       _isLoading = true;
     });
 
-    await Future.delayed(const Duration(milliseconds: 500));
+    try {
+      final response = await _authApiService.verifySignupOtp(
+        email: widget.email,
+        otp: enteredOtp,
+      );
 
-    if (!mounted) return;
+      _signupToken = response['data']?['signupToken'] ?? '';
 
-    if (enteredOtp == widget.generatedOtp) {
+      if (!mounted) return;
+
+      setState(() {
+        _isLoading = false;
+        _isOtpInvalid = false;
+      });
+
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
-          builder: (context) =>  PersonalInfoForm(),
+          builder: (context) => PersonalInfoForm(
+            signupToken: _signupToken,
+            email: widget.email,
+          ),
         ),
       );
-    } else {
+    } catch (e) {
+      if (!mounted) return;
+
       setState(() {
         _isLoading = false;
         _isOtpInvalid = true;
       });
 
-      _showSnackBar("The code you entered is incorrect.");
+      _showSnackBar(e.toString().replaceFirst('Exception: ', ''));
     }
   }
 
@@ -204,7 +226,7 @@ class _OTPVerificationPageState extends State<OTPVerificationPage> {
               const SizedBox(height: 15),
 
               Text(
-                'Enter the 4-digit code sent to you at:\n${widget.email}',
+                'Enter the 6-digit code sent to you at:\n${widget.email}',
                 style: const TextStyle(
                   fontSize: 16,
                   color: Color(0xFF1F2937),
@@ -218,7 +240,7 @@ class _OTPVerificationPageState extends State<OTPVerificationPage> {
                 mainAxisAlignment:
                 MainAxisAlignment.spaceBetween,
                 children: List.generate(
-                  4,
+                  6,
                       (index) => _otpBox(index),
                 ),
               ),
@@ -347,7 +369,7 @@ class _OTPVerificationPageState extends State<OTPVerificationPage> {
         textAlign: TextAlign.center,
         keyboardType: TextInputType.number,
         textInputAction:
-        index == 3 ? TextInputAction.done : TextInputAction.next,
+        index == 5 ? TextInputAction.done : TextInputAction.next,
         maxLength: 1,
         autofillHints: const [AutofillHints.oneTimeCode],
         style: const TextStyle(
@@ -394,13 +416,13 @@ class _OTPVerificationPageState extends State<OTPVerificationPage> {
             return;
           }
 
-          if (value.length == 1 && index < 3) {
+          if (value.length == 1 && index < 5) {
             FocusScope.of(context)
                 .requestFocus(_focusNodes[index + 1]);
           } else if (value.isEmpty && index > 0) {
             FocusScope.of(context)
                 .requestFocus(_focusNodes[index - 1]);
-          } else if (value.length == 1 && index == 3) {
+          } else if (value.length == 1 && index == 5) {
             FocusScope.of(context).unfocus();
           }
         },

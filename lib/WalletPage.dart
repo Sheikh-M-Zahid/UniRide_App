@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'NotificationsPage.dart';
+import 'services/auth_api_service.dart';
 
 enum WalletUserRole {
   passenger,
@@ -31,6 +32,7 @@ class _WalletPageState extends State<WalletPage> {
   late double dueAmount;
   late int activePromotionsCount;
   bool isLoading = true;
+  final AuthApiService _authApiService = AuthApiService();
 
   @override
   void initState() {
@@ -41,11 +43,28 @@ class _WalletPageState extends State<WalletPage> {
   }
 
   Future<void> _loadWalletData() async {
-    await Future.delayed(const Duration(milliseconds: 250));
-    if (!mounted) return;
-    setState(() {
-      isLoading = false;
-    });
+    try {
+      final response = await _authApiService.getWalletSummary();
+      final data = response['data'] ?? {};
+
+      if (!mounted) return;
+
+      setState(() {
+        dueAmount = (data['dueAmount'] ?? 0).toDouble();
+        activePromotionsCount = (data['activePromotionsCount'] ?? 0).toInt();
+        isLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        isLoading = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString())),
+      );
+    }
   }
 
   UserRole _mapToNotificationRole() {
@@ -75,11 +94,14 @@ class _WalletPageState extends State<WalletPage> {
           dueAmount: dueAmount,
           bkashNumber: bkashNumber,
           nagadNumber: nagadNumber,
+          authApiService: _authApiService,
         ),
       ),
     );
 
     if (submitted == true && mounted) {
+      await _loadWalletData();
+
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
@@ -416,12 +438,14 @@ class DuePaymentPage extends StatefulWidget {
   final double dueAmount;
   final String bkashNumber;
   final String nagadNumber;
+  final AuthApiService authApiService;
 
   const DuePaymentPage({
     super.key,
     required this.dueAmount,
     required this.bkashNumber,
     required this.nagadNumber,
+    required this.authApiService,
   });
 
   @override
@@ -431,6 +455,7 @@ class DuePaymentPage extends StatefulWidget {
 class _DuePaymentPageState extends State<DuePaymentPage> {
   final TextEditingController transactionIdController = TextEditingController();
   String selectedMethod = 'bKash';
+  bool isSubmitting = false;
 
   @override
   void dispose() {
@@ -477,7 +502,7 @@ class _DuePaymentPageState extends State<DuePaymentPage> {
     }
   }
 
-  void _confirmPayment() {
+  Future<void> _confirmPayment() async {
     final String transactionId = transactionIdController.text.trim();
 
     if (transactionId.isEmpty) {
@@ -490,7 +515,32 @@ class _DuePaymentPageState extends State<DuePaymentPage> {
       return;
     }
 
-    Navigator.pop(context, true);
+    setState(() {
+      isSubmitting = true;
+    });
+
+    try {
+      await widget.authApiService.payDue(
+        method: selectedMethod,
+        referenceId: transactionId,
+      );
+
+      if (!mounted) return;
+      Navigator.pop(context, true);
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        isSubmitting = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.toString()),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
   }
 
   Widget _methodCard({
@@ -765,7 +815,7 @@ class _DuePaymentPageState extends State<DuePaymentPage> {
                   const SizedBox(width: 12),
                   Expanded(
                     child: ElevatedButton(
-                      onPressed: _confirmPayment,
+                      onPressed: isSubmitting ? null : _confirmPayment,
                       style: ElevatedButton.styleFrom(
                         elevation: 0,
                         backgroundColor: const Color(0xFF14B8A6),
@@ -774,7 +824,16 @@ class _DuePaymentPageState extends State<DuePaymentPage> {
                         ),
                         padding: const EdgeInsets.symmetric(vertical: 15),
                       ),
-                      child: const Text(
+                      child: isSubmitting
+                          ? const SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2.2,
+                          color: Colors.white,
+                        ),
+                      )
+                          : const Text(
                         'Confirm',
                         style: TextStyle(
                           color: Colors.white,
