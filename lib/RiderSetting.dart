@@ -5,6 +5,8 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:uni_ride/LogIn.dart';
 
+import 'services/auth_api_service.dart';
+
 import 'RiderProfile.dart';
 import 'app_storage.dart';
 import 'saved_places_page.dart';
@@ -47,6 +49,8 @@ class _RiderSettingsPageState extends State<RiderSettingsPage> {
   String displayEmail = "user@email.com";
   String? userPhotoUrl;
   String? userPhotoPath;
+  final AuthApiService _authApiService = AuthApiService();
+  bool isLoading = true;
   double userRating = 5.0;
 
   @override
@@ -63,29 +67,66 @@ class _RiderSettingsPageState extends State<RiderSettingsPage> {
   }
 
   Future<void> _loadUserData() async {
-    final data = await AppStorage.getUserData();
-
-    if (!mounted) return;
-
     setState(() {
-      displayName =
-      (widget.userName != null && widget.userName!.trim().isNotEmpty)
-          ? widget.userName!
-          : (data['name'] ?? 'User Name');
-
-      displayEmail =
-      (widget.userEmail != null && widget.userEmail!.trim().isNotEmpty)
-          ? widget.userEmail!
-          : (data['email'] ?? 'user@email.com');
-
-      userPhotoUrl =
-      (widget.userPhotoUrl != null && widget.userPhotoUrl!.trim().isNotEmpty)
-          ? widget.userPhotoUrl
-          : null;
-
-      userPhotoPath = data['photoPath'];
-      userRating = (data['rating'] ?? 5.0).toDouble();
+      isLoading = true;
     });
+
+    try {
+      final localData = await AppStorage.getUserData();
+      final response = await _authApiService.getRiderSettingsSummary();
+      final backendData = response['data'] ?? {};
+
+      if (!mounted) return;
+
+      setState(() {
+        displayName =
+        (widget.userName != null && widget.userName!.trim().isNotEmpty)
+            ? widget.userName!
+            : ((backendData['fullName'] ?? localData['name']) ?? 'User Name');
+
+        displayEmail =
+        (widget.userEmail != null && widget.userEmail!.trim().isNotEmpty)
+            ? widget.userEmail!
+            : ((backendData['email'] ?? localData['email']) ?? 'user@email.com');
+
+        userPhotoUrl =
+        (widget.userPhotoUrl != null && widget.userPhotoUrl!.trim().isNotEmpty)
+            ? widget.userPhotoUrl
+            : backendData['profilePicture'];
+
+        userPhotoPath = localData['photoPath'];
+
+        final ratingValue = backendData['rating'] ?? localData['rating'] ?? 5.0;
+        userRating = (ratingValue as num).toDouble();
+
+        isLoading = false;
+      });
+    } catch (_) {
+      final localData = await AppStorage.getUserData();
+
+      if (!mounted) return;
+
+      setState(() {
+        displayName =
+        (widget.userName != null && widget.userName!.trim().isNotEmpty)
+            ? widget.userName!
+            : (localData['name'] ?? 'User Name');
+
+        displayEmail =
+        (widget.userEmail != null && widget.userEmail!.trim().isNotEmpty)
+            ? widget.userEmail!
+            : (localData['email'] ?? 'user@email.com');
+
+        userPhotoUrl =
+        (widget.userPhotoUrl != null && widget.userPhotoUrl!.trim().isNotEmpty)
+            ? widget.userPhotoUrl
+            : null;
+
+        userPhotoPath = localData['photoPath'];
+        userRating = ((localData['rating'] ?? 5.0) as num).toDouble();
+        isLoading = false;
+      });
+    }
   }
 
   Future<void> _logout() async {
@@ -140,7 +181,9 @@ class _RiderSettingsPageState extends State<RiderSettingsPage> {
         backgroundColor: AppColors.background,
         elevation: 0,
       ),
-      body: SingleChildScrollView(
+      body: isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : SingleChildScrollView(
         child: Column(
           children: [
             InkWell(
@@ -281,7 +324,7 @@ class _RiderSettingsPageState extends State<RiderSettingsPage> {
                   context,
                   MaterialPageRoute(
                     builder: (context) => SavedPlacesPage(
-                      googleApiKey: 'YOUR_GOOGLE_API_KEY',
+                      googleApiKey: 'AIzaSyCF5mVtZ2woOu8P1Jwf-7IfzRw_QoPilCI',
                       initialPosition: const LatLng(23.8103, 90.4125),
                     ),
                   ),

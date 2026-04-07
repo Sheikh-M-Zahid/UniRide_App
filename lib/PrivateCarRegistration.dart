@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'services/auth_api_service.dart';
 
 class AppColors {
   static const Color primary = Color(0xFF14B8A6);
@@ -25,6 +26,8 @@ class _PrivateCarRegistrationState
     extends State<PrivateCarRegistration> {
 
   final ImagePicker _picker = ImagePicker();
+  final AuthApiService _authApiService = AuthApiService();
+  bool isSubmitting = false;
 
   String? selectedMake;
   String? selectedModel;
@@ -241,7 +244,7 @@ class _PrivateCarRegistrationState
   List<String> get models =>
       selectedMake != null ? (makeModels[selectedMake!] ?? ["Others"]) : [];
   List<String> years =
-  List.generate(20, (index) => (2025 - index).toString());
+  List.generate(20, (index) => (DateTime.now().year - index).toString());
 
   bool get isFormComplete {
     final bool makeOk = selectedMake != null &&
@@ -384,6 +387,80 @@ class _PrivateCarRegistrationState
     );
   }
 
+  String get finalMake {
+    if (selectedMake == "Others") {
+      return otherMakeController.text.trim();
+    }
+    return selectedMake?.trim() ?? '';
+  }
+
+  String get finalModel {
+    if (selectedMake == "Others") {
+      return otherModelController.text.trim();
+    }
+
+    if (selectedModel == "Others") {
+      return otherModelController.text.trim();
+    }
+
+    return selectedModel?.trim() ?? '';
+  }
+
+  Future<void> submitCarRegistration() async {
+    if (!isFormComplete || isSubmitting) return;
+
+    setState(() {
+      isSubmitting = true;
+    });
+
+    try {
+      final response = await _authApiService.registerCar(
+        company: finalMake,
+        model: finalModel,
+        year: selectedYear!.trim(),
+        numberPlate: numberPlateController.text.trim(),
+        varsityIdPhoto: varsityId!,
+        driverProfilePhoto: profilePhoto!,
+        drivingLicensePhoto: drivingLicense!,
+        vehicleRegistrationPhoto: vehicleRegistration!,
+        taxTokenPhoto: taxToken!,
+      );
+
+      if (!mounted) return;
+
+      setState(() {
+        isSubmitting = false;
+      });
+
+      final data = response['data'] ?? {};
+      final status = data['status']?.toString() ?? '';
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            status == 'pending_verification'
+                ? 'Car registration submitted. Please wait for admin verification.'
+                : 'Car registration submitted successfully.',
+          ),
+        ),
+      );
+
+      Navigator.pop(context);
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        isSubmitting = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.toString().replaceFirst('Exception: ', '')),
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -472,6 +549,28 @@ class _PrivateCarRegistrationState
             const SizedBox(height: 15),
 
             if (selectedMake == "Others") ...[
+              TextField(
+                controller: otherMakeController,
+                decoration: InputDecoration(
+                  labelText: "Write Your Car Brand",
+                  labelStyle: const TextStyle(color: AppColors.mutedText),
+                  filled: true,
+                  fillColor: Colors.white,
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: const BorderSide(color: AppColors.border),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: const BorderSide(
+                      color: AppColors.primary,
+                      width: 1.5,
+                    ),
+                  ),
+                ),
+                onChanged: (_) => setState(() {}),
+              ),
+              const SizedBox(height: 15),
               TextField(
                 controller: otherModelController,
                 decoration: InputDecoration(
@@ -596,33 +695,9 @@ class _PrivateCarRegistrationState
 
             const SizedBox(height: 15),
 
-            if (selectedMake == "Others") ...[
-              TextField(
-                controller: otherMakeController,
-                decoration: InputDecoration(
-                  labelText: "Write Your Car Brand",
-                  labelStyle: const TextStyle(color: AppColors.mutedText),
-                  filled: true,
-                  fillColor: Colors.white,
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10),
-                    borderSide: const BorderSide(color: AppColors.border),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10),
-                    borderSide: const BorderSide(
-                      color: AppColors.primary,
-                      width: 1.5,
-                    ),
-                  ),
-                ),
-                onChanged: (_) => setState(() {}),
-              ),
-              const SizedBox(height: 15),
-            ],
-
             TextField(
               controller: numberPlateController,
+              textCapitalization: TextCapitalization.characters,
               decoration: InputDecoration(
                 labelText: "Number Plate",
                 labelStyle: const TextStyle(color: AppColors.mutedText),
@@ -697,16 +772,25 @@ class _PrivateCarRegistrationState
               height: 55,
               child: ElevatedButton(
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: isFormComplete
+                  backgroundColor: (isFormComplete && !isSubmitting)
                       ? AppColors.primary
                       : AppColors.mutedText,
                 ),
-                onPressed: isFormComplete
-                    ? () {
-                  Navigator.pop(context);
-                }
+                onPressed: (isFormComplete && !isSubmitting)
+                    ? submitCarRegistration
                     : null,
-                child: const Text(
+                child: isSubmitting
+                    ? const SizedBox(
+                  height: 22,
+                  width: 22,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2.4,
+                    valueColor: AlwaysStoppedAnimation<Color>(
+                      Colors.white,
+                    ),
+                  ),
+                )
+                    : const Text(
                   "Continue",
                   style: TextStyle(
                     color: Colors.white,

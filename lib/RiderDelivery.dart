@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'services/auth_api_service.dart';
 
 class RiderDeliveryPage extends StatefulWidget {
   const RiderDeliveryPage({super.key});
@@ -9,84 +10,238 @@ class RiderDeliveryPage extends StatefulWidget {
 }
 
 class _RiderDeliveryPageState extends State<RiderDeliveryPage> {
-  final List<Map<String, dynamic>> deliveryRequests = [
-    {
-      "senderName": "Rakib Hasan",
-      "senderPhone": "01712345678",
-      "receiverName": "Nusrat Jahan",
-      "receiverPhone": "01811223344",
-      "pickup": "Hall Gate",
-      "drop": "CSE Building",
-      "item": "Document File",
-      "fee": "৳60",
-      "distance": "2.3 km",
-      "time": "10 min",
-      "status": "Pending",
-    },
-    {
-      "senderName": "Tamim",
-      "senderPhone": "01999888777",
-      "receiverName": "Rahim",
-      "receiverPhone": "01622334455",
-      "pickup": "Library Front",
-      "drop": "Main Campus Gate",
-      "item": "Calculator",
-      "fee": "৳45",
-      "distance": "1.8 km",
-      "time": "8 min",
-      "status": "Pending",
-    },
-  ];
+  final AuthApiService _authApiService = AuthApiService();
 
-  Map<String, dynamic>? activeDelivery = {
-    "senderName": "Sadia Islam",
-    "senderPhone": "01799887766",
-    "receiverName": "Farhan",
-    "receiverPhone": "01855667788",
-    "pickup": "Dormitory Road",
-    "drop": "EEE Building",
-    "item": "Notebook",
-    "fee": "৳50",
-    "distance": "2.0 km",
-    "time": "9 min",
-    "status": "On the way",
-  };
+  List<Map<String, dynamic>> deliveryRequests = [];
+  Map<String, dynamic>? activeDelivery;
 
-  void _acceptDelivery(int index) {
+  double todayDeliveryEarnings = 0;
+  double weekDeliveryEarnings = 0;
+
+  bool isLoading = true;
+  bool isActionLoading = false;
+
+  Future<void> _acceptDelivery(int index) async {
+    if (isActionLoading) return;
+
+    final request = deliveryRequests[index];
+    final requestId =
+    (request['deliveryId'] ?? request['id'] ?? '').toString();
+
+    if (requestId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Request ID not found"),
+        ),
+      );
+      return;
+    }
+
     setState(() {
-      activeDelivery = deliveryRequests[index];
-      deliveryRequests.removeAt(index);
+      isActionLoading = true;
     });
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text("Delivery request accepted"),
-      ),
-    );
+    try {
+      await _authApiService.acceptDeliveryRequest(requestId: requestId);
+      await _loadDeliveryDashboard();
+
+      if (!mounted) return;
+
+      setState(() {
+        isActionLoading = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Delivery request accepted"),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        isActionLoading = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.toString().replaceFirst('Exception: ', '')),
+        ),
+      );
+    }
   }
 
-  void _rejectDelivery(int index) {
+  Future<void> _rejectDelivery(int index) async {
+    if (isActionLoading) return;
+
+    final request = deliveryRequests[index];
+    final requestId =
+    (request['deliveryId'] ?? request['id'] ?? '').toString();
+
+    if (requestId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Request ID not found"),
+        ),
+      );
+      return;
+    }
+
     setState(() {
-      deliveryRequests.removeAt(index);
+      isActionLoading = true;
     });
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text("Delivery request rejected"),
-      ),
-    );
+    try {
+      await _authApiService.rejectDeliveryRequest(requestId: requestId);
+      await _loadDeliveryDashboard();
+
+      if (!mounted) return;
+
+      setState(() {
+        isActionLoading = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Delivery request rejected"),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        isActionLoading = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.toString().replaceFirst('Exception: ', '')),
+        ),
+      );
+    }
   }
 
-  void _markAsDelivered() {
+  Future<void> _markAsDelivered() async {
+    if (isActionLoading || activeDelivery == null) return;
+
+    final deliveryId =
+    (activeDelivery!['deliveryId'] ?? activeDelivery!['id'] ?? '')
+        .toString();
+
+    if (deliveryId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Delivery ID not found"),
+        ),
+      );
+      return;
+    }
+
     setState(() {
-      activeDelivery = null;
+      isActionLoading = true;
     });
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text("Delivery marked as delivered"),
-      ),
-    );
+    try {
+      await _authApiService.markDeliveryAsDelivered(deliveryId: deliveryId);
+      await _loadDeliveryDashboard();
+
+      if (!mounted) return;
+
+      setState(() {
+        isActionLoading = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Delivery marked as delivered"),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        isActionLoading = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.toString().replaceFirst('Exception: ', '')),
+        ),
+      );
+    }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _loadDeliveryDashboard();
+  }
+
+  String _formatMoney(dynamic value) {
+    final num amount = (value is num) ? value : num.tryParse(value.toString()) ?? 0;
+    return "৳${amount.toStringAsFixed(amount % 1 == 0 ? 0 : 1)}";
+  }
+
+  String _formatDistance(dynamic value) {
+    final num distance = (value is num) ? value : num.tryParse(value.toString()) ?? 0;
+    return "${distance.toStringAsFixed(distance % 1 == 0 ? 0 : 1)} km";
+  }
+
+  String _formatMinutes(dynamic value) {
+    final num minutes = (value is num) ? value : num.tryParse(value.toString()) ?? 0;
+    return "${minutes.toStringAsFixed(0)} min";
+  }
+
+  String _formatStatus(dynamic value) {
+    final raw = (value ?? '').toString().toLowerCase();
+
+    switch (raw) {
+      case 'pending':
+        return 'Pending';
+      case 'accepted':
+        return 'Accepted';
+      case 'on_the_way':
+        return 'On the way';
+      case 'delivered':
+        return 'Delivered';
+      default:
+        return raw.isEmpty ? 'Unknown' : raw;
+    }
+  }
+
+  Future<void> _loadDeliveryDashboard() async {
+    try {
+      final response = await _authApiService.getRiderDeliveryDashboard();
+      final data = response['data'] ?? {};
+
+      if (!mounted) return;
+
+      setState(() {
+        todayDeliveryEarnings =
+            (data['todayDeliveryEarnings'] as num?)?.toDouble() ?? 0;
+        weekDeliveryEarnings =
+            (data['weekDeliveryEarnings'] as num?)?.toDouble() ?? 0;
+        activeDelivery = data['activeDelivery'] != null
+            ? Map<String, dynamic>.from(data['activeDelivery'])
+            : null;
+        deliveryRequests = data['deliveryRequests'] is List
+            ? List<Map<String, dynamic>>.from(data['deliveryRequests'])
+            : [];
+        isLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        isLoading = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.toString().replaceFirst('Exception: ', '')),
+        ),
+      );
+    }
   }
 
   Future<void> _callPerson(String name, String phone) async {
@@ -120,25 +275,31 @@ class _RiderDeliveryPageState extends State<RiderDeliveryPage> {
           ),
         ),
       ),
-      body: SingleChildScrollView(
+      body: isLoading
+          ? const Center(
+        child: CircularProgressIndicator(
+          color: Color(0xFF14B8A6),
+        ),
+      )
+          : SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
             /// Delivery Earnings
             Row(
-              children: const [
+              children: [
                 Expanded(
                   child: _EarningCard(
                     title: "Today Delivery",
-                    value: "৳120",
+                    value: _formatMoney(todayDeliveryEarnings),
                     icon: Icons.payments_outlined,
                   ),
                 ),
-                SizedBox(width: 12),
+                const SizedBox(width: 12),
                 Expanded(
                   child: _EarningCard(
                     title: "This Week",
-                    value: "৳540",
+                    value: _formatMoney(weekDeliveryEarnings),
                     icon: Icons.account_balance_wallet_outlined,
                   ),
                 ),
@@ -211,11 +372,11 @@ class _RiderDeliveryPageState extends State<RiderDeliveryPage> {
                   ),
                   _SummaryRow(
                     label: "Fee",
-                    value: activeDelivery!["fee"],
+                    value: _formatMoney(activeDelivery!["fee"]),
                   ),
                   _SummaryRow(
                     label: "Status",
-                    value: activeDelivery!["status"],
+                    value: _formatStatus(activeDelivery!["status"]),
                   ),
                   _SummaryRow(
                     label: "Sender",
@@ -229,7 +390,7 @@ class _RiderDeliveryPageState extends State<RiderDeliveryPage> {
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton(
-                      onPressed: _markAsDelivered,
+                      onPressed: isActionLoading ? null : _markAsDelivered,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFF14B8A6),
                         foregroundColor: Colors.white,
@@ -375,15 +536,15 @@ class _RiderDeliveryPageState extends State<RiderDeliveryPage> {
                               ),
                               _SummaryRow(
                                 label: "Distance",
-                                value: request["distance"],
+                                value: _formatDistance(request["distance"]),
                               ),
                               _SummaryRow(
                                 label: "Time",
-                                value: request["time"],
+                                value: _formatMinutes(request["time"]),
                               ),
                               _SummaryRow(
                                 label: "Fee",
-                                value: request["fee"],
+                                value: _formatMoney(request["fee"]),
                               ),
                               _SummaryRow(
                                 label: "Sender",
@@ -398,7 +559,9 @@ class _RiderDeliveryPageState extends State<RiderDeliveryPage> {
                                 children: [
                                   Expanded(
                                     child: OutlinedButton(
-                                      onPressed: () => _rejectDelivery(index),
+                                      onPressed: isActionLoading
+                                          ? null
+                                          : () => _rejectDelivery(index),
                                       style: OutlinedButton.styleFrom(
                                         foregroundColor: Colors.red,
                                         side: const BorderSide(
@@ -418,7 +581,9 @@ class _RiderDeliveryPageState extends State<RiderDeliveryPage> {
                                   const SizedBox(width: 12),
                                   Expanded(
                                     child: ElevatedButton(
-                                      onPressed: () => _acceptDelivery(index),
+                                      onPressed: isActionLoading
+                                          ? null
+                                          : () => _acceptDelivery(index),
                                       style: ElevatedButton.styleFrom(
                                         backgroundColor:
                                         const Color(0xFF14B8A6),

@@ -10,6 +10,7 @@ import 'TopLocationPage.dart';
 import 'RideSharingHistory.dart';
 import 'SharingCaringHistory.dart';
 import 'AdminPaymentApproval.dart';
+import 'AdminReportsPage.dart';
 
 void main() {
   runApp(MyApp());
@@ -322,6 +323,38 @@ class _AdminDashboardState extends State<AdminDashboard>
                   context,
                   MaterialPageRoute(
                     builder: (context) => const AdminPaymentApproval(),
+                  ),
+                );
+              },
+            ),
+
+            ListTile(
+              title: Row(
+                children: [
+                  const Text(
+                    "User Reports",
+                    style: TextStyle(color: Colors.white),
+                  ),
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: Colors.red,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Text(
+                      "3", // 🔥 backend থেকে unread count আসবে
+                      style: TextStyle(color: Colors.white, fontSize: 10),
+                    ),
+                  ),
+                ],
+              ),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const AdminReportsPage(),
                   ),
                 );
               },

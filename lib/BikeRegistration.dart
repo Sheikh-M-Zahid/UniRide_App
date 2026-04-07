@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'services/auth_api_service.dart';
 
 class AppColors {
   static const Color primary = Color(0xFF14B8A6);
@@ -22,6 +23,8 @@ class BikeRegistration extends StatefulWidget {
 
 class _BikeRegistrationState extends State<BikeRegistration> {
   final ImagePicker _picker = ImagePicker();
+  final AuthApiService _authApiService = AuthApiService();
+  bool isSubmitting = false;
 
   String? selectedBrand;
   String? selectedModel;
@@ -228,7 +231,7 @@ class _BikeRegistrationState extends State<BikeRegistration> {
   List<String> get models =>
       selectedBrand != null ? (brandModels[selectedBrand!] ?? ["Others"]) : [];
   List<String> years =
-  List.generate(20, (index) => (2025 - index).toString());
+  List.generate(20, (index) => (DateTime.now().year - index).toString());
 
   bool get isFormComplete {
     final bool brandOk = selectedBrand != null &&
@@ -367,6 +370,80 @@ class _BikeRegistrationState extends State<BikeRegistration> {
         ),
       ),
     );
+  }
+
+  String get finalBrand {
+    if (selectedBrand == "Others") {
+      return otherBrandController.text.trim();
+    }
+    return selectedBrand?.trim() ?? '';
+  }
+
+  String get finalModel {
+    if (selectedBrand == "Others") {
+      return otherModelController.text.trim();
+    }
+
+    if (selectedModel == "Others") {
+      return otherModelController.text.trim();
+    }
+
+    return selectedModel?.trim() ?? '';
+  }
+
+  Future<void> submitBikeRegistration() async {
+    if (!isFormComplete || isSubmitting) return;
+
+    setState(() {
+      isSubmitting = true;
+    });
+
+    try {
+      final response = await _authApiService.registerBike(
+        company: finalBrand,
+        model: finalModel,
+        year: selectedYear!.trim(),
+        numberPlate: numberPlateController.text.trim(),
+        varsityIdPhoto: varsityId!,
+        driverProfilePhoto: profilePhoto!,
+        drivingLicensePhoto: drivingLicense!,
+        vehicleRegistrationPhoto: vehicleRegistration!,
+        taxTokenPhoto: taxToken!,
+      );
+
+      if (!mounted) return;
+
+      setState(() {
+        isSubmitting = false;
+      });
+
+      final data = response['data'] ?? {};
+      final status = data['status']?.toString() ?? '';
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            status == 'pending_verification'
+                ? 'Bike registration submitted. Please wait for admin verification.'
+                : 'Bike registration submitted successfully.',
+          ),
+        ),
+      );
+
+      Navigator.pop(context);
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        isSubmitting = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.toString().replaceFirst('Exception: ', '')),
+        ),
+      );
+    }
   }
 
   @override
@@ -611,6 +688,7 @@ class _BikeRegistrationState extends State<BikeRegistration> {
 
             TextField(
               controller: numberPlateController,
+              textCapitalization: TextCapitalization.characters,
               decoration: InputDecoration(
                 labelText: "Number Plate",
                 labelStyle: const TextStyle(color: AppColors.mutedText),
@@ -682,16 +760,25 @@ class _BikeRegistrationState extends State<BikeRegistration> {
               height: 55,
               child: ElevatedButton(
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: isFormComplete
+                  backgroundColor: (isFormComplete && !isSubmitting)
                       ? AppColors.primary
                       : AppColors.mutedText,
                 ),
-                onPressed: isFormComplete
-                    ? () {
-                  Navigator.pop(context);
-                }
+                onPressed: (isFormComplete && !isSubmitting)
+                    ? submitBikeRegistration
                     : null,
-                child: const Text(
+                child: isSubmitting
+                    ? const SizedBox(
+                  height: 22,
+                  width: 22,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2.4,
+                    valueColor: AlwaysStoppedAnimation<Color>(
+                      Colors.white,
+                    ),
+                  ),
+                )
+                    : const Text(
                   "Continue",
                   style: TextStyle(
                     color: Colors.white,

@@ -3,6 +3,7 @@ import 'UserProfile.dart';
 import 'UserHome.dart';
 import 'UserActivity.dart';
 import 'UserServices.dart';
+import 'services/auth_api_service.dart';
 
 class AppColors {
   static const Color primary = Color(0xFF14B8A6);
@@ -23,6 +24,43 @@ class OffersPage extends StatefulWidget {
 
 class _OffersPageState extends State<OffersPage> {
   final TextEditingController _offerController = TextEditingController();
+  final AuthApiService _authApiService = AuthApiService();
+
+  bool isLoading = true;
+  bool hasAdminOffer = false;
+  String offerTitle = '';
+  String offerSubtitle = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadOfferSummary();
+  }
+
+  Future<void> _loadOfferSummary() async {
+    try {
+      final response = await _authApiService.getServicesSummary();
+      final data = response['data'] ?? {};
+
+      if (!mounted) return;
+
+      setState(() {
+        hasAdminOffer = data['hasAdminOffer'] == true;
+        offerTitle = data['offerTitle']?.toString() ?? '';
+        offerSubtitle = data['offerSubtitle']?.toString() ?? '';
+        isLoading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+
+      setState(() {
+        hasAdminOffer = false;
+        offerTitle = '';
+        offerSubtitle = '';
+        isLoading = false;
+      });
+    }
+  }
 
   @override
   void dispose() {
@@ -78,15 +116,95 @@ class _OffersPageState extends State<OffersPage> {
                   contentPadding: EdgeInsets.symmetric(vertical: 15),
                 ),
                 onSubmitted: (value) {
-                  print("Applying offer code: $value");
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Offer code apply feature will be added soon'),
+                    ),
+                  );
                 },
               ),
             ),
           ),
 
-          const Expanded(
+          Expanded(
             child: Center(
-              child: Text(
+              child: isLoading
+                  ? const CircularProgressIndicator(
+                color: AppColors.primary,
+              )
+                  : hasAdminOffer
+                  ? Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(18),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(18),
+                    gradient: const LinearGradient(
+                      colors: [
+                        AppColors.primary,
+                        AppColors.secondary,
+                      ],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    boxShadow: const [
+                      BoxShadow(
+                        color: Colors.black12,
+                        blurRadius: 8,
+                        offset: Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Row(
+                        children: [
+                          Icon(
+                            Icons.local_offer,
+                            color: Colors.white,
+                            size: 28,
+                          ),
+                          SizedBox(width: 10),
+                          Text(
+                            'Active Offer',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 14),
+                      Text(
+                        offerTitle.isNotEmpty
+                            ? offerTitle
+                            : 'Special Offer',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        offerSubtitle.isNotEmpty
+                            ? offerSubtitle
+                            : 'Limited time campus offer',
+                        style: const TextStyle(
+                          color: Colors.white70,
+                          fontSize: 14,
+                          height: 1.4,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              )
+                  : const Text(
                 "No offers available right now",
                 style: TextStyle(
                   color: AppColors.mutedText,
@@ -115,7 +233,7 @@ class _OffersPageState extends State<OffersPage> {
           } else if (index == 1) {
             Navigator.pushReplacement(
               context,
-              MaterialPageRoute(builder: (context) => ServicesPage()),
+              MaterialPageRoute(builder: (context) => const ServicesPage()),
             );
           } else if (index == 2) {
             Navigator.pushReplacement(

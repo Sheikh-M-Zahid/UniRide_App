@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'services/auth_api_service.dart';
 
 class MapPage extends StatefulWidget {
   const MapPage({super.key});
@@ -9,58 +10,107 @@ class MapPage extends StatefulWidget {
 }
 
 class _MapPageState extends State<MapPage> {
+  final AuthApiService _authApiService = AuthApiService();
+
   GoogleMapController? mapController;
 
-  /// Rider current location
   LatLng riderLocation = const LatLng(23.8103, 90.4125);
+  Map<String, dynamic>? currentRide;
+  List<Map<String, dynamic>> nearbyRideRequests = [];
 
-  /// Current accepted ride info
-  /// Later these will come from backend/database
-  Map<String, dynamic>? currentRide = {
-    "passengerName": "Rahim",
-    "phoneNumber": "01712345678",
-    "pickupLocationName": "Hall Gate",
-    "destinationName": "Main Gate",
-    "pickupLatLng": const LatLng(23.8118, 90.4145),
-    "destinationLatLng": const LatLng(23.8078, 90.4098),
-    "distanceKm": 3.2,
-    "estimatedMinutes": 10,
-    "fare": 80.0,
-    "rideId": "ride_1001",
-    "status": "Accepted",
-  };
+  bool isLoading = true;
+  bool isActionLoading = false;
 
-  /// Nearby ride requests
-  /// Later backend থেকে আসবে
-  final List<Map<String, dynamic>> nearbyRideRequests = [
-    {
-      "name": "Karim",
-      "pickup": "Library Gate",
-      "destination": "CSE Building",
-      "distanceKm": 2.1,
-      "fare": 65.0,
-      "eta": 8,
-      "pickupLatLng": const LatLng(23.8135, 90.4172),
-    },
-    {
-      "name": "Nusrat",
-      "pickup": "Dormitory",
-      "destination": "Business Faculty",
-      "distanceKm": 3.8,
-      "fare": 95.0,
-      "eta": 13,
-      "pickupLatLng": const LatLng(23.8086, 90.4188),
-    },
-    {
-      "name": "Sadia",
-      "pickup": "Central Mosque",
-      "destination": "Admin Building",
-      "distanceKm": 2.9,
-      "fare": 75.0,
-      "eta": 9,
-      "pickupLatLng": const LatLng(23.8067, 90.4131),
-    },
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _loadMapDashboard();
+  }
+
+  LatLng _safeLatLng(dynamic lat, dynamic lng) {
+    final double parsedLat = (lat is num)
+        ? lat.toDouble()
+        : double.tryParse(lat?.toString() ?? '') ?? 23.8103;
+
+    final double parsedLng = (lng is num)
+        ? lng.toDouble()
+        : double.tryParse(lng?.toString() ?? '') ?? 90.4125;
+
+    return LatLng(parsedLat, parsedLng);
+  }
+
+  String _formatMoney(dynamic fare) {
+    final num value =
+    (fare is num) ? fare : num.tryParse(fare?.toString() ?? '') ?? 0;
+    return "৳${value.toStringAsFixed(value % 1 == 0 ? 0 : 1)}";
+  }
+
+  String _formatDistance(dynamic distance) {
+    final num value = (distance is num)
+        ? distance
+        : num.tryParse(distance?.toString() ?? '') ?? 0;
+    return "${value.toStringAsFixed(value % 1 == 0 ? 0 : 1)} km";
+  }
+
+  String _formatMinutes(dynamic minutes) {
+    final num value = (minutes is num)
+        ? minutes
+        : num.tryParse(minutes?.toString() ?? '') ?? 0;
+    return "${value.toStringAsFixed(0)} min";
+  }
+
+  Future<void> _loadMapDashboard() async {
+    try {
+      final response = await _authApiService.getRiderMapDashboard();
+      final data = response['data'] ?? {};
+
+      final riderLoc = data['riderLocation'] ?? {};
+      final ride = data['currentRide'];
+      final requests = data['nearbyRideRequests'];
+
+      if (!mounted) return;
+
+      setState(() {
+        riderLocation = _safeLatLng(riderLoc['lat'], riderLoc['lng']);
+
+        currentRide = ride != null
+            ? {
+          ...Map<String, dynamic>.from(ride),
+          'pickupLatLng': _safeLatLng(ride['pickupLat'], ride['pickupLng']),
+          'destinationLatLng': _safeLatLng(
+            ride['destinationLat'],
+            ride['destinationLng'],
+          ),
+        }
+            : null;
+
+        nearbyRideRequests = requests is List
+            ? requests.map<Map<String, dynamic>>((item) {
+          final map = Map<String, dynamic>.from(item);
+          map['pickupLatLng'] =
+              _safeLatLng(map['pickupLat'], map['pickupLng']);
+          return map;
+        }).toList()
+            : [];
+
+        isLoading = false;
+      });
+
+      await _syncCurrentLocation(); // ✅ এই লাইন add
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        isLoading = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.toString().replaceFirst('Exception: ', '')),
+        ),
+      );
+    }
+  }
 
   Set<Marker> get _markers {
     final Set<Marker> markers = {
@@ -146,6 +196,15 @@ class _MapPageState extends State<MapPage> {
     );
   }
 
+  Future<void> _syncCurrentLocation() async {
+    try {
+      await _authApiService.updateRiderLocation(
+        lat: riderLocation.latitude,
+        lng: riderLocation.longitude,
+      );
+    } catch (_) {}
+  }
+
   void _focusPickupLocation() {
     if (currentRide == null) return;
 
@@ -174,33 +233,60 @@ class _MapPageState extends State<MapPage> {
     );
   }
 
-  void _refreshNearbyRequests() {
-    /// Later backend call
-    /// Example:
-    /// GET /nearby-ride-requests
-    /// then setState(() {});
+  Future<void> _refreshNearbyRequests() async {
+    await _loadMapDashboard();
+    await _syncCurrentLocation();
+
+
+    if (!mounted) return;
+
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text("Nearby requests refreshed")),
     );
   }
 
-  void _startNavigation() {
-    if (currentRide == null) return;
+  Future<void> _startNavigation() async {
+    if (currentRide == null || isActionLoading) return;
 
-    /// Important:
-    /// Start Navigation button চাপা মানে ride create/accept না।
-    /// Ride already accepted/created backend-এ save হয়ে থাকবে।
-    ///
-    /// এখানে future-এ যা করবে:
-    /// 1. backend-এ optional navigation_started status update
-    /// 2. external map / in-app navigation start
-    ///
-    /// Example backend call:
-    /// PATCH /rides/{rideId}/navigation-started
+    final rideId = (currentRide!['rideId'] ?? '').toString();
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text("Navigation started")),
-    );
+    if (rideId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Ride ID not found")),
+      );
+      return;
+    }
+
+    setState(() {
+      isActionLoading = true;
+    });
+
+    try {
+      await _authApiService.startRideNavigation(rideId: rideId);
+      await _loadMapDashboard();
+
+      if (!mounted) return;
+
+      setState(() {
+        isActionLoading = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Navigation started")),
+      );
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        isActionLoading = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.toString().replaceFirst('Exception: ', '')),
+        ),
+      );
+    }
   }
 
   void _openNearbyRequest(Map<String, dynamic> request) {
@@ -239,37 +325,75 @@ class _MapPageState extends State<MapPage> {
               _infoRow("Destination", request["destination"]),
               _infoRow(
                 "Distance",
-                "${request["distanceKm"].toString()} km",
+                _formatDistance(request["distanceKm"]),
               ),
               _infoRow(
                 "Fare",
-                "৳${(request["fare"] as double).toStringAsFixed(0)}",
+                _formatMoney(request["fare"]),
               ),
               _infoRow(
                 "ETA",
-                "${request["eta"]} min",
+                _formatMinutes(request["eta"]),
               ),
               const SizedBox(height: 18),
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
-                  onPressed: () {
+                  onPressed: isActionLoading
+                      ? null
+                      : () async {
+                    final requestId =
+                    (request["requestId"] ?? "").toString();
+
+                    if (requestId.isEmpty) {
+                      Navigator.pop(context);
+                      ScaffoldMessenger.of(this.context).showSnackBar(
+                        const SnackBar(
+                          content: Text("Request ID not found"),
+                        ),
+                      );
+                      return;
+                    }
+
                     Navigator.pop(context);
 
-                    /// Later backend/database save জায়গা
-                    /// Example:
-                    /// POST /rides/accept
-                    /// Save accepted ride and update currentRide
-                    ///
-                    /// setState(() {
-                    ///   currentRide = acceptedRideFromBackend;
-                    /// });
+                    setState(() {
+                      isActionLoading = true;
+                    });
 
-                    ScaffoldMessenger.of(this.context).showSnackBar(
-                      SnackBar(
-                        content: Text("${request["name"]} request selected"),
-                      ),
-                    );
+                    try {
+                      await _authApiService.acceptRideRequestFromMap(
+                        requestId: requestId,
+                      );
+                      await _loadMapDashboard();
+
+                      if (!mounted) return;
+
+                      setState(() {
+                        isActionLoading = false;
+                      });
+
+                      ScaffoldMessenger.of(this.context).showSnackBar(
+                        SnackBar(
+                          content:
+                          Text("${request["name"]} request accepted"),
+                        ),
+                      );
+                    } catch (e) {
+                      if (!mounted) return;
+
+                      setState(() {
+                        isActionLoading = false;
+                      });
+
+                      ScaffoldMessenger.of(this.context).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            e.toString().replaceFirst('Exception: ', ''),
+                          ),
+                        ),
+                      );
+                    }
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF14B8A6),
@@ -279,7 +403,7 @@ class _MapPageState extends State<MapPage> {
                       borderRadius: BorderRadius.circular(14),
                     ),
                   ),
-                  child: const Text("Open Request"),
+                  child: const Text("Accept Request"),
                 ),
               ),
             ],
@@ -305,7 +429,13 @@ class _MapPageState extends State<MapPage> {
         centerTitle: true,
         elevation: 0,
       ),
-      body: Stack(
+      body: isLoading
+          ? const Center(
+        child: CircularProgressIndicator(
+          color: Color(0xFF14B8A6),
+        ),
+      )
+          : Stack(
         children: [
           /// Google Map
           GoogleMap(
@@ -408,14 +538,14 @@ class _MapPageState extends State<MapPage> {
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
                               Text(
-                                "৳${(item["fare"] as double).toStringAsFixed(0)}",
+                                _formatMoney(item["fare"]),
                                 style: const TextStyle(
                                   fontWeight: FontWeight.bold,
                                   color: Color(0xFF0F766E),
                                 ),
                               ),
                               Text(
-                                "${item["distanceKm"]} km",
+                                _formatDistance(item["distanceKm"]),
                                 style: const TextStyle(
                                   fontSize: 12,
                                   color: Color(0xFF6B7280),
@@ -473,15 +603,15 @@ class _MapPageState extends State<MapPage> {
                   ),
                   _infoRow(
                     "Distance",
-                    "${currentRide!["distanceKm"]} km",
+                    _formatDistance(currentRide!["distanceKm"]),
                   ),
                   _infoRow(
                     "ETA",
-                    "${currentRide!["estimatedMinutes"]} min",
+                    _formatMinutes(currentRide!["estimatedMinutes"]),
                   ),
                   _infoRow(
                     "Fare",
-                    "৳${(currentRide!["fare"] as double).toStringAsFixed(0)}",
+                    _formatMoney(currentRide!["fare"]),
                   ),
                   const SizedBox(height: 16),
                   Row(
