@@ -6,27 +6,6 @@ const offerService = require('../services/offerService');
 const getActiveOffers = asyncHandler(async (req, res) => {
   const data = await offerService.getActiveOffers();
 
-<<<<<<< HEAD
-  return successResponse(
-    res,
-    'Active offers fetched successfully.',
-    data
-  );
-});
-
-const validatePromoCode = asyncHandler(async (req, res) => {
-  const data = await offerService.validatePromoCode(req.body.promo_code);
-
-  return successResponse(
-    res,
-    'Promo code is valid.',
-    data
-  );
-});
-
-const getActiveOfferCount = asyncHandler(async (req, res) => {
-  const count = await offerService.getActiveOfferCount();
-=======
   const message =
     data.length > 0
       ? 'Active offers fetched successfully.'
@@ -55,7 +34,6 @@ const applyOffer = asyncHandler(async (req, res) => {
 // Get active offers count
 const getActiveOffersCount = asyncHandler(async (req, res) => {
   const count = await offerService.getActiveOffersCount();
->>>>>>> backend-initial
 
   return successResponse(
     res,
@@ -66,11 +44,6 @@ const getActiveOffersCount = asyncHandler(async (req, res) => {
 
 module.exports = {
   getActiveOffers,
-<<<<<<< HEAD
-  validatePromoCode,
-  getActiveOfferCount,
-=======
   applyOffer,
   getActiveOffersCount,
->>>>>>> backend-initial
 };
