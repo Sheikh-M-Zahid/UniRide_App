@@ -36,6 +36,7 @@ const riderVehicleSelectionRoutes = require('./routes/riderVehicleSelectionRoute
 const riderBikeRoutes = require('./routes/riderBikeRoutes');
 const riderCarRoutes = require('./routes/riderCarRoutes');
 const adminDashboardRoutes = require('./routes/adminDashboardRoutes');
+const riderDeliveryRoutes = require('./routes/riderDeliveryRoutes');
 
 const errorMiddleware = require('./middlewares/errorMiddleware');
 
@@ -87,6 +88,7 @@ app.use('/api/rider/vehicle-selection', riderVehicleSelectionRoutes);
 app.use('/api/rider/bike', riderBikeRoutes);
 app.use('/api/rider/car', riderCarRoutes);
 app.use('/api/admin/dashboard', adminDashboardRoutes);
+app.use('/api/rider/delivery', riderDeliveryRoutes);
 app.use(errorMiddleware);
 
 module.exports = app;
