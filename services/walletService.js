@@ -23,8 +23,8 @@ const getWalletSummary = async (userId) => {
   return {
     dueAmount: Number(userRes.rows[0].due_balance || 0),
     activePromotionsCount: 0,
-    bkashNumber: '017XXXXXXXX',
-    nagadNumber: '018XXXXXXXX',
+    bkashNumber: '01962857678',
+    nagadNumber: '01962857678',
     latestPaymentStatus: latestPayment.rows[0]?.status || null,
   };
 };
