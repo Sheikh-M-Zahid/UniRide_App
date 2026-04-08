@@ -5,20 +5,25 @@ const updateAvailability = async (req, res) => {
   try {
     const io = req.app.get('io');
     const riderId = req.user.userId;
-
     const { isActive, latitude, longitude } = req.body;
 
-    const data = await riderActiveRideService.setAvailability({
+    const data = await riderActiveRideService.updateAvailability({
       riderId,
-      isActive,
-      latitude,
-      longitude,
+      body: {
+        isActive,
+        latitude,
+        longitude,
+      },
       io,
     });
 
     return successResponse(res, 'Rider availability updated successfully.', data);
   } catch (error) {
-    return errorResponse(res, error.message || 'Failed to update availability.', 500);
+    return errorResponse(
+      res,
+      error.message || 'Failed to update availability.',
+      500
+    );
   }
 };
 
@@ -33,7 +38,6 @@ const getDashboard = async (req, res) => {
   }
 };
 
-
 const getPendingRequests = async (req, res) => {
   try {
     const riderId = req.user.userId;
@@ -43,7 +47,6 @@ const getPendingRequests = async (req, res) => {
     return errorResponse(res, error.message || 'Failed to fetch pending requests.', 500);
   }
 };
-
 
 const acceptRideRequest = async (req, res) => {
   try {
