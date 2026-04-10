@@ -18,7 +18,7 @@ const adminAuthMiddleware = (req, res, next) => {
     }
 
     req.admin = {
-      id: decoded.id || decoded.adminId,
+      id: decoded.id || decoded.adminId || decoded.userId,
       email: decoded.email,
       role: decoded.role,
     };
