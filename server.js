@@ -5,7 +5,23 @@ const app = require('./app');
 const ewuAdminDb = require('./config/ewuAdminDb');
 const rideDb = require('./config/rideDb');
 const { initSocket } = require('./config/socket');
+
 const riderSocket = require('./sockets/riderSocket');
+const riderActiveRideSocket = require('./sockets/riderActiveRideSocket');
+const riderDashboardSocket = require('./sockets/riderDashboardSocket');
+const rideRequestSocket = require('./sockets/rideRequestSocket');
+const riderDeliverySocket = require('./sockets/riderDeliverySocket');
+
+const activeRiderSocket = require('./sockets/activeRiderSocket');
+const activeRideSocket = require('./sockets/activeRideSocket');
+const activitySocket = require('./sockets/activitySocket');
+const earningsSocket = require('./sockets/earningsSocket');
+const riderMapSocket = require('./sockets/riderMapSocket');
+
+const rideAvailabilitySocket = require('./sockets/rideAvailabilitySocket');
+const { setRideAvailabilityIo } = require('./utils/rideAvailabilityEmitter');
+
+// after io init
 
 const PORT = process.env.PORT || 5000;
 
@@ -13,6 +29,20 @@ const server = http.createServer(app);
 const io = initSocket(server);
 
 riderSocket(io);
+riderActiveRideSocket(io);
+riderDashboardSocket(io);
+rideRequestSocket(io);
+riderDeliverySocket(io);
+rideAvailabilitySocket(io);
+
+setRideAvailabilityIo(io);
+
+activeRiderSocket(io);
+activeRideSocket(io);
+activitySocket(io);
+earningsSocket(io);
+riderMapSocket(io);
+
 
 const startServer = async () => {
   try {

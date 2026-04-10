@@ -4,19 +4,36 @@ const router = express.Router();
 const offersController = require('../controllers/offersController');
 const { validateRequiredFields } = require('../middlewares/validateMiddleware');
 const authMiddleware = require('../middlewares/authMiddleware');
+const adminAuthMiddleware = require('../middlewares/adminAuthMiddleware');
 
-// Get active offers
+// User routes
 router.get('/active', authMiddleware, offersController.getActiveOffers);
-
-// Get active offers count
 router.get('/active-count', authMiddleware, offersController.getActiveOffersCount);
 
-// Apply promo code
 router.post(
   '/apply',
   authMiddleware,
-  validateRequiredFields(['promo_code']),
+  validateRequiredFields(['promo_code', 'fare']),
   offersController.applyOffer
 );
+
+// Admin routes
+router.post(
+  '/create',
+  adminAuthMiddleware,
+  validateRequiredFields([
+    'offer_name',
+    'offer_type',
+    'reward_percentage',
+    'eligible_user',
+    'start_date',
+    'end_date',
+    'promo_code',
+    'conditions',
+  ]),
+  offersController.createOffer
+);
+
+router.get('/all', adminAuthMiddleware, offersController.getAllOffers);
 
 module.exports = router;

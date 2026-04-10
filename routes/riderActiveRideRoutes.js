@@ -8,6 +8,7 @@ router.use(authMiddleware);
 
 router.patch('/availability', riderActiveRideController.updateAvailability);
 router.get('/dashboard', riderActiveRideController.getDashboard);
+router.get('/ride-requests/pending', riderActiveRideController.getPendingRequests);
 
 router.post('/ride-requests/:requestId/accept', riderActiveRideController.acceptRideRequest);
 router.post('/ride-requests/:requestId/reject', riderActiveRideController.rejectRideRequest);

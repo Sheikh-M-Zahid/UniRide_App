@@ -14,23 +14,6 @@ const getActiveOffers = asyncHandler(async (req, res) => {
   return successResponse(res, message, data);
 });
 
-// Apply / validate promo code
-const applyOffer = asyncHandler(async (req, res) => {
-  const { promo_code } = req.body;
-
-  if (!promo_code || promo_code.trim() === '') {
-    return errorResponse(res, 'Promo code is required.', 400);
-  }
-
-  try {
-    const data = await offerService.applyOffer(promo_code.trim());
-
-    return successResponse(res, 'Offer code applied successfully.', data);
-  } catch (err) {
-    return errorResponse(res, err.message, 400);
-  }
-});
-
 // Get active offers count
 const getActiveOffersCount = asyncHandler(async (req, res) => {
   const count = await offerService.getActiveOffersCount();
@@ -42,8 +25,54 @@ const getActiveOffersCount = asyncHandler(async (req, res) => {
   );
 });
 
+// Apply / validate promo code
+const applyOffer = asyncHandler(async (req, res) => {
+  const { promo_code, fare } = req.body;
+  const user = req.user;
+
+  if (!promo_code || promo_code.trim() === '') {
+    return errorResponse(res, 'Promo code is required.', 400);
+  }
+
+  if (fare === undefined || fare === null || Number(fare) <= 0) {
+    return errorResponse(res, 'Valid fare is required.', 400);
+  }
+
+  try {
+    const data = await offerService.applyOffer({
+      promoCode: promo_code.trim(),
+      fare: Number(fare),
+      user,
+    });
+
+    return successResponse(res, 'Offer code applied successfully.', data);
+  } catch (err) {
+    return errorResponse(res, err.message, 400);
+  }
+});
+
+// Admin: create offer
+const createOffer = asyncHandler(async (req, res) => {
+  try {
+    const data = await offerService.createOffer(req.body);
+
+    return successResponse(res, 'Offer created successfully.', data, 201);
+  } catch (err) {
+    return errorResponse(res, err.message, 400);
+  }
+});
+
+// Admin: get all offers
+const getAllOffers = asyncHandler(async (req, res) => {
+  const data = await offerService.listOffers();
+
+  return successResponse(res, 'All offers fetched successfully.', data);
+});
+
 module.exports = {
   getActiveOffers,
-  applyOffer,
   getActiveOffersCount,
+  applyOffer,
+  createOffer,
+  getAllOffers,
 };

@@ -4,11 +4,20 @@ const { isValidUniversityEmail } = require('../utils/validators');
 const calculateDeliveryFee = (weight) => {
   const w = Number(weight);
 
-  if (!w || w <= 0) return 40;
-  if (w <= 1) return 40;
-  if (w <= 3) return 60;
-  if (w <= 5) return 80;
-  return 100;
+  if (Number.isNaN(w) || w <= 0) {
+    throw new Error('Item weight must be greater than 0 kg.');
+  }
+
+  if (w > 10) {
+    throw new Error('Maximum allowed item weight is 10 kg.');
+  }
+
+  if (w <= 2) {
+    return 50;
+  }
+
+  const extraKg = Math.ceil(w - 2);
+  return 50 + (extraKg * 15);
 };
 
 const validateReceiver = async (receiverEmail) => {
@@ -63,6 +72,16 @@ const createSendItemRequest = async (userId, payload) => {
     throw new Error('Required fields are missing.');
   }
 
+  const numericWeight = Number(item_weight);
+
+  if (Number.isNaN(numericWeight) || numericWeight <= 0) {
+    throw new Error('Valid item weight is required.');
+  }
+
+  if (numericWeight > 10) {
+    throw new Error('Maximum allowed item weight is 10 kg.');
+  }
+
   const validatedReceiver = await validateReceiver(receiver_email);
 
   const finalReceiverId = receiver_id || validatedReceiver.receiver_id;
@@ -70,7 +89,7 @@ const createSendItemRequest = async (userId, payload) => {
   const finalDeliveryFee =
     delivery_fee !== undefined && delivery_fee !== null
       ? Number(delivery_fee)
-      : calculateDeliveryFee(item_weight);
+      : calculateDeliveryFee(numericWeight);
 
   const result = await rideDb.query(
     `INSERT INTO send_items (
@@ -93,7 +112,7 @@ const createSendItemRequest = async (userId, payload) => {
       finalReceiverId,
       finalReceiverEmail,
       item_type,
-      item_weight || null,
+      numericWeight,
       sender_name,
       sender_phone,
       pickup_location || null,
