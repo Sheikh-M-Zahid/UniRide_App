@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'SendItemLocation.dart';
+import 'services/auth_api_service.dart';
 
 class SendItemForm extends StatefulWidget {
   const SendItemForm({super.key});
@@ -11,6 +12,7 @@ class SendItemForm extends StatefulWidget {
 
 class _SendItemFormState extends State<SendItemForm> {
   final _formKey = GlobalKey<FormState>();
+  final AuthApiService _authApiService = AuthApiService();
 
   final TextEditingController senderNameController = TextEditingController();
   final TextEditingController senderPhoneController = TextEditingController();
@@ -20,6 +22,7 @@ class _SendItemFormState extends State<SendItemForm> {
   final TextEditingController itemWeightController = TextEditingController();
 
   String? selectedItem;
+  bool isCheckingReceiver = false;
 
   final List<String> itemList = [
     "Book",
@@ -56,30 +59,80 @@ class _SendItemFormState extends State<SendItemForm> {
       return "Enter email";
     }
 
-    final email = value.trim();
-    final emailRegex = RegExp(r'^[\w\.-]+@[\w\.-]+\.\w+$');
+    final email = value.trim().toLowerCase();
 
-    if (!emailRegex.hasMatch(email)) {
-      return "Enter valid email";
+    final isStudent = email.endsWith('@std.ewubd.edu');
+    final isFacultyOrStaff = email.endsWith('@ewubd.edu');
+
+    if (!isStudent && !isFacultyOrStaff) {
+      return "Enter valid university email";
     }
 
     return null;
   }
 
-  void goToLocationPage() {
-    if (_formKey.currentState!.validate() && selectedItem != null) {
+  Future<void> goToLocationPage() async {
+    if (!_formKey.currentState!.validate() || selectedItem == null) {
+      return;
+    }
+
+    setState(() {
+      isCheckingReceiver = true;
+    });
+
+    try {
+      final response = await _authApiService.validateSendItemReceiver(
+        receiverEmail: receiverEmailController.text.trim(),
+      );
+
+      final receiverData = response['data'] ?? {};
+
+      if (!mounted) return;
+
+      setState(() {
+        isCheckingReceiver = false;
+      });
+
       Navigator.push(
         context,
         MaterialPageRoute(
           builder: (context) => SendItemLocation(
-            receiverName: receiverNameController.text,
-            receiverEmail: receiverEmailController.text,
+            senderName: senderNameController.text.trim(),
+            senderPhone: senderPhoneController.text.trim(),
+            receiverName: receiverData['name']?.toString().isNotEmpty == true
+                ? receiverData['name'].toString()
+                : receiverNameController.text.trim(),
+            receiverEmail: receiverData['receiver_email']?.toString() ??
+                receiverEmailController.text.trim(),
             itemName: selectedItem!,
-            itemWeight: itemWeightController.text,
+            itemWeight: itemWeightController.text.trim(),
           ),
         ),
       );
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        isCheckingReceiver = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.toString().replaceFirst('Exception: ', '')),
+        ),
+      );
     }
+  }
+
+  @override
+  void dispose() {
+    senderNameController.dispose();
+    senderPhoneController.dispose();
+    receiverNameController.dispose();
+    receiverPhoneController.dispose();
+    receiverEmailController.dispose();
+    itemWeightController.dispose();
+    super.dispose();
   }
 
   @override
@@ -184,8 +237,23 @@ class _SendItemFormState extends State<SendItemForm> {
                   labelText: "Item Weight (kg)",
                   border: OutlineInputBorder(),
                 ),
-                validator: (value) =>
-                value!.isEmpty ? "Enter weight" : null,
+                validator: (value) {
+                  if (value == null || value.trim().isEmpty) {
+                    return "Enter weight";
+                  }
+
+                  final weight = double.tryParse(value.trim());
+
+                  if (weight == null) {
+                    return "Enter valid weight";
+                  }
+
+                  if (weight <= 0) {
+                    return "Weight must be greater than 0";
+                  }
+
+                  return null;
+                },
               ),
               const Spacer(),
               SizedBox(
@@ -195,8 +263,17 @@ class _SendItemFormState extends State<SendItemForm> {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF14B8A6),
                   ),
-                  onPressed: goToLocationPage,
-                  child: const Text(
+                  onPressed: isCheckingReceiver ? null : goToLocationPage,
+                  child: isCheckingReceiver
+                      ? const SizedBox(
+                    height: 22,
+                    width: 22,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2.4,
+                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                    ),
+                  )
+                      : const Text(
                     "Next",
                     style: TextStyle(
                       color: Colors.white,

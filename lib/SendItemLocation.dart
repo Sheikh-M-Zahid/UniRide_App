@@ -2,8 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'map_picker_screen.dart';
 import 'UserHome.dart';
+import 'services/auth_api_service.dart';
 
 class SendItemLocation extends StatefulWidget {
+  final String senderName;
+  final String senderPhone;
   final String receiverName;
   final String receiverEmail;
   final String itemName;
@@ -11,6 +14,8 @@ class SendItemLocation extends StatefulWidget {
 
   const SendItemLocation({
     super.key,
+    required this.senderName,
+    required this.senderPhone,
     required this.receiverName,
     required this.receiverEmail,
     required this.itemName,
@@ -22,11 +27,13 @@ class SendItemLocation extends StatefulWidget {
 }
 
 class _SendItemLocationState extends State<SendItemLocation> {
+  final AuthApiService _authApiService = AuthApiService();
   final TextEditingController pickupController = TextEditingController();
   final TextEditingController destinationController = TextEditingController();
 
   LatLng? pickupLatLng;
   LatLng? destinationLatLng;
+  bool isSubmitting = false;
 
   bool get isFormValid =>
       pickupController.text.isNotEmpty &&
@@ -47,7 +54,7 @@ class _SendItemLocationState extends State<SendItemLocation> {
       context,
       MaterialPageRoute(
         builder: (_) => MapPickerScreen(
-          googleApiKey: "YOUR_GOOGLE_MAPS_API_KEY",
+          googleApiKey: "AIzaSyCF5mVtZ2woOu8P1Jwf-7IfzRw_QoPilCI",
           initialPosition: initialPosition,
           title: "Select Item Sender Location",
         ),
@@ -87,30 +94,56 @@ class _SendItemLocationState extends State<SendItemLocation> {
     }
   }
 
-  void confirmSendItem() async {
-    print("===== SEND ITEM DATA =====");
-    print("Receiver Name: ${widget.receiverName}");
-    print("Receiver Email: ${widget.receiverEmail}");
-    print("Item Name: ${widget.itemName}");
-    print("Item Weight: ${widget.itemWeight}");
-    print("Pickup: ${pickupController.text}");
-    print("Destination: ${destinationController.text}");
-    print("Pickup LatLng: $pickupLatLng");
-    print("Destination LatLng: $destinationLatLng");
+  Future<void> confirmSendItem() async {
+    if (!isFormValid) return;
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text("Email sent to receiver"),
-      ),
-    );
+    setState(() {
+      isSubmitting = true;
+    });
 
-    Navigator.pushAndRemoveUntil(
-      context,
-      MaterialPageRoute(
-        builder: (context) => const UniRideHomePage(),
-      ),
-          (route) => false,
-    );
+    try {
+      await _authApiService.createSendItemRequest(
+        receiverEmail: widget.receiverEmail,
+        itemType: widget.itemName,
+        itemWeight: widget.itemWeight,
+        senderName: widget.senderName,
+        senderPhone: widget.senderPhone,
+        pickupLocation: pickupController.text.trim(),
+        destinationLocation: destinationController.text.trim(),
+      );
+
+      if (!mounted) return;
+
+      setState(() {
+        isSubmitting = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Send item request created successfully"),
+        ),
+      );
+
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(
+          builder: (context) => const UniRideHomePage(),
+        ),
+            (route) => false,
+      );
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        isSubmitting = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.toString().replaceFirst('Exception: ', '')),
+        ),
+      );
+    }
   }
 
   @override
@@ -305,8 +338,17 @@ class _SendItemLocationState extends State<SendItemLocation> {
                     borderRadius: BorderRadius.circular(12),
                   ),
                 ),
-                onPressed: isFormValid ? confirmSendItem : null,
-                child: const Text(
+                onPressed: (isFormValid && !isSubmitting) ? confirmSendItem : null,
+                child: isSubmitting
+                    ? const SizedBox(
+                  height: 22,
+                  width: 22,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2.4,
+                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                  ),
+                )
+                    : const Text(
                   "Confirm",
                   style: TextStyle(
                     fontSize: 16,

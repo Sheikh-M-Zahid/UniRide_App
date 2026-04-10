@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'services/auth_api_service.dart';
 
 class RegisteredVehiclesPage extends StatefulWidget {
   const RegisteredVehiclesPage({super.key});
@@ -8,77 +9,101 @@ class RegisteredVehiclesPage extends StatefulWidget {
 }
 
 class _RegisteredVehiclesPageState extends State<RegisteredVehiclesPage> {
-  /// Later all vehicles will come from database/backend
-  final List<Map<String, dynamic>> registeredVehicles = [
-    {
-      "id": 1,
-      "brand": "Yamaha",
-      "model": "R15 V4",
-      "year": "2023",
-      "numberPlate": "Dhaka Metro-LA-11-2345",
-      "documents": [
-        {
-          "title": "University ID",
-          "status": "Verified",
-          "fileUrl": "https://example.com/university_id.jpg",
-        },
-        {
-          "title": "Profile Photo",
-          "status": "Verified",
-          "fileUrl": "https://example.com/profile_photo.jpg",
-        },
-        {
-          "title": "Driving License",
-          "status": "Verified",
-          "fileUrl": "https://example.com/driving_license.jpg",
-        },
-        {
-          "title": "Vehicle Registration",
-          "status": "Pending",
-          "fileUrl": "https://example.com/vehicle_registration.jpg",
-        },
-        {
-          "title": "Tax Token",
-          "status": "Verified",
-          "fileUrl": "https://example.com/tax_token.jpg",
-        },
-      ],
-    },
-    {
-      "id": 2,
-      "brand": "Honda",
-      "model": "CB Hornet",
-      "year": "2022",
-      "numberPlate": "Dhaka Metro-HA-22-9876",
-      "documents": [
-        {
-          "title": "University ID",
-          "status": "Verified",
-          "fileUrl": "https://example.com/university_id_2.jpg",
-        },
-        {
-          "title": "Profile Photo",
-          "status": "Verified",
-          "fileUrl": "https://example.com/profile_photo_2.jpg",
-        },
-        {
-          "title": "Driving License",
-          "status": "Verified",
-          "fileUrl": "https://example.com/driving_license_2.jpg",
-        },
-        {
-          "title": "Vehicle Registration",
-          "status": "Verified",
-          "fileUrl": "https://example.com/vehicle_registration_2.jpg",
-        },
-        {
-          "title": "Tax Token",
-          "status": "Pending",
-          "fileUrl": "https://example.com/tax_token_2.jpg",
-        },
-      ],
-    },
-  ];
+  final AuthApiService _authApiService = AuthApiService();
+
+  List<Map<String, dynamic>> registeredVehicles = [];
+  bool isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadVehicles();
+  }
+
+  Future<void> _loadVehicles() async {
+    try {
+      final response = await _authApiService.getMyVehicles();
+      final data = response['data'];
+
+      List<Map<String, dynamic>> vehicles = [];
+
+      if (data is List) {
+        vehicles = List<Map<String, dynamic>>.from(data);
+      } else if (data is Map && data['vehicles'] is List) {
+        vehicles = List<Map<String, dynamic>>.from(data['vehicles']);
+      }
+
+      if (!mounted) return;
+
+      setState(() {
+        registeredVehicles = vehicles;
+        isLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        isLoading = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.toString().replaceFirst('Exception: ', '')),
+        ),
+      );
+    }
+  }
+
+  Future<void> _openVehicleDocuments(Map<String, dynamic> vehicle) async {
+    final vehicleId =
+    (vehicle['vehicleId'] ?? vehicle['vehicle_id'] ?? vehicle['id'] ?? '')
+        .toString();
+
+    if (vehicleId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Vehicle ID not found'),
+        ),
+      );
+      return;
+    }
+
+    try {
+      final response = await _authApiService.getVehicleDocuments(
+        vehicleId: vehicleId,
+      );
+
+      final data = response['data'];
+      List<Map<String, dynamic>> documents = [];
+
+      if (data is List) {
+        documents = List<Map<String, dynamic>>.from(data);
+      } else if (data is Map && data['documents'] is List) {
+        documents = List<Map<String, dynamic>>.from(data['documents']);
+      }
+
+      if (!mounted) return;
+
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => VehicleDocumentsPage(
+            vehicleName:
+            "${(vehicle['company'] ?? vehicle['brand'] ?? '').toString()} ${(vehicle['model'] ?? '').toString()}",
+            documents: documents,
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.toString().replaceFirst('Exception: ', '')),
+        ),
+      );
+    }
+  }
 
   IconData _vehicleIcon(Map<String, dynamic> vehicle) {
     final String brand = (vehicle["brand"] ?? "").toString().toLowerCase();
@@ -120,7 +145,13 @@ class _RegisteredVehiclesPageState extends State<RegisteredVehiclesPage> {
         backgroundColor: const Color(0xFFF9FAFB),
         elevation: 0,
       ),
-      body: registeredVehicles.isEmpty
+      body: isLoading
+          ? const Center(
+        child: CircularProgressIndicator(
+          color: Color(0xFF14B8A6),
+        ),
+      )
+          : registeredVehicles.isEmpty
           ? const Center(
         child: Text(
           "No registered vehicle found",
@@ -173,7 +204,7 @@ class _RegisteredVehiclesPageState extends State<RegisteredVehiclesPage> {
                     const SizedBox(width: 14),
                     Expanded(
                       child: Text(
-                        "${vehicle["brand"]} ${vehicle["model"]}",
+                        "${(vehicle["company"] ?? vehicle["brand"] ?? "").toString()} ${(vehicle["model"] ?? "").toString()}",
                         style: const TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
@@ -186,30 +217,30 @@ class _RegisteredVehiclesPageState extends State<RegisteredVehiclesPage> {
 
                 const SizedBox(height: 18),
 
-                _vehicleInfoRow("Brand", vehicle["brand"]),
-                _vehicleInfoRow("Model", vehicle["model"]),
-                _vehicleInfoRow("Year", vehicle["year"]),
-                _vehicleInfoRow("Number Plate", vehicle["numberPlate"]),
+                _vehicleInfoRow(
+                  "Brand",
+                  (vehicle["company"] ?? vehicle["brand"] ?? "").toString(),
+                ),
+                _vehicleInfoRow(
+                  "Model",
+                  (vehicle["model"] ?? "").toString(),
+                ),
+                _vehicleInfoRow(
+                  "Year",
+                  (vehicle["year"] ?? "").toString(),
+                ),
+                _vehicleInfoRow(
+                  "Number Plate",
+                  (vehicle["number_plate"] ?? vehicle["numberPlate"] ?? "")
+                      .toString(),
+                ),
 
                 const SizedBox(height: 18),
 
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton(
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => VehicleDocumentsPage(
-                            vehicleName:
-                            "${vehicle["brand"]} ${vehicle["model"]}",
-                            documents: List<Map<String, dynamic>>.from(
-                              vehicle["documents"],
-                            ),
-                          ),
-                        ),
-                      );
-                    },
+                    onPressed: () => _openVehicleDocuments(vehicle),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF14B8A6),
                       foregroundColor: Colors.white,
@@ -331,7 +362,8 @@ class VehicleDocumentsPage extends StatelessWidget {
         separatorBuilder: (_, __) => const SizedBox(height: 12),
         itemBuilder: (context, index) {
           final doc = documents[index];
-          final String status = doc["status"] ?? "Unknown";
+          final String status =
+          (doc["status"] ?? "Unknown").toString();
 
           return Container(
             padding: const EdgeInsets.all(16),
@@ -367,7 +399,7 @@ class VehicleDocumentsPage extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        doc["title"] ?? "",
+                        (doc["title"] ?? doc["name"] ?? "").toString(),
                         style: const TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w600,
@@ -376,7 +408,7 @@ class VehicleDocumentsPage extends StatelessWidget {
                       ),
                       const SizedBox(height: 6),
                       Text(
-                        "File: ${doc["fileUrl"] ?? ""}",
+                        "File: ${(doc["fileUrl"] ?? doc["file_url"] ?? doc["url"] ?? doc["path"] ?? "").toString()}",
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(

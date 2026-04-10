@@ -36,6 +36,7 @@ const riderVehicleSelectionRoutes = require('./routes/riderVehicleSelectionRoute
 const riderBikeRoutes = require('./routes/riderBikeRoutes');
 const riderCarRoutes = require('./routes/riderCarRoutes');
 const adminDashboardRoutes = require('./routes/adminDashboardRoutes');
+<<<<<<< HEAD
 const adminPaymentApprovalRoutes = require('./routes/adminPaymentApprovalRoutes');
 const adminProfileRoutes = require('./routes/adminProfileRoutes');
 const adminReportsRoutes = require('./routes/adminReportsRoutes');
@@ -48,6 +49,9 @@ const rideOptionsRoutes = require('./routes/rideOptionsRoutes');
 const rideOptionsRoutes = require('./routes/rideOptionsRoutes');
 const rideAvailabilityAlertRoutes = require('./routes/rideAvailabilityAlertRoutes');
 //const helpRoutes = require('./routes/helpRoutes');
+=======
+const riderDeliveryRoutes = require('./routes/riderDeliveryRoutes');
+>>>>>>> 053ecf378c16e92cd18394403e178a5ccd89e454
 
 const errorMiddleware = require('./middlewares/errorMiddleware');
 
@@ -83,7 +87,7 @@ app.use('/api/home', homeRoutes);
 //app.use('/api/wallet', walletRoutes);
 //app.use('/api/support', supportRoutes);
 app.use('/api/rider/active-riders', activeRiderRoutes);
-//app.use('/api/reserve', reserveRoutes); 
+//app.use('/api/reserve', reserveRoutes);
 app.use('/api/rider/earnings', earningsRoutes);
 app.use('/api/rider/activity', activityRoutes);
 app.use('/api/rider/active-ride', riderActiveRideRoutes);
@@ -98,6 +102,7 @@ app.use('/api/rider/vehicle-selection', riderVehicleSelectionRoutes);
 app.use('/api/rider/bike', riderBikeRoutes);
 app.use('/api/rider/car', riderCarRoutes);
 app.use('/api/admin/dashboard', adminDashboardRoutes);
+<<<<<<< HEAD
 app.use('/api/admin/payment-approvals', adminPaymentApprovalRoutes);
 app.use('/api/admin/profile', adminProfileRoutes);
 app.use('/api/admin/reports', adminReportsRoutes);
@@ -111,6 +116,9 @@ app.use('/api/rides/options', rideOptionsRoutes);
 app.use('/api/rides/notify-availability', rideAvailabilityAlertRoutes);
 //app.use('/api/help', helpRoutes);
 
+=======
+app.use('/api/rider/delivery', riderDeliveryRoutes);
+>>>>>>> 053ecf378c16e92cd18394403e178a5ccd89e454
 app.use(errorMiddleware);
 
 module.exports = app;

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'PrivateCarRegistration.dart';
 import 'BikeRegistration.dart';
+import 'services/auth_api_service.dart';
 
 class AppColors {
   static const Color primary = Color(0xFF14B8A6);
@@ -21,10 +22,121 @@ class UniRideSelectionScreen extends StatefulWidget {
 }
 
 class _UniRideSelectionScreenState extends State<UniRideSelectionScreen> {
+  final AuthApiService _authApiService = AuthApiService();
+
   // 0 = Nothing selected
   // 1 = Private Car
   // 2 = Motorbike
   int selectedOption = 0;
+  bool isLoadingStatus = true;
+  bool isSubmitting = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadVehicleSelectionStatus();
+  }
+
+  Future<void> _loadVehicleSelectionStatus() async {
+    try {
+      await _authApiService.getVehicleSelectionStatus();
+
+      if (!mounted) return;
+
+      setState(() {
+        isLoadingStatus = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+
+      setState(() {
+        isLoadingStatus = false;
+      });
+    }
+  }
+
+  Future<void> _continueSelection() async {
+    if (selectedOption == 0) return;
+
+    setState(() {
+      isSubmitting = true;
+    });
+
+    try {
+      final response = await _authApiService.selectVehicleType(
+        selectedVehicleType: selectedOption == 1 ? 'car' : 'bike',
+      );
+
+      final data = response['data'] ?? {};
+      final nextScreen = data['nextScreen']?.toString();
+
+      if (!mounted) return;
+
+      setState(() {
+        isSubmitting = false;
+      });
+
+      if (nextScreen == 'private_car_registration') {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => const PrivateCarRegistration(),
+          ),
+        );
+        return;
+      }
+
+      if (nextScreen == 'bike_registration') {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => const BikeRegistration(),
+          ),
+        );
+        return;
+      }
+
+      if (nextScreen == 'vehicle_pending_review') {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Your vehicle is already pending review. Please wait for admin approval.',
+            ),
+          ),
+        );
+        return;
+      }
+
+      if (nextScreen == 'vehicle_already_exists') {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'You already added this vehicle type.',
+            ),
+          ),
+        );
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Unable to continue vehicle selection right now.'),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        isSubmitting = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.toString().replaceFirst('Exception: ', '')),
+        ),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -46,7 +158,13 @@ class _UniRideSelectionScreenState extends State<UniRideSelectionScreen> {
           ),
         ),
       ),
-      body: Padding(
+      body: isLoadingStatus
+          ? const Center(
+        child: CircularProgressIndicator(
+          color: AppColors.primary,
+        ),
+      )
+          : Padding(
         padding: const EdgeInsets.symmetric(horizontal: 20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -62,7 +180,6 @@ class _UniRideSelectionScreenState extends State<UniRideSelectionScreen> {
             ),
             const SizedBox(height: 30),
 
-            /// ================= PRIVATE CAR =================
             _buildOptionCard(
               index: 1,
               title: "Private Car Owner",
@@ -73,7 +190,6 @@ class _UniRideSelectionScreenState extends State<UniRideSelectionScreen> {
 
             const SizedBox(height: 20),
 
-            /// ================= BIKE =================
             _buildOptionCard(
               index: 2,
               title: "Motorbike (2 wheeler)",
@@ -84,7 +200,6 @@ class _UniRideSelectionScreenState extends State<UniRideSelectionScreen> {
 
             const Spacer(),
 
-            /// ================= CONTINUE BUTTON =================
             Padding(
               padding: const EdgeInsets.only(bottom: 30),
               child: SizedBox(
@@ -92,37 +207,28 @@ class _UniRideSelectionScreenState extends State<UniRideSelectionScreen> {
                 height: 55,
                 child: ElevatedButton(
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: selectedOption == 0
+                    backgroundColor: (selectedOption == 0 || isSubmitting)
                         ? AppColors.mutedText
                         : AppColors.primary,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(10),
                     ),
                   ),
-                  onPressed: selectedOption == 0
+                  onPressed: (selectedOption == 0 || isSubmitting)
                       ? null
-                      : () {
-                    if (selectedOption == 1) {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) =>
-                          const PrivateCarRegistration(),
-                        ),
-                      );
-                    }
-
-                    if (selectedOption == 2) {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) =>
-                          const BikeRegistration(),
-                        ),
-                      );
-                    }
-                  },
-                  child: const Text(
+                      : _continueSelection,
+                  child: isSubmitting
+                      ? const SizedBox(
+                    height: 22,
+                    width: 22,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2.4,
+                      valueColor: AlwaysStoppedAnimation<Color>(
+                        Colors.white,
+                      ),
+                    ),
+                  )
+                      : const Text(
                     "Continue",
                     style: TextStyle(
                       color: Colors.white,
@@ -148,7 +254,9 @@ class _UniRideSelectionScreenState extends State<UniRideSelectionScreen> {
     bool isSelected = selectedOption == index;
 
     return GestureDetector(
-      onTap: () {
+      onTap: isSubmitting
+          ? null
+          : () {
         setState(() {
           selectedOption = index;
         });

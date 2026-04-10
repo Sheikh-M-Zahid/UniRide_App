@@ -3,7 +3,7 @@ const router = express.Router();
 
 const userController = require('../controllers/userController');
 const authMiddleware = require('../middlewares/authMiddleware');
-const { uploadProfilePicture } = require('../middlewares/uploadMiddleware');
+const multer = require('multer');
 
 router.get('/me/profile', authMiddleware, userController.getMyProfile);
 
@@ -14,7 +14,7 @@ router.get('/me/role-options', authMiddleware, userController.getRoleOptions);
 router.patch(
   '/me/profile-picture',
   authMiddleware,
-  uploadProfilePicture.single('profile_picture'),
+  multer().single('profile_picture'),
   userController.updateProfilePicture
 );
 

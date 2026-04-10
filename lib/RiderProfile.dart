@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'services/auth_api_service.dart';
 import 'RiderDashboard.dart';
 import 'RiderActivityPage.dart';
 import 'RiderMap.dart';
@@ -39,9 +40,60 @@ class RiderProfile extends StatefulWidget {
 }
 
 class _RiderProfileState extends State<RiderProfile> {
+  final AuthApiService _authApiService = AuthApiService();
+
   int _selectedIndex = 3;
   File? _profileImage;
+  String? _profileImageUrl;
+  String _fullName = 'User Name';
+  double _rating = 5.0;
+
+  bool _isLoadingProfile = true;
+  bool _isUploadingImage = false;
+
   final ImagePicker _picker = ImagePicker();
+
+  @override
+  void initState() {
+    super.initState();
+    _loadRiderProfile();
+  }
+
+  Future<void> _loadRiderProfile() async {
+    try {
+      final response = await _authApiService.getRiderProfile();
+      final data = response['data'] ?? {};
+
+      if (!mounted) return;
+
+      setState(() {
+        _fullName = (data['fullName'] ?? widget.userName ?? 'User Name')
+            .toString();
+        _rating = (data['rating'] is num)
+            ? (data['rating'] as num).toDouble()
+            : widget.userRating;
+        _profileImageUrl = data['profilePicture']?.toString();
+        _isLoadingProfile = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        _fullName = (widget.userName != null &&
+            widget.userName!.trim().isNotEmpty)
+            ? widget.userName!
+            : 'User Name';
+        _rating = widget.userRating;
+        _isLoadingProfile = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.toString().replaceFirst('Exception: ', '')),
+        ),
+      );
+    }
+  }
 
   Future<void> _pickProfileImage() async {
     try {
@@ -64,9 +116,34 @@ class _RiderProfileState extends State<RiderProfile> {
         );
 
         if (pickedFile != null) {
+          final File imageFile = File(pickedFile.path);
+
           setState(() {
-            _profileImage = File(pickedFile.path);
+            _profileImage = imageFile;
+            _isUploadingImage = true;
           });
+
+          final response =
+          await _authApiService.uploadRiderProfileImage(imageFile);
+
+          final data = response['data'] ?? {};
+
+          if (!mounted) return;
+
+          setState(() {
+            _profileImageUrl = data['profilePicture']?.toString();
+            _fullName = (data['fullName'] ?? _fullName).toString();
+            _rating = (data['rating'] is num)
+                ? (data['rating'] as num).toDouble()
+                : _rating;
+            _isUploadingImage = false;
+          });
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Profile image uploaded successfully'),
+            ),
+          );
         }
       } else if (status.isPermanentlyDenied) {
         if (!mounted) return;
@@ -88,9 +165,16 @@ class _RiderProfileState extends State<RiderProfile> {
       }
     } catch (e) {
       if (!mounted) return;
+
+      setState(() {
+        _isUploadingImage = false;
+      });
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Failed to pick image: $e'),
+          content: Text(
+            e.toString().replaceFirst('Exception: ', ''),
+          ),
         ),
       );
     }
@@ -137,12 +221,13 @@ class _RiderProfileState extends State<RiderProfile> {
 
   @override
   Widget build(BuildContext context) {
-    final String displayName =
-    (widget.userName != null && widget.userName!.trim().isNotEmpty)
+    final String displayName = _fullName.trim().isNotEmpty
+        ? _fullName
+        : ((widget.userName != null && widget.userName!.trim().isNotEmpty)
         ? widget.userName!
-        : "User Name";
+        : "User Name");
 
-    final double displayRating = widget.userRating;
+    final double displayRating = _rating;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -164,7 +249,13 @@ class _RiderProfileState extends State<RiderProfile> {
         ),
         centerTitle: true,
       ),
-      body: SafeArea(
+      body: _isLoadingProfile
+          ? const Center(
+        child: CircularProgressIndicator(
+          color: AppColors.primary,
+        ),
+      )
+          : SafeArea(
         child: SingleChildScrollView(
           child: Column(
             children: [
@@ -176,9 +267,15 @@ class _RiderProfileState extends State<RiderProfile> {
                   CircleAvatar(
                     radius: 50,
                     backgroundColor: AppColors.inputFill,
-                    backgroundImage:
-                    _profileImage != null ? FileImage(_profileImage!) : null,
-                    child: _profileImage == null
+                    backgroundImage: _profileImage != null
+                        ? FileImage(_profileImage!)
+                        : (_profileImageUrl != null &&
+                        _profileImageUrl!.trim().isNotEmpty)
+                        ? NetworkImage(_profileImageUrl!)
+                        : null,
+                    child: (_profileImage == null &&
+                        (_profileImageUrl == null ||
+                            _profileImageUrl!.trim().isEmpty))
                         ? const Icon(
                       Icons.person,
                       size: 60,
@@ -190,14 +287,24 @@ class _RiderProfileState extends State<RiderProfile> {
                     bottom: 0,
                     right: 0,
                     child: GestureDetector(
-                      onTap: _pickProfileImage,
+                      onTap: _isUploadingImage ? null : _pickProfileImage,
                       child: Container(
                         padding: const EdgeInsets.all(6),
                         decoration: const BoxDecoration(
                           color: AppColors.primary,
                           shape: BoxShape.circle,
                         ),
-                        child: const Icon(
+                        child: _isUploadingImage
+                            ? const SizedBox(
+                          height: 18,
+                          width: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor:
+                            AlwaysStoppedAnimation<Color>(Colors.white),
+                          ),
+                        )
+                            : const Icon(
                           Icons.camera_alt,
                           size: 18,
                           color: Colors.white,
@@ -379,7 +486,6 @@ class _RiderProfileState extends State<RiderProfile> {
                   ],
                 ),
               ),
-
               const SizedBox(height: 30),
             ],
           ),

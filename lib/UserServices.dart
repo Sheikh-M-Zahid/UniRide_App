@@ -7,6 +7,7 @@ import 'RideSearch.dart';
 import 'ReserveRide.dart';
 import 'SendItem.dart';
 import 'SharingCaringPage.dart';
+import 'services/auth_api_service.dart';
 
 void main() {
   runApp(const UberCloneApp());
@@ -43,15 +44,13 @@ class ServicesPage extends StatefulWidget {
 
 class _ServicesPageState extends State<ServicesPage> {
   final TextEditingController _searchController = TextEditingController();
+  final AuthApiService _authApiService = AuthApiService();
 
   String selectedCategory = 'All';
-
-  // Admin এখনো offer দেয় নাই
-  final bool hasAdminOffer = false;
-
-  // Future backend data
-  final String adminOfferTitle = '20% OFF on Car Rides';
-  final String adminOfferSubtitle = 'Limited time campus offer';
+  bool hasAdminOffer = false;
+  String adminOfferTitle = '';
+  String adminOfferSubtitle = '';
+  bool isLoadingServicesSummary = true;
 
   final List<String> categories = const [
     'All',
@@ -60,6 +59,37 @@ class _ServicesPageState extends State<ServicesPage> {
     'Delivery',
     'Community',
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadServicesSummary();
+  }
+
+  Future<void> _loadServicesSummary() async {
+    try {
+      final response = await _authApiService.getServicesSummary();
+      final data = response['data'] ?? {};
+
+      if (!mounted) return;
+
+      setState(() {
+        hasAdminOffer = data['hasAdminOffer'] == true;
+        adminOfferTitle = data['offerTitle']?.toString() ?? '';
+        adminOfferSubtitle = data['offerSubtitle']?.toString() ?? '';
+        isLoadingServicesSummary = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+
+      setState(() {
+        hasAdminOffer = false;
+        adminOfferTitle = '';
+        adminOfferSubtitle = '';
+        isLoadingServicesSummary = false;
+      });
+    }
+  }
 
   List<_ServiceItem> get allServices => [
     _ServiceItem(
@@ -454,30 +484,34 @@ class _ServicesPageState extends State<ServicesPage> {
             ),
           ],
         ),
-        child: const Row(
+        child: Row(
           children: [
-            Icon(
+            const Icon(
               Icons.local_offer,
               color: Colors.white,
               size: 30,
             ),
-            SizedBox(width: 12),
+            const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Special Offer Available',
-                    style: TextStyle(
+                    adminOfferTitle.isNotEmpty
+                        ? adminOfferTitle
+                        : 'Special Offer Available',
+                    style: const TextStyle(
                       color: Colors.white,
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
-                  SizedBox(height: 4),
+                  const SizedBox(height: 4),
                   Text(
-                    'Tap to view and claim your latest campus deal',
-                    style: TextStyle(
+                    adminOfferSubtitle.isNotEmpty
+                        ? adminOfferSubtitle
+                        : 'Tap to view and claim your latest campus deal',
+                    style: const TextStyle(
                       color: Colors.white70,
                       fontSize: 13,
                     ),
@@ -485,7 +519,7 @@ class _ServicesPageState extends State<ServicesPage> {
                 ],
               ),
             ),
-            Icon(
+            const Icon(
               Icons.arrow_forward_ios,
               color: Colors.white,
               size: 18,

@@ -784,4 +784,732 @@ class AuthApiService {
       throw Exception(data['message'] ?? 'Registration failed');
     }
   }
+
+  //UserServices.dart
+  Future<Map<String, dynamic>> getServicesSummary() async {
+    final url = Uri.parse('$baseUrl/services/summary');
+
+    final response = await http.get(
+      url,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    );
+
+    final data = jsonDecode(response.body);
+
+    if (response.statusCode == 200) {
+      return data;
+    } else {
+      throw Exception(data['message'] ?? 'Failed to load services summary');
+    }
+  }
+
+  //SendItem.dart
+  Future<Map<String, dynamic>> validateSendItemReceiver({
+    required String receiverEmail,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+
+    final url = Uri.parse('$baseUrl/send-item/validate-receiver');
+
+    final response = await http.post(
+      url,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode({
+        'receiver_email': receiverEmail,
+      }),
+    );
+
+    final data = jsonDecode(response.body);
+
+    if (response.statusCode == 200 || response.statusCode == 201) {
+      return data;
+    } else {
+      throw Exception(data['message'] ?? 'Receiver validation failed');
+    }
+  }
+
+  Future<Map<String, dynamic>> createSendItemRequest({
+    required String receiverEmail,
+    required String itemType,
+    required String itemWeight,
+    required String senderName,
+    required String senderPhone,
+    String? pickupLocation,
+    String? destinationLocation,
+    String? riderId,
+    String? riderPhone,
+    double? deliveryFee,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+
+    final url = Uri.parse('$baseUrl/send-item');
+
+    final response = await http.post(
+      url,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode({
+        'receiver_email': receiverEmail,
+        'item_type': itemType,
+        'item_weight': itemWeight,
+        'sender_name': senderName,
+        'sender_phone': senderPhone,
+        'pickup_location': pickupLocation,
+        'destination_location': destinationLocation,
+        'rider_id': riderId,
+        'rider_phone': riderPhone,
+        'delivery_fee': deliveryFee,
+      }),
+    );
+
+    final data = jsonDecode(response.body);
+
+    if (response.statusCode == 200 || response.statusCode == 201) {
+      return data;
+    } else {
+      throw Exception(data['message'] ?? 'Failed to create send item request');
+    }
+  }
+
+  Future<Map<String, dynamic>> getMySendItemRequests() async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+
+    final url = Uri.parse('$baseUrl/send-item');
+
+    final response = await http.get(
+      url,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    );
+
+    final data = jsonDecode(response.body);
+
+    if (response.statusCode == 200) {
+      return data;
+    } else {
+      throw Exception(data['message'] ?? 'Failed to load send item requests');
+    }
+  }
+
+  //RideSelection.dart
+  Future<Map<String, dynamic>> getVehicleSelectionStatus() async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+
+    final url = Uri.parse('$baseUrl/rider/vehicle-selection/status');
+
+    final response = await http.get(
+      url,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    );
+
+    final data = jsonDecode(response.body);
+
+    if (response.statusCode == 200) {
+      return data;
+    } else {
+      throw Exception(
+        data['message'] ?? 'Failed to load vehicle selection status',
+      );
+    }
+  }
+
+  Future<Map<String, dynamic>> selectVehicleType({
+    required String selectedVehicleType,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+
+    final url = Uri.parse('$baseUrl/rider/vehicle-selection/select');
+
+    final response = await http.post(
+      url,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode({
+        'selectedVehicleType': selectedVehicleType,
+      }),
+    );
+
+    final data = jsonDecode(response.body);
+
+    if (response.statusCode == 200) {
+      return data;
+    } else {
+      throw Exception(
+        data['message'] ?? 'Failed to process vehicle selection',
+      );
+    }
+  }
+
+  //BikeRegistration.dart
+  Future<Map<String, dynamic>> registerBike({
+    required String company,
+    required String model,
+    required String year,
+    required String numberPlate,
+    required File varsityIdPhoto,
+    required File driverProfilePhoto,
+    required File drivingLicensePhoto,
+    required File vehicleRegistrationPhoto,
+    required File taxTokenPhoto,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+
+    final request = http.MultipartRequest(
+      'POST',
+      Uri.parse('$baseUrl/rider/bike/register'),
+    );
+
+    request.headers['Authorization'] = 'Bearer $token';
+
+    request.fields['company'] = company;
+    request.fields['model'] = model;
+    request.fields['year'] = year;
+    request.fields['number_plate'] = numberPlate;
+
+    request.files.add(
+      await http.MultipartFile.fromPath(
+        'varsity_id_photo',
+        varsityIdPhoto.path,
+      ),
+    );
+    request.files.add(
+      await http.MultipartFile.fromPath(
+        'driver_profile_photo',
+        driverProfilePhoto.path,
+      ),
+    );
+    request.files.add(
+      await http.MultipartFile.fromPath(
+        'driving_license_photo',
+        drivingLicensePhoto.path,
+      ),
+    );
+    request.files.add(
+      await http.MultipartFile.fromPath(
+        'vehicle_registration_photo',
+        vehicleRegistrationPhoto.path,
+      ),
+    );
+    request.files.add(
+      await http.MultipartFile.fromPath(
+        'tax_token_photo',
+        taxTokenPhoto.path,
+      ),
+    );
+
+    final streamedResponse = await request.send();
+    final response = await http.Response.fromStream(streamedResponse);
+    final data = jsonDecode(response.body);
+
+    if (response.statusCode == 200 || response.statusCode == 201) {
+      return data;
+    } else {
+      throw Exception(data['message'] ?? 'Bike registration failed');
+    }
+  }
+
+  //PrivateCarRegistration.dart
+  Future<Map<String, dynamic>> registerCar({
+    required String company,
+    required String model,
+    required String year,
+    required String numberPlate,
+    required File varsityIdPhoto,
+    required File driverProfilePhoto,
+    required File drivingLicensePhoto,
+    required File vehicleRegistrationPhoto,
+    required File taxTokenPhoto,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+
+    final request = http.MultipartRequest(
+      'POST',
+      Uri.parse('$baseUrl/rider/car/register'),
+    );
+
+    request.headers['Authorization'] = 'Bearer $token';
+
+    request.fields['company'] = company;
+    request.fields['model'] = model;
+    request.fields['year'] = year;
+    request.fields['number_plate'] = numberPlate;
+
+    request.files.add(
+      await http.MultipartFile.fromPath(
+        'varsity_id_photo',
+        varsityIdPhoto.path,
+      ),
+    );
+    request.files.add(
+      await http.MultipartFile.fromPath(
+        'driver_profile_photo',
+        driverProfilePhoto.path,
+      ),
+    );
+    request.files.add(
+      await http.MultipartFile.fromPath(
+        'driving_license_photo',
+        drivingLicensePhoto.path,
+      ),
+    );
+    request.files.add(
+      await http.MultipartFile.fromPath(
+        'vehicle_registration_photo',
+        vehicleRegistrationPhoto.path,
+      ),
+    );
+    request.files.add(
+      await http.MultipartFile.fromPath(
+        'tax_token_photo',
+        taxTokenPhoto.path,
+      ),
+    );
+
+    final streamedResponse = await request.send();
+    final response = await http.Response.fromStream(streamedResponse);
+    final data = jsonDecode(response.body);
+
+    if (response.statusCode == 200 || response.statusCode == 201) {
+      return data;
+    } else {
+      throw Exception(data['message'] ?? 'Car registration failed');
+    }
+  }
+
+  //RegisteredVehicles.dart
+  Future<Map<String, dynamic>> getMyVehicles() async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+
+    final url = Uri.parse('$baseUrl/rider/vehicles');
+
+    final response = await http.get(
+      url,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    );
+
+    final data = jsonDecode(response.body);
+
+    if (response.statusCode == 200) {
+      return data;
+    } else {
+      throw Exception(data['message'] ?? 'Failed to load vehicles');
+    }
+  }
+
+  Future<Map<String, dynamic>> getVehicleDocuments({
+    required String vehicleId,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+
+    final url = Uri.parse('$baseUrl/rider/vehicles/$vehicleId/documents');
+
+    final response = await http.get(
+      url,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    );
+
+    final data = jsonDecode(response.body);
+
+    if (response.statusCode == 200) {
+      return data;
+    } else {
+      throw Exception(data['message'] ?? 'Failed to load vehicle documents');
+    }
+  }
+
+  //RiderDelivery.dart
+  Future<Map<String, dynamic>> getRiderDeliveryDashboard() async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+
+    final url = Uri.parse('$baseUrl/rider/delivery/dashboard');
+
+    final response = await http.get(
+      url,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    );
+
+    final data = jsonDecode(response.body);
+
+    if (response.statusCode == 200) {
+      return data;
+    } else {
+      throw Exception(data['message'] ?? 'Failed to load delivery dashboard');
+    }
+  }
+
+  Future<Map<String, dynamic>> acceptDeliveryRequest({
+    required String requestId,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+
+    final url = Uri.parse('$baseUrl/rider/delivery/requests/$requestId/accept');
+
+    final response = await http.post(
+      url,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    );
+
+    final data = jsonDecode(response.body);
+
+    if (response.statusCode == 200) {
+      return data;
+    } else {
+      throw Exception(data['message'] ?? 'Failed to accept delivery request');
+    }
+  }
+
+  Future<Map<String, dynamic>> rejectDeliveryRequest({
+    required String requestId,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+
+    final url = Uri.parse('$baseUrl/rider/delivery/requests/$requestId/reject');
+
+    final response = await http.post(
+      url,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    );
+
+    final data = jsonDecode(response.body);
+
+    if (response.statusCode == 200) {
+      return data;
+    } else {
+      throw Exception(data['message'] ?? 'Failed to reject delivery request');
+    }
+  }
+
+  Future<Map<String, dynamic>> markDeliveryAsDelivered({
+    required String deliveryId,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+
+    final url = Uri.parse('$baseUrl/rider/delivery/$deliveryId/mark-delivered');
+
+    final response = await http.post(
+      url,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    );
+
+    final data = jsonDecode(response.body);
+
+    if (response.statusCode == 200) {
+      return data;
+    } else {
+      throw Exception(data['message'] ?? 'Failed to mark delivery as delivered');
+    }
+  }
+
+  //RiderSetting.dart
+  Future<Map<String, dynamic>> getRiderSettingsSummary() async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+
+    final url = Uri.parse('$baseUrl/rider/settings');
+
+    final response = await http.get(
+      url,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    );
+
+    final data = jsonDecode(response.body);
+
+    if (response.statusCode == 200) {
+      return data;
+    } else {
+      throw Exception(data['message'] ?? 'Failed to load rider settings summary');
+    }
+  }
+
+  //RiderProfile.dart
+  Future<Map<String, dynamic>> getRiderProfile() async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+
+    final url = Uri.parse('$baseUrl/rider/profile');
+
+    final response = await http.get(
+      url,
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+    );
+
+    final data = jsonDecode(response.body);
+
+    if (response.statusCode == 200) {
+      return data;
+    } else {
+      throw Exception(data['message'] ?? 'Failed to load rider profile');
+    }
+  }
+
+  Future<Map<String, dynamic>> uploadRiderProfileImage(File imageFile) async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+
+    final request = http.MultipartRequest(
+      'PATCH',
+      Uri.parse('$baseUrl/rider/profile/image'),
+    );
+
+    request.headers['Authorization'] = 'Bearer $token';
+    request.files.add(
+      await http.MultipartFile.fromPath(
+        'profilePicture',
+        imageFile.path,
+      ),
+    );
+
+    final streamedResponse = await request.send();
+    final response = await http.Response.fromStream(streamedResponse);
+    final data = jsonDecode(response.body);
+
+    if (response.statusCode == 200) {
+      return data;
+    } else {
+      throw Exception(data['message'] ?? 'Failed to upload rider profile image');
+    }
+  }
+
+  //RiderMap.dart
+  Future<Map<String, dynamic>> getRiderMapDashboard() async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+
+    final url = Uri.parse('$baseUrl/rider/map/dashboard');
+
+    final response = await http.get(
+      url,
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+    );
+
+    final data = jsonDecode(response.body);
+
+    if (response.statusCode == 200) {
+      return data;
+    } else {
+      throw Exception(data['message'] ?? 'Failed to load rider map dashboard');
+    }
+  }
+
+  Future<Map<String, dynamic>> updateRiderLocation({
+    required double lat,
+    required double lng,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+
+    final url = Uri.parse('$baseUrl/rider/map/location');
+
+    final response = await http.post(
+      url,
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({
+        'lat': lat,
+        'lng': lng,
+      }),
+    );
+
+    final data = jsonDecode(response.body);
+
+    if (response.statusCode == 200) {
+      return data;
+    } else {
+      throw Exception(data['message'] ?? 'Failed to update rider location');
+    }
+  }
+
+  Future<Map<String, dynamic>> acceptRideRequestFromMap({
+    required String requestId,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+
+    final url = Uri.parse('$baseUrl/rider/map/ride-requests/$requestId/accept');
+
+    final response = await http.post(
+      url,
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+    );
+
+    final data = jsonDecode(response.body);
+
+    if (response.statusCode == 200) {
+      return data;
+    } else {
+      throw Exception(data['message'] ?? 'Failed to accept ride request');
+    }
+  }
+
+  Future<Map<String, dynamic>> startRideNavigation({
+    required String rideId,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+
+    final url = Uri.parse('$baseUrl/rider/map/ride/$rideId/start-navigation');
+
+    final response = await http.post(
+      url,
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+    );
+
+    final data = jsonDecode(response.body);
+
+    if (response.statusCode == 200) {
+      return data;
+    } else {
+      throw Exception(data['message'] ?? 'Failed to start navigation');
+    }
+  }
+
+  // ReportProblemPage.dart
+  Future<Map<String, dynamic>> submitReport({
+    required String comment,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+
+    final url = Uri.parse('$baseUrl/reports');
+
+    final response = await http.post(
+      url,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode({
+        'comment': comment,
+      }),
+    );
+
+    final data = jsonDecode(response.body);
+
+    if (response.statusCode == 200 || response.statusCode == 201) {
+      return data;
+    } else {
+      throw Exception(data['message'] ?? 'Failed to submit report');
+    }
+  }
+
+  Future<Map<String, dynamic>> getMyReports() async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+
+    final url = Uri.parse('$baseUrl/reports/my');
+
+    final response = await http.get(
+      url,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    );
+
+    final data = jsonDecode(response.body);
+
+    if (response.statusCode == 200) {
+      return data;
+    } else {
+      throw Exception(data['message'] ?? 'Failed to load reports');
+    }
+  }
+
+  //UserActivity.dart
+  Future<Map<String, dynamic>> getActivityDashboard({
+    String type = 'all',
+    String time = 'today',
+    int page = 1,
+    int limit = 20,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+
+    final uri = Uri.parse('$baseUrl/rider/activity').replace(
+      queryParameters: {
+        'type': type,
+        'time': time,
+        'page': page.toString(),
+        'limit': limit.toString(),
+      },
+    );
+
+    final response = await http.get(
+      uri,
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+    );
+
+    final data = jsonDecode(response.body);
+
+    if (response.statusCode == 200) {
+      return data;
+    } else {
+      throw Exception(data['message'] ?? 'Failed to load activity dashboard');
+    }
+  }
 }

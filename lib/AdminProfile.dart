@@ -1,6 +1,9 @@
+import 'dart:io';
+import 'package:image_picker/image_picker.dart';
 import 'package:flutter/material.dart';
 import 'LogIn.dart';
 import 'UserProfile.dart';
+import 'RiderProfile.dart';
 
 class AdminProfilePage extends StatefulWidget {
   const AdminProfilePage({super.key});
@@ -11,6 +14,11 @@ class AdminProfilePage extends StatefulWidget {
 
 class _AdminProfilePageState extends State<AdminProfilePage> {
   late Future<UserProfileModel> _profileFuture;
+  final ImagePicker _picker = ImagePicker();
+  File? _selectedImage;
+  bool _isRider(UserProfileModel profile) {
+    return profile.roles.any((role) => role.toLowerCase() == 'rider');
+  }
 
   @override
   void initState() {
@@ -36,7 +44,57 @@ class _AdminProfilePageState extends State<AdminProfilePage> {
       joinedDate: "14 Mar 2026",
       profileImageUrl: "",
       isVerified: true,
-      roles: const ["passenger", "admin"], // passenger, rider, admin
+      roles: const ["passenger", "rider", "admin"], // passenger, rider, admin
+    );
+  }
+
+  Future<void> _pickImage(ImageSource source) async {
+    final XFile? pickedFile = await _picker.pickImage(
+      source: source,
+      imageQuality: 75,
+    );
+
+    if (pickedFile != null) {
+      setState(() {
+        _selectedImage = File(pickedFile.path);
+      });
+    }
+  }
+
+  Future<void> _showImagePickerOptions() async {
+    await showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ListTile(
+                  leading: const Icon(Icons.photo_library_outlined),
+                  title: const Text("Choose from Gallery"),
+                  onTap: () async {
+                    Navigator.pop(context);
+                    await _pickImage(ImageSource.gallery);
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.camera_alt_outlined),
+                  title: const Text("Take a Photo"),
+                  onTap: () async {
+                    Navigator.pop(context);
+                    await _pickImage(ImageSource.camera);
+                  },
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -164,6 +222,122 @@ class _AdminProfilePageState extends State<AdminProfilePage> {
     );
   }
 
+  Future<void> _showSwitchRiderDialog() async {
+    await showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (dialogContext) {
+        return Dialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(22),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 22, 20, 18),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  height: 58,
+                  width: 58,
+                  decoration: BoxDecoration(
+                    color: AppColors.softPrimary,
+                    borderRadius: BorderRadius.circular(18),
+                  ),
+                  child: const Icon(
+                    Icons.two_wheeler_rounded,
+                    color: AppColors.primary,
+                    size: 30,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  "Switch to Rider Profile?",
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: AppColors.text,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                const Text(
+                  "You are about to switch from Admin to Rider mode.\n\n"
+                      "⚠️ Once you switch, you will not be able to return to the Admin profile directly.\n"
+                      "To access the Admin panel again, you will need to log out and log in again.\n\n"
+                      "Do you want to continue?",
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: AppColors.mutedText,
+                    fontSize: 13.5,
+                    height: 1.5,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () {
+                          Navigator.pop(dialogContext);
+                        },
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: AppColors.text,
+                          side: BorderSide(color: AppColors.border),
+                          padding: const EdgeInsets.symmetric(vertical: 13),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                        ),
+                        child: const Text(
+                          "Cancel",
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: () {
+                          Navigator.pop(dialogContext);
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const RiderProfile(),
+                            ),
+                          );
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primary,
+                          foregroundColor: Colors.white,
+                          elevation: 0,
+                          padding: const EdgeInsets.symmetric(vertical: 13),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                        ),
+                        child: const Text(
+                          "Confirm",
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -227,7 +401,7 @@ class _AdminProfilePageState extends State<AdminProfilePage> {
                   const SizedBox(height: 16),
                   _buildAccountInfoCard(profile),
                   const SizedBox(height: 16),
-                  _buildQuickActionsCard(),
+                  _buildQuickActionsCard(profile),
                   const SizedBox(height: 20),
                   SizedBox(
                     width: double.infinity,
@@ -300,7 +474,12 @@ class _AdminProfilePageState extends State<AdminProfilePage> {
                   color: Colors.white.withOpacity(0.18),
                 ),
                 child: ClipOval(
-                  child: profile.profileImageUrl.isNotEmpty
+                  child: _selectedImage != null
+                      ? Image.file(
+                    _selectedImage!,
+                    fit: BoxFit.cover,
+                  )
+                      : profile.profileImageUrl.isNotEmpty
                       ? Image.network(
                     profile.profileImageUrl,
                     fit: BoxFit.cover,
@@ -308,6 +487,29 @@ class _AdminProfilePageState extends State<AdminProfilePage> {
                         _defaultAvatar(profile.fullName),
                   )
                       : _defaultAvatar(profile.fullName),
+                ),
+              ),
+              Positioned(
+                right: 0,
+                top: 0,
+                child: GestureDetector(
+                  onTap: _showImagePickerOptions,
+                  child: Container(
+                    padding: const EdgeInsets.all(7),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: AppColors.primary,
+                        width: 1.5,
+                      ),
+                    ),
+                    child: const Icon(
+                      Icons.edit_rounded,
+                      size: 18,
+                      color: AppColors.primary,
+                    ),
+                  ),
                 ),
               ),
               if (profile.isVerified)
@@ -445,7 +647,7 @@ class _AdminProfilePageState extends State<AdminProfilePage> {
     );
   }
 
-  Widget _buildQuickActionsCard() {
+  Widget _buildQuickActionsCard(UserProfileModel profile) {
     return _sectionCard(
       title: "Quick Actions",
       icon: Icons.flash_on_outlined,
@@ -458,6 +660,17 @@ class _AdminProfilePageState extends State<AdminProfilePage> {
             onTap: _showSwitchPassengerDialog,
           ),
           _divider(),
+
+          if (_isRider(profile)) ...[
+            _actionTile(
+              icon: Icons.two_wheeler_rounded,
+              title: "Switch to as a Rider",
+              subtitle: "Open your rider profile to manage rides",
+              onTap: _showSwitchRiderDialog,
+            ),
+            _divider(),
+          ],
+
           _actionTile(
             icon: Icons.edit_outlined,
             title: "Edit Profile",
