@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'services/auth_api_service.dart';
 
 import 'app_colors.dart';
-import 'app_storage.dart';
 import 'map_picker_screen.dart';
 
 class SavedPlacesPage extends StatefulWidget {
@@ -23,6 +23,10 @@ class _SavedPlacesPageState extends State<SavedPlacesPage> {
   final TextEditingController homeController = TextEditingController();
   final TextEditingController campusController = TextEditingController();
   final TextEditingController hallController = TextEditingController();
+  final AuthApiService _authApiService = AuthApiService();
+
+  bool _isLoading = false;
+  bool _isSaving = false;
 
   @override
   void initState() {
@@ -31,31 +35,70 @@ class _SavedPlacesPageState extends State<SavedPlacesPage> {
   }
 
   Future<void> _loadPlaces() async {
-    final data = await AppStorage.getUserData();
+    setState(() {
+      _isLoading = true;
+    });
 
-    homeController.text = data['home'] ?? '';
-    campusController.text = data['campus'] ?? '';
-    hallController.text = data['hall'] ?? '';
+    try {
+      final response = await _authApiService.getSavedPlaces();
+      final data = response['data'] ?? {};
 
-    if (mounted) {
-      setState(() {});
+      homeController.text = data['home_address'] ?? '';
+      campusController.text = data['campus_address'] ?? '';
+      hallController.text = data['hostel_address'] ?? '';
+
+      if (!mounted) return;
+
+      setState(() {
+        _isLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        _isLoading = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString())),
+      );
     }
   }
 
   Future<void> _savePlaces() async {
-    await AppStorage.saveSavedPlaces(
-      home: homeController.text.trim(),
-      campus: campusController.text.trim(),
-      hall: hallController.text.trim(),
-    );
+    if (_isSaving) return;
 
-    if (!mounted) return;
+    setState(() {
+      _isSaving = true;
+    });
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Saved places updated'),
-      ),
-    );
+    try {
+      await _authApiService.updateSavedPlaces(
+        homeAddress: homeController.text.trim(),
+        campusAddress: campusController.text.trim(),
+        hostelAddress: hallController.text.trim(),
+      );
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Saved places updated'),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString())),
+      );
+    } finally {
+      if (!mounted) return;
+
+      setState(() {
+        _isSaving = false;
+      });
+    }
   }
 
   Future<void> _pickLocation({
@@ -149,7 +192,11 @@ class _SavedPlacesPageState extends State<SavedPlacesPage> {
           ),
         ),
       ),
-      body: Padding(
+      body: _isLoading
+          ? const Center(
+        child: CircularProgressIndicator(color: AppColors.primary),
+      )
+          : Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
@@ -175,7 +222,7 @@ class _SavedPlacesPageState extends State<SavedPlacesPage> {
               width: double.infinity,
               height: 54,
               child: ElevatedButton(
-                onPressed: _savePlaces,
+                onPressed: _isSaving ? null : _savePlaces,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.primary,
                   elevation: 0,
@@ -183,7 +230,16 @@ class _SavedPlacesPageState extends State<SavedPlacesPage> {
                     borderRadius: BorderRadius.circular(12),
                   ),
                 ),
-                child: const Text(
+                child: _isSaving
+                    ? const SizedBox(
+                  height: 22,
+                  width: 22,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2.4,
+                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                  ),
+                )
+                    : const Text(
                   'Save Places',
                   style: TextStyle(
                     color: Colors.white,

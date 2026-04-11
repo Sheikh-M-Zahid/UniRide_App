@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
+import 'services/auth_api_service.dart';
+
 import 'AddOfferPage.dart';
 import 'AllRiderPage.dart';
 import 'ActiveRiderPage.dart';
@@ -12,20 +14,6 @@ import 'SharingCaringHistory.dart';
 import 'AdminPaymentApproval.dart';
 import 'AdminReportsPage.dart';
 
-void main() {
-  runApp(MyApp());
-}
-
-class MyApp extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      home: AdminDashboard(),
-    );
-  }
-}
-
 class AdminDashboard extends StatefulWidget {
   @override
   State<AdminDashboard> createState() => _AdminDashboardState();
@@ -34,12 +22,27 @@ class AdminDashboard extends StatefulWidget {
 class _AdminDashboardState extends State<AdminDashboard>
     with SingleTickerProviderStateMixin {
   // ===== Database Ready Variables =====
+  final AuthApiService _authApiService = AuthApiService();
+
   int totalRide = 0;
   int totalUser = 0;
   int student = 0;
   int faculty = 0;
   int staff = 0;
 
+  int activeRiders = 0;
+  int inactiveRiders = 0;
+  int activeUsers = 0;
+  int inactiveUsers = 0;
+  int pendingPaymentRequests = 0;
+
+  String adminName = "Admin";
+  String adminEmail = "";
+  String? adminProfileImage;
+
+  List<Map<String, dynamic>> last5MonthsRide = [];
+
+  bool isLoading = true;
   String selectedPage = "Home";
   String selectedMood = "Normal Mood";
 
@@ -65,6 +68,57 @@ class _AdminDashboardState extends State<AdminDashboard>
     ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOut));
 
     _controller.forward();
+    _loadDashboard();
+  }
+
+  Future<void> _loadDashboard() async {
+    setState(() {
+      isLoading = true;
+    });
+
+    try {
+      final response = await _authApiService.getAdminDashboardSummary();
+      final data = response['data'] ?? {};
+
+      final admin = data['admin'] ?? {};
+      final stats = data['stats'] ?? {};
+      final activeRidersChart = data['activeRidersChart'] ?? {};
+      final activeUsersChart = data['activeUsersChart'] ?? {};
+      final monthlyRide = List<Map<String, dynamic>>.from(data['last5MonthsRide'] ?? []);
+
+      if (!mounted) return;
+
+      setState(() {
+        adminName = admin['name'] ?? 'Admin';
+        adminEmail = admin['email'] ?? '';
+        adminProfileImage = admin['profileImage'];
+
+        totalRide = stats['totalRide'] ?? 0;
+        totalUser = stats['totalUser'] ?? 0;
+        student = stats['student'] ?? 0;
+        faculty = stats['faculty'] ?? 0;
+        staff = stats['staff'] ?? 0;
+
+        activeRiders = activeRidersChart['active'] ?? 0;
+        inactiveRiders = activeRidersChart['inactive'] ?? 0;
+        activeUsers = activeUsersChart['active'] ?? 0;
+        inactiveUsers = activeUsersChart['inactive'] ?? 0;
+
+        pendingPaymentRequests = data['pendingPaymentRequests'] ?? 0;
+        last5MonthsRide = monthlyRide;
+        isLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        isLoading = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString())),
+      );
+    }
   }
 
   Future<void> _showMoodSelectionSheet() async {
@@ -342,9 +396,9 @@ class _AdminDashboardState extends State<AdminDashboard>
                       color: Colors.red,
                       borderRadius: BorderRadius.circular(10),
                     ),
-                    child: const Text(
-                      "3", // 🔥 backend থেকে unread count আসবে
-                      style: TextStyle(color: Colors.white, fontSize: 10),
+                    child: Text(
+                      pendingPaymentRequests.toString(),
+                      style: const TextStyle(color: Colors.white, fontSize: 10),
                     ),
                   ),
                 ],
@@ -470,14 +524,18 @@ class _AdminDashboardState extends State<AdminDashboard>
               child: Row(
                 children: [
                   Text(
-                    "Admin Name",
-                    style: TextStyle(color: Colors.white),
+                    adminName,
+                    style: const TextStyle(color: Colors.white),
                   ),
                   SizedBox(width: 10),
                   CircleAvatar(
                     radius: 18,
-                    backgroundImage:
-                    NetworkImage("https://i.pravatar.cc/150?img=3"),
+                    backgroundImage: (adminProfileImage != null && adminProfileImage!.isNotEmpty)
+                        ? NetworkImage(adminProfileImage!)
+                        : null,
+                    child: (adminProfileImage == null || adminProfileImage!.isEmpty)
+                        ? const Icon(Icons.person, color: Colors.white)
+                        : null,
                   ),
                 ],
               ),
@@ -532,6 +590,12 @@ class _AdminDashboardState extends State<AdminDashboard>
 
   // ================= HOME PAGE =================
   Widget homePage() {
+    if (isLoading) {
+      return const Center(
+        child: CircularProgressIndicator(color: Colors.cyanAccent),
+      );
+    }
+
     return SingleChildScrollView(
       padding: EdgeInsets.fromLTRB(20, 90, 20, 20),
       child: FadeTransition(
@@ -540,8 +604,8 @@ class _AdminDashboardState extends State<AdminDashboard>
           position: _slideAnimation,
           child: Column(
             children: [
-              chartBox("Active Riders", pieChart()),
-              chartBox("Active Users", pieChart()),
+              chartBox("Active Riders", pieChart(activeRiders, inactiveRiders)),
+              chartBox("Active Users", pieChart(activeUsers, inactiveUsers)),
               chartBox("Last 5 Months Ride", barChart()),
               SizedBox(height: 30),
               Row(
@@ -569,14 +633,37 @@ class _AdminDashboardState extends State<AdminDashboard>
   }
 
   // ================= Pie Chart =================
-  Widget pieChart() {
+  Widget pieChart(int active, int inactive) {
+    final total = active + inactive;
+
+    if (total == 0) {
+      return PieChart(
+        PieChartData(
+          sections: [
+            PieChartSectionData(
+              value: 1,
+              color: Colors.white24,
+              title: "0",
+              radius: 55,
+            ),
+          ],
+        ),
+      );
+    }
+
     return PieChart(
       PieChartData(
         sections: [
           PieChartSectionData(
-            value: 1,
+            value: active.toDouble(),
             color: Colors.cyanAccent,
-            title: "0",
+            title: active.toString(),
+            radius: 55,
+          ),
+          PieChartSectionData(
+            value: inactive.toDouble(),
+            color: Colors.redAccent,
+            title: inactive.toString(),
             radius: 55,
           ),
         ],
@@ -588,13 +675,46 @@ class _AdminDashboardState extends State<AdminDashboard>
   Widget barChart() {
     return BarChart(
       BarChartData(
-        barGroups: [
-          barData(0, 0),
-          barData(1, 0),
-          barData(2, 0),
-          barData(3, 0),
-          barData(4, 0),
-        ],
+        barGroups: List.generate(
+          last5MonthsRide.length,
+              (index) => barData(
+            index,
+            (last5MonthsRide[index]['count'] ?? 0).toDouble(),
+          ),
+        ),
+        titlesData: FlTitlesData(
+          bottomTitles: AxisTitles(
+            sideTitles: SideTitles(
+              showTitles: true,
+              getTitlesWidget: (value, meta) {
+                final index = value.toInt();
+                if (index < 0 || index >= last5MonthsRide.length) {
+                  return const SizedBox.shrink();
+                }
+
+                return Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Text(
+                    last5MonthsRide[index]['month'] ?? '',
+                    style: const TextStyle(
+                      color: Colors.white70,
+                      fontSize: 10,
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+          leftTitles: const AxisTitles(
+            sideTitles: SideTitles(showTitles: true),
+          ),
+          topTitles: const AxisTitles(
+            sideTitles: SideTitles(showTitles: false),
+          ),
+          rightTitles: const AxisTitles(
+            sideTitles: SideTitles(showTitles: false),
+          ),
+        ),
       ),
     );
   }

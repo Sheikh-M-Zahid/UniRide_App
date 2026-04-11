@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'services/auth_api_service.dart';
 
 class RideHistoryPage extends StatefulWidget {
   const RideHistoryPage({super.key});
@@ -8,59 +9,62 @@ class RideHistoryPage extends StatefulWidget {
 }
 
 class _RideHistoryPageState extends State<RideHistoryPage> {
+
+  @override
+  void initState() {
+    super.initState();
+    _loadHistory();
+  }
+
+  Future<void> _loadHistory() async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final response = await _authApiService.getRiderRideHistory();
+
+      final data = response['data'] ?? {};
+      final items = List<Map<String, dynamic>>.from(data['items'] ?? []);
+
+      if (!mounted) return;
+
+      setState(() {
+        allRides = items.map((e) {
+          return {
+            "pickupDate": DateTime.parse(e["pickupDate"]),
+            "passengerName": e["passengerName"] ?? "",
+            "phoneNumber": e["phoneNumber"] ?? "",
+            "pickupLocation": e["pickupLocation"] ?? "",
+            "destination": e["destination"] ?? "",
+            "distance": (e["distance"] ?? 0).toDouble(),
+            "earning": (e["earning"] ?? 0).toDouble(),
+          };
+        }).toList();
+
+        _isLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        _isLoading = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString())),
+      );
+    }
+  }
+
   final TextEditingController searchController = TextEditingController();
+  final AuthApiService _authApiService = AuthApiService();
+  bool _isLoading = false;
+
+  List<Map<String, dynamic>> allRides = [];
 
   String selectedRange = "Today";
   DateTime selectedMonth = DateTime.now();
-
-  /// Later এই list database থেকে আসবে
-  final List<Map<String, dynamic>> allRides = [
-    {
-      "pickupDate": DateTime.now(),
-      "passengerName": "Rahim",
-      "phoneNumber": "01712345678",
-      "pickupLocation": "Hall Gate",
-      "destination": "Main Gate",
-      "distance": 2.5,
-      "earning": 80.0,
-    },
-    {
-      "pickupDate": DateTime.now().subtract(const Duration(days: 1)),
-      "passengerName": "Karim",
-      "phoneNumber": "01899887766",
-      "pickupLocation": "Library",
-      "destination": "CSE Building",
-      "distance": 3.2,
-      "earning": 100.0,
-    },
-    {
-      "pickupDate": DateTime.now().subtract(const Duration(days: 3)),
-      "passengerName": "Nusrat",
-      "phoneNumber": "01911112222",
-      "pickupLocation": "Dormitory",
-      "destination": "Business Faculty",
-      "distance": 4.1,
-      "earning": 120.0,
-    },
-    {
-      "pickupDate": DateTime.now().subtract(const Duration(days: 15)),
-      "passengerName": "Sadia",
-      "phoneNumber": "01655554444",
-      "pickupLocation": "Admin Building",
-      "destination": "University Gate",
-      "distance": 1.8,
-      "earning": 60.0,
-    },
-    {
-      "pickupDate": DateTime.now().subtract(const Duration(days: 25)),
-      "passengerName": "Tamim",
-      "phoneNumber": "01577778888",
-      "pickupLocation": "Central Mosque",
-      "destination": "Hall Gate",
-      "distance": 2.9,
-      "earning": 90.0,
-    },
-  ];
 
   List<Map<String, dynamic>> get filteredRides {
     List<Map<String, dynamic>> rides = List.from(allRides);
@@ -290,7 +294,11 @@ class _RideHistoryPageState extends State<RideHistoryPage> {
 
           /// Ride History List
           Expanded(
-            child: rides.isEmpty
+            child: _isLoading
+                ? const Center(
+              child: CircularProgressIndicator(color: Color(0xFF14B8A6)),
+            )
+                : rides.isEmpty
                 ? const Center(
               child: Text(
                 "No ride history found",

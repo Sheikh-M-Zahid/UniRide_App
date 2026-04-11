@@ -145,7 +145,7 @@ class _SettingsPageState extends State<SettingsPage> {
       await GoogleSignIn.instance.signOut();
     } catch (_) {}
 
-    await AppStorage.clearSession();
+    await _authApiService.logout();
 
     if (!mounted) return;
 

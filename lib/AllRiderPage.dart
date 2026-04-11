@@ -1,6 +1,5 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
+import 'services/auth_api_service.dart';
 
 class AllRiderPage extends StatefulWidget {
   const AllRiderPage({super.key});
@@ -16,6 +15,7 @@ class _AllRiderPageState extends State<AllRiderPage>
   late Animation<Offset> _slideAnimation;
 
   final TextEditingController searchController = TextEditingController();
+  final AuthApiService _authApiService = AuthApiService();
 
   String selectedFilter = "All";
   bool isLoading = true;
@@ -28,7 +28,6 @@ class _AllRiderPageState extends State<AllRiderPage>
   // Android emulator হলে: http://10.0.2.2:5000
   // Localhost web হলে: http://localhost:5000
   // Real device হলে: তোমার PC/Laptop এর local IP দিতে হবে
-  static const String baseUrl = "http://10.0.2.2:5000/api";
 
   @override
   void initState() {
@@ -65,43 +64,41 @@ class _AllRiderPageState extends State<AllRiderPage>
     });
 
     try {
-      final response = await http.get(
-        Uri.parse("$baseUrl/riders"),
-        headers: {
-          "Content-Type": "application/json",
-        },
+      final response = await _authApiService.getAllRiders(
+        search: searchController.text.trim(),
+        filter: _mapFilter(selectedFilter),
       );
 
-      if (response.statusCode == 200) {
-        final decoded = jsonDecode(response.body);
+      final dataList = List<Map<String, dynamic>>.from(response['data'] ?? []);
+      final riders = dataList.map((e) => RiderModel.fromJson(e)).toList();
 
-        List dataList = [];
-
-        if (decoded is List) {
-          dataList = decoded;
-        } else if (decoded is Map<String, dynamic> && decoded["data"] is List) {
-          dataList = decoded["data"] as List;
-        } else {
-          throw Exception("Invalid API response format");
-        }
-
-        final riders =
-        dataList.map((e) => RiderModel.fromJson(e)).toList();
-
-        if (!mounted) return;
-        setState(() {
-          allRiders = riders;
-          isLoading = false;
-        });
-      } else {
-        throw Exception("Failed to load riders (${response.statusCode})");
-      }
+      if (!mounted) return;
+      setState(() {
+        allRiders = riders;
+        isLoading = false;
+      });
     } catch (e) {
       if (!mounted) return;
       setState(() {
         isLoading = false;
         errorMessage = e.toString();
       });
+    }
+  }
+
+  String _mapFilter(String value) {
+    switch (value) {
+      case "Due Payment":
+        return "due";
+      case "Active":
+        return "active";
+      case "Suspended":
+        return "suspended";
+      case "Recently Joined":
+        return "recent";
+      case "All":
+      default:
+        return "all";
     }
   }
 
@@ -114,49 +111,33 @@ class _AllRiderPageState extends State<AllRiderPage>
 
     try {
       final String newStatus =
-      rider.status.toLowerCase() == "suspended" ? "Active" : "Suspended";
+      rider.status.toLowerCase() == "suspended" ? "active" : "suspended";
 
-      final response = await http.patch(
-        Uri.parse("$baseUrl/riders/${rider.id}/status"),
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: jsonEncode({
-          "status": newStatus,
-        }),
+      await _authApiService.updateAdminRiderStatus(
+        riderId: rider.id,
+        status: newStatus,
       );
 
-      if (response.statusCode == 200) {
-        final index = allRiders.indexWhere((item) => item.id == rider.id);
+      final index = allRiders.indexWhere((item) => item.id == rider.id);
 
-        if (index != -1) {
-          final updatedRider = allRiders[index].copyWith(status: newStatus);
+      if (index != -1) {
+        final updatedRider = allRiders[index].copyWith(status: newStatus);
 
-          setState(() {
-            allRiders[index] = updatedRider;
-          });
-        }
-
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              newStatus == "Active"
-                  ? "Rider activated successfully"
-                  : "Rider suspended successfully",
-            ),
-          ),
-        );
-      } else {
-        String message = "Failed to update status";
-        try {
-          final decoded = jsonDecode(response.body);
-          if (decoded is Map<String, dynamic> && decoded["message"] != null) {
-            message = decoded["message"].toString();
-          }
-        } catch (_) {}
-        throw Exception(message);
+        setState(() {
+          allRiders[index] = updatedRider;
+        });
       }
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            newStatus == "active"
+                ? "Rider activated successfully"
+                : "Rider suspended successfully",
+          ),
+        ),
+      );
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -347,6 +328,7 @@ class _AllRiderPageState extends State<AllRiderPage>
                         setState(() {
                           selectedFilter = value;
                         });
+                        fetchRiders();
                       },
                     ),
 
@@ -615,7 +597,7 @@ class _AllRiderPageState extends State<AllRiderPage>
 }
 
 class RiderModel {
-  final int id;
+  final String id;
   final String name;
   final String phone;
   final String location;
@@ -635,7 +617,7 @@ class RiderModel {
 
   factory RiderModel.fromJson(Map<String, dynamic> json) {
     return RiderModel(
-      id: _parseInt(json["id"]),
+      id: (json["id"] ?? "").toString(),
       name: (json["name"] ?? "").toString(),
       phone: (json["phone"] ?? "").toString(),
       location: (json["location"] ?? "").toString(),
@@ -646,7 +628,7 @@ class RiderModel {
   }
 
   RiderModel copyWith({
-    int? id,
+    String? id,
     String? name,
     String? phone,
     String? location,
@@ -663,13 +645,6 @@ class RiderModel {
       due: due ?? this.due,
       joinedAt: joinedAt ?? this.joinedAt,
     );
-  }
-
-  static int _parseInt(dynamic value) {
-    if (value is int) return value;
-    if (value is String) return int.tryParse(value) ?? 0;
-    if (value is num) return value.toInt();
-    return 0;
   }
 
   static double _parseDouble(dynamic value) {

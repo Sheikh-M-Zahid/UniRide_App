@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'services/auth_api_service.dart';
+
 import 'UserProfile.dart';
 import 'RideSearch.dart';
 import 'UserOffer.dart';
@@ -19,10 +21,49 @@ class AppColors {
   static const Color mutedText = Color(0xFF6B7280);
 }
 
-class UniRideHomePage extends StatelessWidget {
+class UniRideHomePage extends StatefulWidget {
   const UniRideHomePage({super.key});
 
-  final int offerCount = 0;
+  @override
+  State<UniRideHomePage> createState() => _UniRideHomePageState();
+}
+
+class _UniRideHomePageState extends State<UniRideHomePage> {
+  final AuthApiService _authApiService = AuthApiService();
+
+  int offerCount = 0;
+  bool isLoadingHome = true;
+  static const String _googleApiKey = String.fromEnvironment(
+    'AIzaSyCF5mVtZ2woOu8P1Jwf-7IfzRw_QoPilCI',
+    defaultValue: '',
+  );
+
+  @override
+  void initState() {
+    super.initState();
+    _loadHomeSummary();
+  }
+
+  Future<void> _loadHomeSummary() async {
+    try {
+      final response = await _authApiService.getServicesSummaryPublic();
+      final data = response['data'] ?? {};
+
+      if (!mounted) return;
+
+      setState(() {
+        offerCount = data['hasAdminOffer'] == true ? 1 : 0;
+        isLoadingHome = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+
+      setState(() {
+        offerCount = 0;
+        isLoadingHome = false;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -73,7 +114,7 @@ class UniRideHomePage extends StatelessWidget {
                     );
                   },
                 ),
-                offerCount > 0
+                !isLoadingHome && offerCount > 0
                     ? Positioned(
                   right: 5,
                   top: 5,
@@ -114,6 +155,14 @@ class UniRideHomePage extends StatelessWidget {
             children: [
               GestureDetector(
                 onTap: () {
+                  if (_googleApiKey.isEmpty) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Google Maps API key is missing'),
+                      ),
+                    );
+                    return;
+                  }
                   Navigator.push(
                     context,
                     MaterialPageRoute(
@@ -169,6 +218,14 @@ class UniRideHomePage extends StatelessWidget {
                   children: [
                     GestureDetector(
                       onTap: () {
+                        if (_googleApiKey.isEmpty) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Google Maps API key is missing'),
+                            ),
+                          );
+                          return;
+                        }
                         Navigator.push(
                           context,
                           MaterialPageRoute(
@@ -246,7 +303,7 @@ class UniRideHomePage extends StatelessWidget {
           if (index == 1) {
             Navigator.pushReplacement(
               context,
-              MaterialPageRoute(builder: (context) => ServicesPage()),
+              MaterialPageRoute(builder: (context) => const ServicesPage()),
             );
           }
           if (index == 2) {
@@ -264,7 +321,7 @@ class UniRideHomePage extends StatelessWidget {
             );
           }
           if (index == 3) {
-            Navigator.push(
+            Navigator.pushReplacement(
               context,
               MaterialPageRoute(
                 builder: (context) => const OffersPage(),

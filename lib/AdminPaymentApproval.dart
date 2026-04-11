@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'services/auth_api_service.dart';
 
 enum PaymentStatus {
   pending,
@@ -7,20 +8,24 @@ enum PaymentStatus {
 }
 
 class PaymentRequestModel {
+  final String paymentDbId;
   final DateTime dateTime;
   final String userName;
   final String userType; // Passenger / Rider
   final String paymentMethod; // bKash / Nagad
   final String transactionId;
+  final double amount;
   PaymentStatus status;
   String? actionAdminName;
 
   PaymentRequestModel({
+    required this.paymentDbId,
     required this.dateTime,
     required this.userName,
     required this.userType,
     required this.paymentMethod,
     required this.transactionId,
+    required this.amount,
     required this.status,
     this.actionAdminName,
   });
@@ -35,51 +40,78 @@ class AdminPaymentApproval extends StatefulWidget {
 }
 
 class _AdminPaymentApprovalState extends State<AdminPaymentApproval> {
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchPayments();
+  }
+
   final TextEditingController _searchController = TextEditingController();
 
   String selectedFilter = 'All';
 
-  final List<PaymentRequestModel> _allPayments = [
-    PaymentRequestModel(
-      dateTime: DateTime.now().subtract(const Duration(minutes: 8)),
-      userName: 'Zahid Hossain',
-      userType: 'Passenger',
-      paymentMethod: 'bKash',
-      transactionId: 'BKX123456789',
-      status: PaymentStatus.pending,
-    ),
-    PaymentRequestModel(
-      dateTime: DateTime.now().subtract(const Duration(hours: 2)),
-      userName: 'Marjan Hasan',
-      userType: 'Rider',
-      paymentMethod: 'Nagad',
-      transactionId: 'NGD987654321',
-      status: PaymentStatus.pending,
-    ),
-    PaymentRequestModel(
-      dateTime: DateTime.now().subtract(const Duration(days: 1)),
-      userName: 'Sabbir Ahmed',
-      userType: 'Passenger',
-      paymentMethod: 'bKash',
-      transactionId: 'BKX564738291',
-      status: PaymentStatus.confirmed,
-      actionAdminName: 'Admin Zahid',
-    ),
-    PaymentRequestModel(
-      dateTime: DateTime.now().subtract(const Duration(days: 2)),
-      userName: 'Nusrat Jahan',
-      userType: 'Rider',
-      paymentMethod: 'Nagad',
-      transactionId: 'NGD456123789',
-      status: PaymentStatus.declined,
-      actionAdminName: 'Admin Zahid',
-    ),
-  ];
+  final AuthApiService _authApiService = AuthApiService();
+
+  List<PaymentRequestModel> _allPayments = [];
+
+  bool isLoading = true;
+  bool isActionLoading = false;
+  String? errorMessage;
+
+  int pendingCount = 0;
+  int confirmedCount = 0;
+  int declinedCount = 0;
 
   @override
   void dispose() {
     _searchController.dispose();
     super.dispose();
+  }
+
+  Future<void> _fetchPayments() async {
+    try {
+      setState(() {
+        isLoading = true;
+        errorMessage = null;
+      });
+
+      final data = await _authApiService.getPaymentRequests();
+
+      final summary = data['data']['summary'];
+      final items = data['data']['items'] as List;
+
+      setState(() {
+        pendingCount = summary['pending'] ?? 0;
+        confirmedCount = summary['confirmed'] ?? 0;
+        declinedCount = summary['declined'] ?? 0;
+
+        _allPayments = items.map((item) {
+          return PaymentRequestModel(
+            paymentDbId: item['paymentDbId'],
+            dateTime: DateTime.parse(item['dateTime']),
+            userName: item['userName'] ?? '',
+            userType: item['userType'] ?? '',
+            paymentMethod: item['paymentMethod'] ?? '',
+            transactionId: item['transactionId'] ?? '',
+            amount: (item['amount'] as num).toDouble(),
+            status: item['status'] == 'confirmed'
+                ? PaymentStatus.confirmed
+                : item['status'] == 'declined'
+                ? PaymentStatus.declined
+                : PaymentStatus.pending,
+            actionAdminName: item['actionAdminName'],
+          );
+        }).toList();
+
+        isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        errorMessage = e.toString();
+        isLoading = false;
+      });
+    }
   }
 
   List<PaymentRequestModel> get _filteredPayments {
@@ -103,43 +135,59 @@ class _AdminPaymentApprovalState extends State<AdminPaymentApproval> {
     return list;
   }
 
-  int get pendingCount =>
-      _allPayments.where((e) => e.status == PaymentStatus.pending).length;
-
-  int get confirmedCount =>
-      _allPayments.where((e) => e.status == PaymentStatus.confirmed).length;
-
-  int get declinedCount =>
-      _allPayments.where((e) => e.status == PaymentStatus.declined).length;
-
-  void _confirmPayment(PaymentRequestModel payment) {
-    setState(() {
-      payment.status = PaymentStatus.confirmed;
-      payment.actionAdminName = 'Admin Name';
-    });
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Payment confirmed successfully'),
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
+  Future<void> _confirmPayment(PaymentRequestModel payment) async {
+    setState(() => isActionLoading = true);
+    try {
+      await _authApiService.confirmPayment(paymentDbId: payment.paymentDbId);
+      setState(() {
+        payment.status = PaymentStatus.confirmed;
+        confirmedCount++;
+        pendingCount = (pendingCount - 1).clamp(0, pendingCount);
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Payment confirmed successfully'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.toString()),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } finally {
+      setState(() => isActionLoading = false);
+    }
   }
 
-  void _declinePayment(PaymentRequestModel payment) {
-    setState(() {
-      payment.status = PaymentStatus.declined;
-      payment.actionAdminName = 'Admin Name';
-    });
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Payment declined successfully'),
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
+  Future<void> _declinePayment(PaymentRequestModel payment) async {
+    setState(() => isActionLoading = true);
+    try {
+      await _authApiService.declinePayment(paymentDbId: payment.paymentDbId);
+      setState(() {
+        payment.status = PaymentStatus.declined;
+        declinedCount++;
+        pendingCount = (pendingCount - 1).clamp(0, pendingCount);
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Payment declined successfully'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.toString()),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } finally {
+      setState(() => isActionLoading = false);
+    }
   }
-
   String _formatDateTime(DateTime dt) {
     final day = dt.day.toString().padLeft(2, '0');
     final month = dt.month.toString().padLeft(2, '0');
@@ -325,7 +373,7 @@ class _AdminPaymentApprovalState extends State<AdminPaymentApproval> {
               children: [
                 Expanded(
                   child: OutlinedButton(
-                    onPressed: () => _declinePayment(payment),
+                    onPressed: isActionLoading ? null : () => _declinePayment(payment),
                     style: OutlinedButton.styleFrom(
                       side: const BorderSide(color: Color(0xFFEF4444)),
                       shape: RoundedRectangleBorder(
@@ -345,7 +393,7 @@ class _AdminPaymentApprovalState extends State<AdminPaymentApproval> {
                 const SizedBox(width: 12),
                 Expanded(
                   child: ElevatedButton(
-                    onPressed: () => _confirmPayment(payment),
+                    onPressed: isActionLoading ? null : () => _confirmPayment(payment),
                     style: ElevatedButton.styleFrom(
                       elevation: 0,
                       backgroundColor: const Color(0xFF14B8A6),
@@ -405,6 +453,13 @@ class _AdminPaymentApprovalState extends State<AdminPaymentApproval> {
   @override
   Widget build(BuildContext context) {
     final payments = _filteredPayments;
+
+    if (isLoading) {
+      return const Scaffold(
+        backgroundColor: Color(0xFFF9FAFB),
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
 
     return Scaffold(
       backgroundColor: const Color(0xFFF9FAFB),

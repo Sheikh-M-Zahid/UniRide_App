@@ -12,14 +12,35 @@ class HelpSupportPage extends StatefulWidget {
 class _HelpSupportPageState extends State<HelpSupportPage> {
   final TextEditingController messageController = TextEditingController();
   final AuthApiService _authApiService = AuthApiService();
+  bool _isSubmitting = false;
 
   Future<void> _submitHelp() async {
     final message = messageController.text.trim();
 
-    if (message.isEmpty) return;
+    if (message.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please write your problem')),
+      );
+      return;
+    }
+
+    if (message.length < 5) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Message must be at least 5 characters'),
+        ),
+      );
+      return;
+    }
+
+    if (_isSubmitting) return;
+
+    setState(() {
+      _isSubmitting = true;
+    });
 
     try {
-      await _authApiService.submitHelpRequest(message: message);
+      await _authApiService.submitHelpRequestpage(message: message);
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -31,6 +52,11 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(e.toString())),
       );
+    } finally {
+      if (!mounted) return;
+      setState(() {
+        _isSubmitting = false;
+      });
     }
   }
 
@@ -74,11 +100,20 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
               width: double.infinity,
               height: 54,
               child: ElevatedButton(
-                onPressed: _submitHelp,
+                onPressed: _isSubmitting ? null : _submitHelp,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.primary,
                 ),
-                child: const Text(
+                child: _isSubmitting
+                    ? const SizedBox(
+                  height: 22,
+                  width: 22,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2.4,
+                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                  ),
+                )
+                    : const Text(
                   'Submit',
                   style: TextStyle(color: Colors.white),
                 ),
