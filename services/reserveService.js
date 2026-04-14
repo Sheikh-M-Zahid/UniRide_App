@@ -334,15 +334,13 @@ const getUpcomingReserve = async (userId) => {
         r.ride_id,
         r.start_location,
         r.destination,
-        rp.fare,
-        rp.confirmed,
-        r.status AS ride_status,
+        r.total_fare   AS fare,
+        NULL           AS confirmed,
+        r.status       AS ride_status,
         r.created_at
-     FROM ride_participants rp
-     INNER JOIN rides r
-       ON rp.ride_id = r.ride_id
-     WHERE rp.passenger_id = $1
-       AND r.status IN ('active', 'processing', 'reserve')
+     FROM rides r
+     WHERE r.rider_id = $1
+       AND r.status = 'reserve'
      ORDER BY r.created_at DESC`,
     [userId]
   );
