@@ -1,13 +1,48 @@
 const rideDb = require('../config/rideDb');
 
 const createSession = async (userId, payload) => {
-  const { start_location, destination, status } = payload;
+  const {
+    start_location,
+    destination,
+    status,
+    trip_date = null,
+    trip_time = null,
+    vehicle_type = null,
+    vehicle_number = null,
+    total_seats = null,
+    preferred_gender = null,
+    fare_per_person = null,
+  } = payload;
 
   const result = await rideDb.query(
-    `INSERT INTO company_sharing_sessions (created_by, start_location, destination, status)
-     VALUES ($1, $2, $3, $4)
-     RETURNING *`,
-    [userId, start_location, destination, status || 'Active']
+    `INSERT INTO company_sharing_sessions (
+      created_by,
+      start_location,
+      destination,
+      status,
+      trip_date,
+      trip_time,
+      vehicle_type,
+      vehicle_number,
+      total_seats,
+      preferred_gender,
+      fare_per_person
+    )
+    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+    RETURNING *`,
+    [
+      userId,
+      start_location,
+      destination,
+      status || 'Active',
+      trip_date,
+      trip_time,
+      vehicle_type,
+      vehicle_number,
+      total_seats,
+      preferred_gender,
+      fare_per_person,
+    ]
   );
 
   return result.rows[0];
