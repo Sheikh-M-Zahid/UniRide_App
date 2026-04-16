@@ -36,7 +36,6 @@ const riderVehicleSelectionRoutes = require('./routes/riderVehicleSelectionRoute
 const riderBikeRoutes = require('./routes/riderBikeRoutes');
 const riderCarRoutes = require('./routes/riderCarRoutes');
 const adminDashboardRoutes = require('./routes/adminDashboardRoutes');
-<<<<<<< HEAD
 const adminPaymentApprovalRoutes = require('./routes/adminPaymentApprovalRoutes');
 const adminProfileRoutes = require('./routes/adminProfileRoutes');
 const adminReportsRoutes = require('./routes/adminReportsRoutes');
@@ -46,12 +45,14 @@ const adminSharingCaringHistoryRoutes = require('./routes/adminSharingCaringHist
 const adminTopLocationRoutes = require('./routes/adminTopLocationRoutes');
 const appStatsRoutes = require('./routes/appStatsRoutes');
 const rideOptionsRoutes = require('./routes/rideOptionsRoutes');
-const rideOptionsRoutes = require('./routes/rideOptionsRoutes');
 const rideAvailabilityAlertRoutes = require('./routes/rideAvailabilityAlertRoutes');
 //const helpRoutes = require('./routes/helpRoutes');
-=======
 const riderDeliveryRoutes = require('./routes/riderDeliveryRoutes');
->>>>>>> 053ecf378c16e92cd18394403e178a5ccd89e454
+const activeRideSetupRoutes = require('./routes/activeRideSetupRoutes');
+const securityRoutes = require('./routes/securityRoutes');
+const privacyRoutes = require('./routes/privacyRoutes');
+const notificationRoutes = require('./routes/notificationRoutes');
+const mapsRoutes = require('./routes/mapsRoutes');
 
 const errorMiddleware = require('./middlewares/errorMiddleware');
 
@@ -102,7 +103,6 @@ app.use('/api/rider/vehicle-selection', riderVehicleSelectionRoutes);
 app.use('/api/rider/bike', riderBikeRoutes);
 app.use('/api/rider/car', riderCarRoutes);
 app.use('/api/admin/dashboard', adminDashboardRoutes);
-<<<<<<< HEAD
 app.use('/api/admin/payment-approvals', adminPaymentApprovalRoutes);
 app.use('/api/admin/profile', adminProfileRoutes);
 app.use('/api/admin/reports', adminReportsRoutes);
@@ -112,13 +112,15 @@ app.use('/api/admin/sharing-caring-history', adminSharingCaringHistoryRoutes);
 app.use('/api/admin/top-locations', adminTopLocationRoutes);
 app.use('/api/admin/app-stats', appStatsRoutes);
 app.use('/api/rides/options', rideOptionsRoutes);
-app.use('/api/rides/options', rideOptionsRoutes);
 app.use('/api/rides/notify-availability', rideAvailabilityAlertRoutes);
 //app.use('/api/help', helpRoutes);
-
-=======
 app.use('/api/rider/delivery', riderDeliveryRoutes);
->>>>>>> 053ecf378c16e92cd18394403e178a5ccd89e454
+app.use('/api/active-ride', activeRideSetupRoutes);
+app.use('/api/security', securityRoutes);
+app.use('/api/privacy-data', privacyRoutes);
+app.use('/api/notifications', notificationRoutes);
+app.use('/api/maps', mapsRoutes);
+
 app.use(errorMiddleware);
 
 module.exports = app;
