@@ -1,7 +1,10 @@
 const rideDb = require('../config/rideDb');
 
+// ==============================
+// CREATE SESSION (merged version)
+// ==============================
 const createSession = async (payload, user = null) => {
-  const userId = user?.userId || user?.user_id || null;
+  const userId = user?.userId || user?.user_id;
 
   if (!userId) {
     throw new Error('Unauthorized.');
@@ -19,55 +22,19 @@ const createSession = async (payload, user = null) => {
     fare_per_person,
   } = payload;
 
-  if (!pickup_location) {
-    throw new Error('Pickup location is required.');
-  }
-
-  if (!destination_location) {
-    throw new Error('Destination is required.');
-  }
-
-  if (!trip_date) {
-    throw new Error('Trip date is required.');
-  }
-
-  if (!trip_time) {
-    throw new Error('Trip time is required.');
-  }
-
-  if (!vehicle_type) {
-    throw new Error('Vehicle type is required.');
+  if (!pickup_location || !destination_location) {
+    throw new Error('Pickup and destination are required.');
   }
 
   const seatCount = Number(available_seats);
   const fare = Number(fare_per_person);
 
-  if (Number.isNaN(seatCount) || seatCount <= 0) {
-    throw new Error('Available seats must be greater than 0.');
+  if (seatCount <= 0) {
+    throw new Error('Seats must be greater than 0.');
   }
 
-  if (Number.isNaN(fare) || fare <= 0) {
-    throw new Error('Fare per person must be greater than 0.');
-  }
-
-  const validVehicles = ['Private Car', 'CNG', 'Rickshaw'];
-  if (!validVehicles.includes(vehicle_type)) {
-    throw new Error('Invalid vehicle type.');
-  }
-
-  const validGender = ['Male', 'Female', 'Any'];
-  if (preferred_gender && !validGender.includes(preferred_gender)) {
-    throw new Error('Invalid gender preference.');
-  }
-
-  const today = new Date();
-  const selectedDate = new Date(trip_date);
-
-  today.setHours(0, 0, 0, 0);
-  selectedDate.setHours(0, 0, 0, 0);
-
-  if (selectedDate < today) {
-    throw new Error('Trip date cannot be in the past.');
+  if (fare <= 0) {
+    throw new Error('Fare must be greater than 0.');
   }
 
   const result = await rideDb.query(
@@ -84,8 +51,8 @@ const createSession = async (payload, user = null) => {
       preferred_gender,
       fare_per_person
     )
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-    RETURNING session_id, status, trip_date, trip_time`,
+    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+    RETURNING *`,
     [
       userId,
       pickup_location,
@@ -104,6 +71,9 @@ const createSession = async (payload, user = null) => {
   return result.rows[0];
 };
 
+// ==============================
+// ACTIVE SESSIONS
+// ==============================
 const getActiveSessions = async (user = null, queryParams = {}) => {
   const { search } = queryParams;
 
@@ -120,162 +90,120 @@ const getActiveSessions = async (user = null, queryParams = {}) => {
       COUNT(cp.user_id) AS joined_members,
       cs.fare_per_person
     FROM company_sharing_sessions cs
-    LEFT JOIN company_participants cp
-      ON cs.session_id = cp.session_id
-    LEFT JOIN users u
-      ON cs.created_by = u.user_id
-    WHERE
-      cs.status IN ('scheduled', 'active')
-      AND cs.trip_date >= CURRENT_DATE
+    LEFT JOIN company_participants cp ON cs.session_id = cp.session_id
+    LEFT JOIN users u ON cs.created_by = u.user_id
+    WHERE cs.status IN ('scheduled','active')
   `;
 
   const values = [];
-  let index = 1;
 
   if (search) {
     query += `
       AND (
-        LOWER(cs.start_location) LIKE LOWER($${index})
-        OR LOWER(cs.destination) LIKE LOWER($${index})
-        OR LOWER(u.first_name) LIKE LOWER($${index})
-        OR LOWER(u.last_name) LIKE LOWER($${index})
+        LOWER(cs.start_location) LIKE LOWER($1)
+        OR LOWER(cs.destination) LIKE LOWER($1)
       )
     `;
     values.push(`%${search}%`);
-    index++;
   }
 
   query += `
     GROUP BY cs.session_id, u.user_id
     HAVING (cs.total_seats - COUNT(cp.user_id)) > 0
-    ORDER BY cs.trip_date ASC, cs.trip_time ASC
+    ORDER BY cs.trip_date ASC
   `;
 
   const result = await rideDb.query(query, values);
-
-  return result.rows.map((row) => ({
-    session_id: row.session_id,
-    creator_name: row.creator_name,
-    pickup_location: row.pickup_location,
-    destination_location: row.destination_location,
-    trip_date: row.trip_date,
-    trip_time: row.trip_time,
-    vehicle_type: row.vehicle_type,
-    available_seats: Number(row.available_seats),
-    joined_members: Number(row.joined_members),
-    fare_per_person: Number(row.fare_per_person),
-  }));
+  return result.rows;
 };
 
-const getHistory = async (user = null, queryParams = {}) => {
-  const userId = user?.userId || user?.user_id || null;
+// ==============================
+// HISTORY
+// ==============================
+const getHistory = async (user = null) => {
+  const userId = user?.userId || user?.user_id;
 
-  if (!userId) {
-    throw new Error('Unauthorized.');
-  }
+  const result = await rideDb.query(
+    `SELECT * FROM company_sharing_sessions
+     WHERE created_by = $1
+     ORDER BY trip_date DESC`,
+    [userId]
+  );
 
-  const { search, status, safety } = queryParams;
-
-  let query = `
-    SELECT
-      cs.session_id AS trip_id,
-      u.first_name || ' ' || u.last_name AS creator_name,
-      u.phone AS creator_phone,
-      u.profile_picture AS creator_photo_url,
-      cs.vehicle_type,
-      cs.start_location AS pickup_location,
-      cs.destination AS destination_location,
-      cs.trip_date,
-      cs.trip_time,
-      cs.total_seats,
-      COUNT(cp.user_id) AS joined_members,
-      cs.total_cost,
-      cs.per_seat_cost,
-      cs.fare_per_person,
-      cs.status AS trip_status,
-      cs.has_safety_flag,
-      cs.safety_note,
-      u.university_email
-    FROM company_sharing_sessions cs
-    LEFT JOIN company_participants cp
-      ON cs.session_id = cp.session_id
-    LEFT JOIN users u
-      ON cs.created_by = u.user_id
-    WHERE cs.created_by = $1
-  `;
-
-  const values = [userId];
-  let index = 2;
-
-  if (search) {
-    query += `
-      AND (
-        LOWER(cs.start_location) LIKE LOWER($${index})
-        OR LOWER(cs.destination) LIKE LOWER($${index})
-        OR LOWER(u.first_name) LIKE LOWER($${index})
-        OR LOWER(u.last_name) LIKE LOWER($${index})
-      )
-    `;
-    values.push(`%${search}%`);
-    index++;
-  }
-
-  if (status && status !== 'all') {
-    query += ` AND LOWER(cs.status) = LOWER($${index})`;
-    values.push(status);
-    index++;
-  }
-
-  if (safety && safety !== 'all') {
-    if (safety === 'safe') {
-      query += ` AND cs.has_safety_flag = FALSE`;
-    } else if (safety === 'flagged') {
-      query += ` AND cs.has_safety_flag = TRUE`;
-    }
-  }
-
-  query += `
-    GROUP BY cs.session_id, u.user_id
-    ORDER BY cs.trip_date DESC, cs.trip_time DESC
-  `;
-
-  const result = await rideDb.query(query, values);
-
-  return result.rows.map((row) => ({
-    trip_id: `SC-${String(row.trip_id).substring(0, 6)}`,
-    creator_name: row.creator_name,
-    creator_type: getOccupation(row.university_email),
-    creator_phone: row.creator_phone,
-    creator_photo_url: row.creator_photo_url || '',
-    vehicle_type: row.vehicle_type || 'Rental Car',
-    pickup_location: row.pickup_location,
-    destination_location: row.destination_location,
-    trip_date: row.trip_date,
-    trip_time: row.trip_time,
-    total_seats: Number(row.total_seats),
-    joined_members: Number(row.joined_members),
-    total_cost: Number(row.total_cost || 0),
-    per_seat_cost: Number(row.per_seat_cost || 0),
-    fare_per_person: Number(row.fare_per_person || 0),
-    trip_status: row.trip_status,
-    has_safety_flag: row.has_safety_flag,
-    safety_note: row.safety_note || '',
-  }));
+  return result.rows;
 };
 
-const getOccupation = (email) => {
-  if (!email) return 'Student';
+// ==============================
+// JOIN SESSION
+// ==============================
+const joinSession = async (sessionId, userId) => {
+  const existing = await rideDb.query(
+    `SELECT id FROM company_participants WHERE session_id=$1 AND user_id=$2`,
+    [sessionId, userId]
+  );
 
-  const normalizedEmail = String(email).toLowerCase();
+  if (existing.rowCount > 0) {
+    throw new Error('Already joined.');
+  }
 
-  if (normalizedEmail.includes('@std')) return 'Student';
-  if (normalizedEmail.includes('@ewubd.edu')) return 'Faculty';
+  const result = await rideDb.query(
+    `INSERT INTO company_participants (session_id,user_id,confirmed)
+     VALUES ($1,$2,false)
+     RETURNING *`,
+    [sessionId, userId]
+  );
 
-  return 'Student';
+  return result.rows[0];
 };
 
+// ==============================
+// LIST SESSIONS
+// ==============================
+const listSessions = async () => {
+  const result = await rideDb.query(
+    `SELECT cs.*, u.first_name, u.last_name
+     FROM company_sharing_sessions cs
+     JOIN users u ON cs.created_by=u.user_id
+     ORDER BY cs.created_at DESC`
+  );
+
+  return result.rows;
+};
+
+// ==============================
+// CHAT
+// ==============================
+const sendCompanyChatMessage = async (sessionId, senderId, message) => {
+  const result = await rideDb.query(
+    `INSERT INTO company_chats(session_id,sender_id,message_text)
+     VALUES ($1,$2,$3)
+     RETURNING *`,
+    [sessionId, senderId, message]
+  );
+
+  return result.rows[0];
+};
+
+const fetchCompanyChatMessages = async (sessionId) => {
+  const result = await rideDb.query(
+    `SELECT cc.*, u.first_name, u.last_name
+     FROM company_chats cc
+     JOIN users u ON cc.sender_id=u.user_id
+     WHERE cc.session_id=$1
+     ORDER BY cc.sent_at ASC`,
+    [sessionId]
+  );
+
+  return result.rows;
+};
+
+// ==============================
 module.exports = {
   createSession,
   getActiveSessions,
   getHistory,
+  joinSession,
+  listSessions,
+  sendCompanyChatMessage,
+  fetchCompanyChatMessages,
 };
