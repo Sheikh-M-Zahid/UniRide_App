@@ -1,6 +1,8 @@
 import 'dart:io';
 import 'package:image_picker/image_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'services/auth_api_service.dart';
 import 'LogIn.dart';
 import 'UserProfile.dart';
 import 'RiderProfile.dart';
@@ -13,6 +15,7 @@ class AdminProfilePage extends StatefulWidget {
 }
 
 class _AdminProfilePageState extends State<AdminProfilePage> {
+  final AuthApiService _authApiService = AuthApiService();
   late Future<UserProfileModel> _profileFuture;
   final ImagePicker _picker = ImagePicker();
   File? _selectedImage;
@@ -27,24 +30,33 @@ class _AdminProfilePageState extends State<AdminProfilePage> {
   }
 
   Future<UserProfileModel> _fetchUserProfile() async {
-    await Future.delayed(const Duration(milliseconds: 800));
+    final response = await _authApiService.getAdminProfile();
+    final data = Map<String, dynamic>.from(response['data'] ?? {});
 
-    // ================= BACKEND READY =================
-    // Later replace this whole method with:
-    // final response = await yourApiService.getUserProfile();
-    // return UserProfileModel.fromJson(response.data);
+    String joinedDate = '';
+    final rawJoinedDate = data['joinedDate'];
+
+    if (rawJoinedDate != null) {
+      final parsedDate = DateTime.tryParse(rawJoinedDate.toString());
+      if (parsedDate != null) {
+        final day = parsedDate.day.toString().padLeft(2, '0');
+        final month = _monthName(parsedDate.month);
+        final year = parsedDate.year.toString();
+        joinedDate = '$day $month $year';
+      }
+    }
 
     return UserProfileModel(
-      id: "usr_1001",
-      fullName: "Admin Name",
-      email: "admin@uniride.com",
-      phone: "+8801XXXXXXXXX",
-      userType: "Student", // Student / Faculty / Staff
-      gender: "Male",
-      joinedDate: "14 Mar 2026",
-      profileImageUrl: "",
-      isVerified: true,
-      roles: const ["passenger", "rider", "admin"], // passenger, rider, admin
+      id: (data['id'] ?? '').toString(),
+      fullName: (data['fullName'] ?? '').toString(),
+      email: (data['email'] ?? '').toString(),
+      phone: (data['phone'] ?? '').toString(),
+      userType: (data['userType'] ?? '').toString(),
+      gender: (data['gender'] ?? '').toString(),
+      joinedDate: joinedDate,
+      profileImageUrl: (data['profileImageUrl'] ?? '').toString(),
+      isVerified: data['isVerified'] == true,
+      roles: List<String>.from(data['roles'] ?? const []),
     );
   }
 
@@ -55,9 +67,25 @@ class _AdminProfilePageState extends State<AdminProfilePage> {
     );
 
     if (pickedFile != null) {
+      final imageFile = File(pickedFile.path);
+
       setState(() {
-        _selectedImage = File(pickedFile.path);
+        _selectedImage = imageFile;
       });
+
+      try {
+        await _authApiService.updateAdminProfileImage(imageFile);
+
+        if (!mounted) return;
+        setState(() {
+          _profileFuture = _fetchUserProfile();
+        });
+      } catch (e) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to upload image: $e')),
+        );
+      }
     }
   }
 
@@ -220,6 +248,37 @@ class _AdminProfilePageState extends State<AdminProfilePage> {
         );
       },
     );
+  }
+
+  String _monthName(int month) {
+    switch (month) {
+      case 1:
+        return 'Jan';
+      case 2:
+        return 'Feb';
+      case 3:
+        return 'Mar';
+      case 4:
+        return 'Apr';
+      case 5:
+        return 'May';
+      case 6:
+        return 'Jun';
+      case 7:
+        return 'Jul';
+      case 8:
+        return 'Aug';
+      case 9:
+        return 'Sep';
+      case 10:
+        return 'Oct';
+      case 11:
+        return 'Nov';
+      case 12:
+        return 'Dec';
+      default:
+        return '';
+    }
   }
 
   Future<void> _showSwitchRiderDialog() async {
@@ -406,7 +465,14 @@ class _AdminProfilePageState extends State<AdminProfilePage> {
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton.icon(
-                      onPressed: () {
+                      onPressed: () async {
+                        final prefs = await SharedPreferences.getInstance();
+                        await prefs.remove('token');
+                        await prefs.remove('is_logged_in');
+                        await prefs.remove('is_admin');
+
+                        if (!mounted) return;
+
                         Navigator.pushAndRemoveUntil(
                           context,
                           MaterialPageRoute(

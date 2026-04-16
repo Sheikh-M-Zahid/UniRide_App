@@ -1,6 +1,5 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
+import 'services/auth_api_service.dart';
 
 class AllPassengersPage extends StatefulWidget {
   const AllPassengersPage({super.key});
@@ -11,6 +10,7 @@ class AllPassengersPage extends StatefulWidget {
 
 class _AllPassengersPageState extends State<AllPassengersPage>
     with SingleTickerProviderStateMixin {
+  final AuthApiService _authApiService = AuthApiService();
   late AnimationController _controller;
   late Animation<double> _fadeAnimation;
   late Animation<Offset> _slideAnimation;
@@ -27,7 +27,6 @@ class _AllPassengersPageState extends State<AllPassengersPage>
   // Android Emulator -> http://10.0.2.2:5000
   // Flutter Web -> http://localhost:5000
   // Real Device -> তোমার PC এর local IP
-  static const String baseUrl = "http://10.0.2.2:5000/api";
 
   @override
   void initState() {
@@ -64,37 +63,22 @@ class _AllPassengersPageState extends State<AllPassengersPage>
     });
 
     try {
-      final response = await http.get(
-        Uri.parse("$baseUrl/passengers"),
-        headers: {
-          "Content-Type": "application/json",
-        },
+      final response = await _authApiService.getAllPassengers(
+        search: searchController.text.trim(),
+        filter: _mapFilter(selectedFilter),
       );
 
-      if (response.statusCode == 200) {
-        final decoded = jsonDecode(response.body);
+      final data = Map<String, dynamic>.from(response['data'] ?? {});
+      final dataList = List<Map<String, dynamic>>.from(data['items'] ?? const []);
 
-        List dataList = [];
+      final passengers =
+      dataList.map((e) => PassengerModel.fromJson(e)).toList();
 
-        if (decoded is List) {
-          dataList = decoded;
-        } else if (decoded is Map<String, dynamic> && decoded["data"] is List) {
-          dataList = decoded["data"] as List;
-        } else {
-          throw Exception("Invalid API response format");
-        }
-
-        final passengers =
-        dataList.map((e) => PassengerModel.fromJson(e)).toList();
-
-        if (!mounted) return;
-        setState(() {
-          allPassengers = passengers;
-          isLoading = false;
-        });
-      } else {
-        throw Exception("Failed to load passengers (${response.statusCode})");
-      }
+      if (!mounted) return;
+      setState(() {
+        allPassengers = passengers;
+        isLoading = false;
+      });
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -104,26 +88,40 @@ class _AllPassengersPageState extends State<AllPassengersPage>
     }
   }
 
-  List<PassengerModel> get filteredPassengers {
-    final query = searchController.text.trim().toLowerCase();
-
-    return allPassengers.where((passenger) {
-      final bool searchMatch =
-          query.isEmpty || passenger.name.toLowerCase().contains(query);
-
-      bool filterMatch = true;
-
-      if (selectedFilter == "Student") {
-        filterMatch = passenger.userType.toLowerCase() == "student";
-      } else if (selectedFilter == "Faculty") {
-        filterMatch = passenger.userType.toLowerCase() == "faculty";
-      } else if (selectedFilter == "Staff") {
-        filterMatch = passenger.userType.toLowerCase() == "staff";
-      }
-
-      return searchMatch && filterMatch;
-    }).toList();
+  String _mapFilter(String value) {
+    switch (value) {
+      case "Student":
+        return "student";
+      case "Faculty":
+        return "faculty";
+      case "Staff":
+        return "staff";
+      case "All":
+      default:
+        return "all";
+    }
   }
+
+  // List<PassengerModel> get filteredPassengers {
+  //   final query = searchController.text.trim().toLowerCase();
+  //
+  //   return allPassengers.where((passenger) {
+  //     final bool searchMatch =
+  //         query.isEmpty || passenger.name.toLowerCase().contains(query);
+  //
+  //     bool filterMatch = true;
+  //
+  //     if (selectedFilter == "Student") {
+  //       filterMatch = passenger.userType.toLowerCase() == "student";
+  //     } else if (selectedFilter == "Faculty") {
+  //       filterMatch = passenger.userType.toLowerCase() == "faculty";
+  //     } else if (selectedFilter == "Staff") {
+  //       filterMatch = passenger.userType.toLowerCase() == "staff";
+  //     }
+  //
+  //     return searchMatch && filterMatch;
+  //   }).toList();
+  // }
 
   Color userTypeColor(String userType) {
     switch (userType.toLowerCase()) {
@@ -155,7 +153,7 @@ class _AllPassengersPageState extends State<AllPassengersPage>
 
   @override
   Widget build(BuildContext context) {
-    final passengers = filteredPassengers;
+    final passengers = allPassengers;
 
     return Scaffold(
       backgroundColor: const Color(0xFFF9FAFB),
@@ -276,6 +274,7 @@ class _AllPassengersPageState extends State<AllPassengersPage>
                         setState(() {
                           selectedFilter = value;
                         });
+                        fetchPassengers();
                       },
                     ),
 
@@ -554,7 +553,7 @@ class _AllPassengersPageState extends State<AllPassengersPage>
 }
 
 class PassengerModel {
-  final int id;
+  final String id;
   final String name;
   final String phone;
   final String email;
@@ -576,7 +575,7 @@ class PassengerModel {
 
   factory PassengerModel.fromJson(Map<String, dynamic> json) {
     return PassengerModel(
-      id: _parseInt(json["id"]),
+      id: (json["id"] ?? "").toString(),
       name: (json["name"] ?? "").toString(),
       phone: (json["phone"] ?? "").toString(),
       email: (json["email"] ?? "").toString(),
@@ -585,13 +584,6 @@ class PassengerModel {
       isRider: _parseBool(json["is_rider"] ?? json["isRider"]),
       joinedAt: _parseDate(json["joined_at"] ?? json["joinedAt"]),
     );
-  }
-
-  static int _parseInt(dynamic value) {
-    if (value is int) return value;
-    if (value is String) return int.tryParse(value) ?? 0;
-    if (value is num) return value.toInt();
-    return 0;
   }
 
   static bool _parseBool(dynamic value) {

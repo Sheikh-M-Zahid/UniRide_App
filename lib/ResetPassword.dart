@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'LogIn.dart'; // তোমার login page file name যদি আলাদা হয়, এটা change করবে
+import 'LogIn.dart';
 import 'services/auth_api_service.dart';
 
 class ResetPasswordPage extends StatefulWidget {
@@ -71,7 +71,7 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(e.toString()),
+          content: Text(e.toString().replaceFirst('Exception: ', ''))
         ),
       );
     }

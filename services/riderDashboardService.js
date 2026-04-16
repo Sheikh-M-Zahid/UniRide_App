@@ -113,6 +113,24 @@ const getRiderDashboard = async ({ riderId }) => {
   };
 };
 
+const updateRiderStatus = async ({ riderId, isOnline }) => {
+  const query = `
+    INSERT INTO rider_availability (rider_id, is_active)
+    VALUES ($1, $2)
+    ON CONFLICT (rider_id)
+    DO UPDATE SET is_active = EXCLUDED.is_active
+    RETURNING rider_id, is_active
+  `;
+
+  const { rows } = await rideDb.query(query, [riderId, isOnline]);
+
+  return {
+    riderId: rows[0].rider_id,
+    isOnline: rows[0].is_active,
+  };
+};
+
 module.exports = {
   getRiderDashboard,
+  updateRiderStatus,
 };

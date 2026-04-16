@@ -3,9 +3,11 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
 
+import 'services/auth_api_service.dart';
+
 import 'map_picker_screen.dart';
 import 'RideOptions.dart' show RideOptionsPage;
-import 'RideModels.dart' show PickedLocation;
+import 'RideModels.dart' show PickedLocation, RideOptionModel;
 
 class AppColors {
   static const Color primary = Color(0xFF14B8A6);
@@ -55,6 +57,8 @@ class PlanYourRidePage extends StatefulWidget {
 }
 
 class _PlanYourRidePageState extends State<PlanYourRidePage> {
+  final AuthApiService _authApiService = AuthApiService();
+  bool isSearchingRide = false;
   bool isLoadingCurrentLocation = true;
   bool isPickingPickup = false;
   bool isPickingDestination = false;
@@ -273,22 +277,75 @@ class _PlanYourRidePageState extends State<PlanYourRidePage> {
     });
   }
 
-  void _continueRidePlan() {
+  List<RideOptionModel> _mapRideOptions(List<dynamic> rides) {
+    return rides.map((ride) {
+      final map = Map<String, dynamic>.from(ride as Map);
+
+      final rider = Map<String, dynamic>.from(map['rider'] ?? {});
+
+      return RideOptionModel(
+        id: map['ride_id']?.toString() ?? '',
+        driverPhoneNumber: (rider['phone'] ?? '').toString(),
+        driverName: (rider['name'] ?? '').toString(),
+        userType: 'Student',
+        vehicleType: (map['vehicle_type'] ?? '').toString().isEmpty
+            ? 'Car'
+            : (map['vehicle_type'] ?? '').toString(),
+        rating: double.tryParse('${rider['rating'] ?? 0}') ?? 0,
+        vehicleNumber: '${map['company'] ?? ''} ${map['model'] ?? ''}'.trim(),
+        emptySeats: int.tryParse('${map['available_seats'] ?? 0}') ?? 0,
+        departureTime: (map['travel_time'] ?? 'Now').toString(),
+        genderPreference: 'Any',
+        distanceAwayKm: double.tryParse('${map['total_distance_km'] ?? 0}') ?? 0,
+        estimatedFare: double.tryParse('${map['total_fare'] ?? 0}') ?? 0,
+        isAvailable: (int.tryParse('${map['available_seats'] ?? 0}') ?? 0) > 0,
+      );
+    }).toList();
+  }
+
+  Future<void> _continueRidePlan() async {
     if (currentLocation == null || destinationLocation == null) return;
 
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => RideOptionsPage(
-          pickupLocation: currentLocation!,
-          destinationLocation: destinationLocation!,
-          routeDistanceKm: 0,
-          estimatedTravelMinutes: 0,
-          totalCost: 0,
-          availableRides: const [],
+    setState(() {
+      isSearchingRide = true;
+    });
+
+    try {
+      final response = await _authApiService.searchRides(
+        pickupLat: currentLocation!.latLng.latitude,
+        pickupLng: currentLocation!.latLng.longitude,
+        destinationLat: destinationLocation!.latLng.latitude,
+        destinationLng: destinationLocation!.latLng.longitude,
+      );
+
+      final data = response['data'] ?? {};
+
+      if (!mounted) return;
+
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => RideOptionsPage(
+            pickupLocation: currentLocation!,
+            destinationLocation: destinationLocation!,
+            routeDistanceKm: (data['routeDistanceKm'] ?? data['distance_km'] ?? 0).toDouble(),
+            estimatedTravelMinutes: (data['estimatedTravelMinutes'] ?? data['estimated_time'] ?? 0).toInt(),
+            totalCost: (data['totalCost'] ?? data['estimated_fare'] ?? 0).toDouble(),
+            availableRides: _mapRideOptions(data['availableRides'] ?? const []),
+          ),
         ),
-      ),
-    );
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to search rides: $e')),
+      );
+    } finally {
+      if (!mounted) return;
+      setState(() {
+        isSearchingRide = false;
+      });
+    }
   }
 
   @override
@@ -347,7 +404,7 @@ class _PlanYourRidePageState extends State<PlanYourRidePage> {
                       width: double.infinity,
                       height: 54,
                       child: ElevatedButton(
-                        onPressed: canContinue ? _continueRidePlan : null,
+                        onPressed: (canContinue && !isSearchingRide) ? _continueRidePlan : null,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppColors.primary,
                           disabledBackgroundColor: Colors.grey.shade300,

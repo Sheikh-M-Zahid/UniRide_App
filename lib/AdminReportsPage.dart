@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'services/auth_api_service.dart';
 
 class AdminReportsPage extends StatefulWidget {
   const AdminReportsPage({super.key});
@@ -8,34 +9,77 @@ class AdminReportsPage extends StatefulWidget {
 }
 
 class _AdminReportsPageState extends State<AdminReportsPage> {
-  // ===== Dummy Data (Backend থেকে আসবে পরে) =====
-  List<Map<String, dynamic>> reports = [
-    {
-      "name": "Zahid",
-      "role": "Passenger",
-      "message": "App crash when booking ride",
-      "isRead": false,
-    },
-    {
-      "name": "Rahim",
-      "role": "Rider",
-      "message": "Location not updating",
-      "isRead": true,
-    },
-  ];
+  final AuthApiService _authApiService = AuthApiService();
 
-  int get unreadCount =>
-      reports.where((r) => r["isRead"] == false).length;
+  @override
+  void initState() {
+    super.initState();
+    _fetchReports();
+  }
 
-  void markAsRead(int index) {
+  List<Map<String, dynamic>> reports = [];
+  bool isLoading = true;
+  bool isActionLoading = false;
+  String? errorMessage;
+
+  int unsolvedCount = 0;
+  int solvedCount = 0;
+
+
+  Future<void> _fetchReports() async {
     setState(() {
-      reports[index]["isRead"] = true;
+      isLoading = true;
+      errorMessage = null;
     });
 
-    // 🔥 এখানে backend call দিবা
-    // await api.markReportAsRead(id);
+    try {
+      final response = await _authApiService.getAdminReports();
+      final data = Map<String, dynamic>.from(response['data'] ?? {});
+      final summary = Map<String, dynamic>.from(data['summary'] ?? {});
+      final reportsList = List<Map<String, dynamic>>.from(data['reports'] ?? []);
 
-    // 🔥 এখানে email send হবে backend থেকে
+      setState(() {
+        reports = reportsList;
+        unsolvedCount = int.tryParse('${summary['unsolvedCount'] ?? 0}') ?? 0;
+        solvedCount = int.tryParse('${summary['solvedCount'] ?? 0}') ?? 0;
+        isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        isLoading = false;
+        errorMessage = e.toString();
+      });
+    }
+  }
+
+  Future<void> markAsRead(int index) async {
+    final reportId = (reports[index]['id'] ?? '').toString();
+
+    if (reportId.isEmpty || isActionLoading) return;
+
+    setState(() {
+      isActionLoading = true;
+    });
+
+    try {
+      await _authApiService.markAdminReportAsSolved(reportId: reportId);
+      await _fetchReports();
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Report marked as solved')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to mark report as solved: $e')),
+      );
+    } finally {
+      if (!mounted) return;
+      setState(() {
+        isActionLoading = false;
+      });
+    }
   }
 
   @override
@@ -47,7 +91,24 @@ class _AdminReportsPageState extends State<AdminReportsPage> {
         elevation: 0,
         title: const Text("User Reports"),
       ),
-      body: ListView.builder(
+      body: isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : errorMessage != null
+          ? Center(
+        child: Text(
+          errorMessage!,
+          style: const TextStyle(color: Colors.white),
+          textAlign: TextAlign.center,
+        ),
+      )
+          : reports.isEmpty
+          ? const Center(
+        child: Text(
+          "No reports found",
+          style: TextStyle(color: Colors.white),
+        ),
+      )
+          : ListView.builder(
         padding: const EdgeInsets.all(16),
         itemCount: reports.length,
         itemBuilder: (context, index) {
@@ -113,7 +174,7 @@ class _AdminReportsPageState extends State<AdminReportsPage> {
                 Align(
                   alignment: Alignment.centerRight,
                   child: ElevatedButton(
-                    onPressed: isRead ? null : () => markAsRead(index),
+                    onPressed: (isRead || isActionLoading) ? null : () => markAsRead(index),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: isRead
                           ? Colors.grey

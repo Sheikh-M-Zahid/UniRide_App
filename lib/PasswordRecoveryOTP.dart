@@ -132,7 +132,7 @@ class _passwordrecoveryotpState extends State<passwordrecoveryotp> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(e.toString()),
+          content: Text(e.toString().replaceFirst('Exception: ', ''))
         ),
       );
     }
@@ -171,7 +171,7 @@ class _passwordrecoveryotpState extends State<passwordrecoveryotp> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(e.toString()),
+          content: Text(e.toString().replaceFirst('Exception: ', ''))
         ),
       );
     }

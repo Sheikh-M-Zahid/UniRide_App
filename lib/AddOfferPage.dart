@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'services/auth_api_service.dart';
 
 class AddOfferPage extends StatefulWidget {
   const AddOfferPage({super.key});
@@ -8,6 +9,8 @@ class AddOfferPage extends StatefulWidget {
 }
 
 class _AddOfferPageState extends State<AddOfferPage> {
+  final AuthApiService _authApiService = AuthApiService();
+  bool isSubmitting = false;
 
   final _formKey = GlobalKey<FormState>();
 
@@ -76,39 +79,65 @@ class _AddOfferPageState extends State<AddOfferPage> {
     }
   }
 
-  void addOffer() {
-
-    if (!_formKey.currentState!.validate()) return;
-
-    Map<String, dynamic> newOffer = {
-      "name": offerNameController.text,
-      "type": selectedOfferType,
-      "reward": rewardController.text,
-      "target": selectedTarget,
-      "start": startDate,
-      "end": endDate,
-      "promo": promoController.text,
-      "condition": conditionController.text,
-    };
+  Future<void> addOffer() async {
+    if (!isFormValid) return;
 
     setState(() {
-      activeOffers.add(newOffer);
+      isSubmitting = true;
     });
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text("Offer Added & Notification Sent")),
-    );
+    try {
+      final response = await _authApiService.createOffer(
+        offerName: offerNameController.text.trim(),
+        offerType: selectedOfferType!.trim(),
+        rewardPercentage: rewardController.text.trim(),
+        eligibleUser: selectedTarget!.trim(),
+        startDate: startDate!.toIso8601String().split('T').first,
+        endDate: endDate!.toIso8601String().split('T').first,
+        promoCode: promoController.text.trim(),
+        conditions: conditionController.text.trim(),
+      );
 
-    // 🔥 এখানে Backend এ notification trigger করবে
+      final data = response['data'] ?? {};
 
-    offerNameController.clear();
-    rewardController.clear();
-    promoController.clear();
-    conditionController.clear();
-    selectedOfferType = null;
-    selectedTarget = null;
-    startDate = null;
-    endDate = null;
+      final Map<String, dynamic> newOffer = {
+        "name": data["name"] ?? offerNameController.text.trim(),
+        "type": data["type"] ?? selectedOfferType,
+        "reward": data["reward"] ?? rewardController.text.trim(),
+        "target": data["target"] ?? selectedTarget,
+        "start": startDate,
+        "end": endDate,
+        "promo": data["promo"] ?? promoController.text.trim(),
+        "condition": data["condition"] ?? conditionController.text.trim(),
+      };
+
+      setState(() {
+        activeOffers.insert(0, newOffer);
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Offer added successfully")),
+      );
+
+      offerNameController.clear();
+      rewardController.clear();
+      promoController.clear();
+      conditionController.clear();
+      selectedOfferType = null;
+      selectedTarget = null;
+      startDate = null;
+      endDate = null;
+
+      setState(() {});
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Failed to add offer: $e")),
+      );
+    } finally {
+      setState(() {
+        isSubmitting = false;
+      });
+    }
   }
 
   @override
@@ -182,7 +211,7 @@ class _AddOfferPageState extends State<AddOfferPage> {
                       backgroundColor:
                       isFormValid ? Colors.cyanAccent : Colors.grey,
                     ),
-                    onPressed: isFormValid ? addOffer : null,
+                    onPressed: (isFormValid && !isSubmitting) ? addOffer : null,
                     child: const Text(
                       "Confirm & Activate Offer",
                       style: TextStyle(

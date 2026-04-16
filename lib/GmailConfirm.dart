@@ -132,7 +132,7 @@ class _GmailConfirmPageState extends State<GmailConfirmPage> {
       final String email = googleUser.email.toLowerCase().trim();
 
       if (!_isValidUniversityEmail(email)) {
-        await GoogleSignIn.instance.disconnect();
+        await GoogleSignIn.instance.signOut();
 
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(

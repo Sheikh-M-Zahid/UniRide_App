@@ -3,6 +3,7 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'dart:io' show Platform;
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'LoginCheck.dart';
 import 'GmailConfirm.dart';
@@ -13,7 +14,7 @@ import 'services/auth_api_service.dart';
 void main() {
   runApp(const MaterialApp(
     debugShowCheckedModeBanner: false,
-    home: UniRideLogin(),
+    home: AppStartPage(),
   ));
 }
 
@@ -25,6 +26,65 @@ class AppColors {
   static const Color inputFill = Color(0xFFF1F5F9);
   static const Color border = Color(0xFFD1D5DB);
   static const Color mutedText = Color(0xFF6B7280);
+}
+
+class AppStartPage extends StatefulWidget {
+  const AppStartPage({super.key});
+
+  @override
+  State<AppStartPage> createState() => _AppStartPageState();
+}
+
+class _AppStartPageState extends State<AppStartPage> {
+  final AuthApiService _authApiService = AuthApiService();
+
+  @override
+  void initState() {
+    super.initState();
+    _checkLoginStatus();
+  }
+
+  Future<void> _checkLoginStatus() async {
+    final prefs = await SharedPreferences.getInstance();
+    final isLoggedIn = await _authApiService.isLoggedIn();
+    final isAdmin = prefs.getBool('is_admin') ?? false;
+    final email = prefs.getString('user_email') ?? '';
+
+    if (!mounted) return;
+
+    if (isLoggedIn) {
+      if (isAdmin) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => AdminDashboard()),
+        );
+      } else {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => LoginCheck(email: email),
+          ),
+        );
+      }
+    } else {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => const UniRideLogin()),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return const Scaffold(
+      backgroundColor: AppColors.background,
+      body: Center(
+        child: CircularProgressIndicator(
+          color: AppColors.primary,
+        ),
+      ),
+    );
+  }
 }
 
 class UniRideLogin extends StatefulWidget {
@@ -207,15 +267,6 @@ class _UniRideLoginState extends State<UniRideLogin> {
     });
 
     try {
-      // ================= BACKEND READY =================
-      // পরে এখানে actual login API call বসাবে
-      //
-      // Example:
-      // final loginResponse = await yourApiService.login(email, password);
-      // if (!loginResponse.success) {
-      //   throw Exception('Invalid email or password');
-      // }
-
       final loginResponse = await _authApiService.login(
         email: email,
         password: password,

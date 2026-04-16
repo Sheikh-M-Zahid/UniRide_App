@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'app_colors.dart';
-import 'app_storage.dart';
+import 'services/auth_api_service.dart';
 
 class RideHistoryPage extends StatefulWidget {
   const RideHistoryPage({super.key});
@@ -10,7 +10,9 @@ class RideHistoryPage extends StatefulWidget {
 }
 
 class _RideHistoryPageState extends State<RideHistoryPage> {
-  List<String> rideHistory = [];
+  List<Map<String, dynamic>> rideHistory = [];
+  final AuthApiService _authApiService = AuthApiService();
+  bool _isLoading = false;
 
   @override
   void initState() {
@@ -19,8 +21,31 @@ class _RideHistoryPageState extends State<RideHistoryPage> {
   }
 
   Future<void> _loadHistory() async {
-    rideHistory = await AppStorage.getRideHistory();
-    if (mounted) setState(() {});
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final response = await _authApiService.getRideHistory();
+      final data = List<Map<String, dynamic>>.from(response['data'] ?? []);
+
+      if (!mounted) return;
+
+      setState(() {
+        rideHistory = data;
+        _isLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        _isLoading = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString())),
+      );
+    }
   }
 
   @override
@@ -36,7 +61,11 @@ class _RideHistoryPageState extends State<RideHistoryPage> {
         ),
         elevation: 0,
       ),
-      body: rideHistory.isEmpty
+      body: _isLoading
+          ? const Center(
+        child: CircularProgressIndicator(color: AppColors.primary),
+      )
+          : rideHistory.isEmpty
           ? const Center(
         child: Text(
           'No ride history found',
@@ -46,10 +75,12 @@ class _RideHistoryPageState extends State<RideHistoryPage> {
           : ListView.builder(
         itemCount: rideHistory.length,
         itemBuilder: (context, index) {
+          final ride = rideHistory[index];
+
           return ListTile(
             leading: const Icon(Icons.history, color: AppColors.primary),
             title: Text(
-              rideHistory[index],
+              ride['display_text'] ?? '',
               style: const TextStyle(color: AppColors.text),
             ),
           );

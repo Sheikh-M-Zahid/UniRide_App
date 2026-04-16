@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'services/auth_api_service.dart';
+
 import 'RideSelection.dart';
 import 'UserHome.dart';
 
@@ -15,6 +17,37 @@ class _ConfirmationPageState extends State<ConfirmationPage> {
   // 1 = Rider
   // 2 = Passenger
   int selectedRole = 0;
+
+  final AuthApiService _authApiService = AuthApiService();
+  bool _isLoading = false;
+  bool _riderReady = false;
+  int _vehicleCount = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadConfirmationStatus();
+  }
+
+  Future<void> _loadConfirmationStatus() async {
+    try {
+      final response = await _authApiService.getConfirmationStatus();
+      final data = response['data'] ?? {};
+
+      if (!mounted) return;
+
+      setState(() {
+        _riderReady = data['riderReady'] ?? false;
+        _vehicleCount = data['vehicleCount'] ?? 0;
+      });
+    } catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString())),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -82,31 +115,80 @@ class _ConfirmationPageState extends State<ConfirmationPage> {
                     borderRadius: BorderRadius.circular(10),
                   ),
                 ),
-                onPressed: selectedRole == 0
+                onPressed: selectedRole == 0 || _isLoading
                     ? null
-                    : () {
+                    : () async {
+                  setState(() {
+                    _isLoading = true;
+                  });
 
-                  if (selectedRole == 1) {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) =>
-                        const UniRideSelectionScreen(),
-                      ),
+                  try {
+                    final selectedMode =
+                    selectedRole == 1 ? 'rider' : 'passenger';
+
+                    final response = await _authApiService.selectConfirmationMode(
+                      selectedMode: selectedMode,
                     );
-                  }
 
-                  if (selectedRole == 2) {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) =>
-                        const UniRideHomePage(),
-                      ),
+                    final data = response['data'] ?? {};
+                    final nextScreen = data['nextScreen'] ?? '';
+
+                    if (!mounted) return;
+
+                    setState(() {
+                      _isLoading = false;
+                    });
+
+                    if (nextScreen == 'passenger_home') {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const UniRideHomePage(),
+                        ),
+                      );
+                    } else if (nextScreen == 'rider_onboarding') {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const UniRideSelectionScreen(),
+                        ),
+                      );
+                    } else if (nextScreen == 'rider_dashboard') {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const UniRideSelectionScreen(),
+                        ),
+                      );
+                    } else {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Invalid next screen from backend'),
+                        ),
+                      );
+                    }
+                  } catch (e) {
+                    if (!mounted) return;
+
+                    setState(() {
+                      _isLoading = false;
+                    });
+
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text(e.toString())),
                     );
                   }
                 },
-                child: const Text(
+                child: _isLoading
+                    ? const SizedBox(
+                  height: 22,
+                  width: 22,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2.4,
+                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                  ),
+                )
+                    : const Text(
                   "Next",
                   style: TextStyle(
                     color: Colors.white,
