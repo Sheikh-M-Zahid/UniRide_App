@@ -1,24 +1,28 @@
 {
   "name": "uniride-backend",
   "version": "1.0.0",
+  "description": "UniRide Backend Server",
   "main": "server.js",
   "scripts": {
-    "dev": "nodemon server.js",
-    "start": "node server.js"
+    "start": "node server.js",
+    "dev": "nodemon server.js"
   },
+  "author": "UniRide",
+  "license": "ISC",
   "dependencies": {
-    "bcrypt": "^5.1.1",
+    "axios": "^1.15.0",
+    "bcrypt": "^5.1.0",
     "cors": "^2.8.5",
-    "dotenv": "^17.0.0",
+    "dotenv": "^17.3.1",
     "express": "^4.21.2",
     "jsonwebtoken": "^9.0.2",
     "morgan": "^1.10.0",
     "multer": "^1.4.5-lts.1",
-    "nodemailer": "^6.10.1",
-    "pg": "^8.16.0",
-    "socket.io": "^4.8.1"
+    "nodemailer": "^6.9.13",
+    "pg": "^8.13.1",
+    "socket.io": "^4.8.3"
   },
   "devDependencies": {
-    "nodemon": "^3.1.10"
+    "nodemon": "^3.1.14"
   }
 }
