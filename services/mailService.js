@@ -6,8 +6,8 @@ const nodemailer = require('nodemailer');
 const transporter = nodemailer.createTransport({
   service: 'gmail',
   auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS,
+    user: process.env.MAIL_USER,
+    pass: process.env.MAIL_PASS,
   },
 });
 
@@ -16,7 +16,7 @@ const transporter = nodemailer.createTransport({
 ========================= */
 const sendPasswordRecoveryOtpEmail = async (toEmail, otpCode) => {
   const mailOptions = {
-    from: `"UniRide Support" <${process.env.EMAIL_USER}>`,
+    from: `"UniRide Support" <${process.env.MAIL_USER}>`,
     to: toEmail,
     subject: 'UniRide Password Recovery OTP',
     html: `
@@ -34,11 +34,11 @@ const sendPasswordRecoveryOtpEmail = async (toEmail, otpCode) => {
 };
 
 /* =========================
-   SIGNUP OTP (IMPORTANT)
+   SIGNUP OTP
 ========================= */
 const sendSignupOtpEmail = async (toEmail, otpCode) => {
   const mailOptions = {
-    from: `"UniRide" <${process.env.EMAIL_USER}>`,
+    from: `"UniRide" <${process.env.MAIL_USER}>`,
     to: toEmail,
     subject: 'UniRide Signup Verification OTP',
     html: `
@@ -60,7 +60,7 @@ const sendSignupOtpEmail = async (toEmail, otpCode) => {
 ========================= */
 const testEmail = async (toEmail) => {
   await transporter.sendMail({
-    from: `"UniRide Test" <${process.env.EMAIL_USER}>`,
+    from: `"UniRide Test" <${process.env.MAIL_USER}>`,
     to: toEmail,
     subject: 'Test Email',
     text: 'Your email service is working correctly 🚀',
