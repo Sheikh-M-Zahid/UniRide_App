@@ -120,10 +120,6 @@ class _OTPVerificationPageState extends State<OTPVerificationPage> {
     }
   }
 
-  void _sendCodeBySms() {
-    _showSnackBar("SMS code feature will be available soon.");
-  }
-
   // 🔥 OTP Verify Function
   Future<void> _verifyOtp() async {
     FocusScope.of(context).unfocus();
@@ -269,11 +265,6 @@ class _OTPVerificationPageState extends State<OTPVerificationPage> {
               ),
 
               const SizedBox(height: 12),
-
-              _actionButton(
-                'Send code by SMS',
-                onTap: _sendCodeBySms,
-              ),
 
               const Spacer(),
 

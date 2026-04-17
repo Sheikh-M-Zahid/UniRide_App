@@ -12,6 +12,7 @@ class FindAccount extends StatefulWidget {
 class _FindAccountState extends State<FindAccount> {
   final TextEditingController _emailController = TextEditingController();
   final AuthApiService _authApiService = AuthApiService();
+  bool _isLoading = false;
 
   bool _isValidUniversityEmail(String email) {
     final value = email.trim().toLowerCase();
@@ -21,6 +22,8 @@ class _FindAccountState extends State<FindAccount> {
   }
 
   Future<void> _handleSearch() async {
+    FocusScope.of(context).unfocus();
+
     final email = _emailController.text.trim().toLowerCase();
 
     if (email.isEmpty) {
@@ -43,10 +46,20 @@ class _FindAccountState extends State<FindAccount> {
       return;
     }
 
+    if (_isLoading) return;
+
+    setState(() {
+      _isLoading = true;
+    });
+
     try {
-      final response = await _authApiService.findAccount(email: email);
+      await _authApiService.findAccount(email: email);
 
       if (!mounted) return;
+
+      setState(() {
+        _isLoading = false;
+      });
 
       Navigator.push(
         context,
@@ -57,9 +70,15 @@ class _FindAccountState extends State<FindAccount> {
     } catch (e) {
       if (!mounted) return;
 
+      setState(() {
+        _isLoading = false;
+      });
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(e.toString()),
+          content: Text(
+            e.toString().replaceFirst('Exception: ', ''),
+          ),
         ),
       );
     }
@@ -102,6 +121,8 @@ class _FindAccountState extends State<FindAccount> {
               TextField(
                 controller: _emailController,
                 keyboardType: TextInputType.emailAddress,
+                textInputAction: TextInputAction.done,
+                onSubmitted: (_) => _handleSearch(),
                 decoration: InputDecoration(
                   hintText: "Enter your university email",
                   hintStyle: const TextStyle(color: Colors.grey),
@@ -118,14 +139,24 @@ class _FindAccountState extends State<FindAccount> {
                 width: double.infinity,
                 height: 55,
                 child: ElevatedButton(
-                  onPressed: _handleSearch,
+                  onPressed: _isLoading ? null : _handleSearch,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF14B8A6),
+                    disabledBackgroundColor: const Color(0xFF14B8A6),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(10),
                     ),
                   ),
-                  child: const Text(
+                  child: _isLoading
+                      ? const SizedBox(
+                    height: 22,
+                    width: 22,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2.4,
+                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                    ),
+                  )
+                      : const Text(
                     "Search",
                     style: TextStyle(
                       color: Colors.white,

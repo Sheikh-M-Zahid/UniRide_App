@@ -669,7 +669,7 @@ class AuthApiService {
           'email': email,
         }),
       )
-          .timeout(const Duration(seconds: 15));
+          .timeout(const Duration(seconds: 50));
 
       final data = jsonDecode(response.body);
 

@@ -96,6 +96,9 @@ class _PersonalInfoFormState extends State<PersonalInfoForm> {
     super.initState();
     signupToken = widget.signupToken;
     userEmail = widget.email;
+
+    _campusAddressController.text =
+    'Jahurul Islam City, Aftabnagar, Dhaka-1212';
   }
 
   @override
@@ -215,6 +218,12 @@ class _PersonalInfoFormState extends State<PersonalInfoForm> {
       setState(() {
         _isSubmitting = false;
       });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Registration successful'),
+        ),
+      );
 
       Navigator.pushReplacement(
         context,
@@ -600,10 +609,7 @@ class _PersonalInfoFormState extends State<PersonalInfoForm> {
                   hintText: "Enter Your Hostel Address",
                   prefixIcon: Icons.location_on,
                 ),
-                validator: (value) =>
-                (value == null || value.trim().isEmpty)
-                    ? 'Hostel address is required'
-                    : null,
+                validator: (value) => null,
               ),
               const SizedBox(height: 15),
 

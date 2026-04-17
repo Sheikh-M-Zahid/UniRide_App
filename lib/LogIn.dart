@@ -409,7 +409,13 @@ class _UniRideLoginState extends State<UniRideLogin> {
               _socialButton(
                 FontAwesomeIcons.google,
                 _isGoogleLoading ? 'Signing in...' : 'Continue with Google',
-                onTap: _isGoogleLoading ? null : _handleGoogleSignIn,
+                onTap: () {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('This option will be available very soon'),
+                    ),
+                  );
+                },
                 isLoading: _isGoogleLoading,
               ),
               const SizedBox(height: 20),

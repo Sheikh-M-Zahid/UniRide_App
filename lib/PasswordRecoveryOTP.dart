@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'services/auth_api_service.dart';
+import 'package:flutter/services.dart';
 import 'ResetPassword.dart';
 
 class passwordrecoveryotp extends StatefulWidget {
@@ -23,7 +24,7 @@ class _passwordrecoveryotpState extends State<passwordrecoveryotp> {
   List.generate(6, (_) => FocusNode());
 
   Timer? _timer;
-  int _secondsRemaining = 30;
+  int _secondsRemaining = 60;
   bool _isVerifying = false;
   bool _isResending = false;
   final AuthApiService _authApiService = AuthApiService();
@@ -101,7 +102,11 @@ class _passwordrecoveryotpState extends State<passwordrecoveryotp> {
         otp: _otpCode,
       );
 
-      final String resetToken = response['data']?['resetToken'] ?? '';
+      final String resetToken = response['resetToken'] ?? '';
+
+      if (resetToken.isEmpty) {
+        throw Exception('Invalid reset token');
+      }
 
       if (!mounted) return;
 
@@ -263,7 +268,7 @@ class _passwordrecoveryotpState extends State<passwordrecoveryotp> {
                         child: KeyboardListener(
                           focusNode: FocusNode(),
                           onKeyEvent: (event) {
-                            if (event.logicalKey.keyLabel == 'Backspace') {
+                            if (event.logicalKey == LogicalKeyboardKey.backspace) {
                               _onBackspace(index);
                             }
                           },
