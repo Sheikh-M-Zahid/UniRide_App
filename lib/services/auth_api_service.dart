@@ -4,13 +4,8 @@ import 'dart:io';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class AuthApiService {
-  // Android emulator হলে 10.0.2.2 ব্যবহার করবা
-  // Real phone হলে তোমার PC এর local IP দিতে হবে
   static String get baseUrl {
-    if (Platform.isAndroid) {
-      return 'http://10.0.2.2:5000/api'; // Android emulator
-    }
-    return 'http://192.168.0.105:5000/api'; // real device
+    return 'https://uniride-app-rm20.onrender.com/api';
   }
 
   Future<Map<String, dynamic>> login({
