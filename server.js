@@ -1,7 +1,10 @@
+console.log('Server boot started...');
 require('dotenv').config();
 
 const http = require('http');
+console.log('Requiring app...');
 const app = require('./app');
+console.log('App required successfully');
 const ewuAdminDb = require('./config/ewuAdminDb');
 const rideDb = require('./config/rideDb');
 const { initSocket } = require('./config/socket');
@@ -47,8 +50,13 @@ io.on('connection', (socket) => {
 
 const startServer = async () => {
   try {
+    console.log('Checking ewuAdminDb...');
     await ewuAdminDb.query('SELECT 1');
+    console.log('ewuAdminDb connected');
+
+    console.log('Checking rideDb...');
     await rideDb.query('SELECT 1');
+    console.log('rideDb connected');
 
     server.listen(PORT, () => {
       console.log(`Server running on port ${PORT}`);
