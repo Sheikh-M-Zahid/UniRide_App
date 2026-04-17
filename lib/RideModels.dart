@@ -40,4 +40,22 @@ class RideOptionModel {
     required this.distanceAwayKm,
     this.isAvailable = true,
   });
+
+  factory RideOptionModel.fromJson(Map<String, dynamic> json) {
+    return RideOptionModel(
+      id: json['rideId']?.toString() ?? '',
+      driverName: json['driverName']?.toString() ?? '',
+      driverPhoneNumber: json['driverPhoneNumber']?.toString() ?? '',
+      userType: json['userType']?.toString() ?? 'User',
+      vehicleType: json['vehicleType']?.toString() ?? 'Vehicle',
+      vehicleNumber: json['vehicleNumber']?.toString() ?? '',
+      emptySeats: (json['emptySeats'] ?? 0).toInt(),
+      departureTime: json['departureTime']?.toString() ?? '',
+      estimatedFare: (json['estimatedFare'] ?? 0.0).toDouble(),
+      genderPreference: json['genderPreference']?.toString() ?? 'Any',
+      rating: (json['rating'] ?? 5.0).toDouble(),
+      distanceAwayKm: (json['distanceAwayKm'] ?? 0.0).toDouble(),
+      isAvailable: json['isAvailable'] == true,
+    );
+  }
 }

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'ActiveRidesPage.dart';
 import 'RideRequestModel.dart';
@@ -26,15 +28,30 @@ class _RiderDashboardState extends State<RiderDashboard> {
 
   bool _isLoading = true;
   Map<String, dynamic>? _dashboardData;
+  Timer? _dashboardRefreshTimer;
+  bool _isUpdatingStatus = false;
 
   @override
   void initState() {
     super.initState();
     _loadDashboard();
+    _startAutoRefresh();
   }
 
-  Future<void> _loadDashboard() async {
+  @override
+  void dispose() {
+    _dashboardRefreshTimer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _loadDashboard({bool showLoader = true}) async {
     try {
+      if (showLoader && mounted) {
+        setState(() {
+          _isLoading = true;
+        });
+      }
+
       final response = await _authApiService.getRiderDashboardSummary();
       final data = response['data'] ?? response;
 
@@ -42,7 +59,7 @@ class _RiderDashboardState extends State<RiderDashboard> {
 
       setState(() {
         _dashboardData = data;
-        isOnline = data['is_online'] == true;
+        isOnline = data['isOnline'] == true;
         _isLoading = false;
       });
     } catch (e) {
@@ -52,10 +69,21 @@ class _RiderDashboardState extends State<RiderDashboard> {
         _isLoading = false;
       });
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.toString())),
-      );
+      if (showLoader) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.toString())),
+        );
+      }
     }
+  }
+
+  void _startAutoRefresh() {
+    _dashboardRefreshTimer?.cancel();
+    _dashboardRefreshTimer = Timer.periodic(const Duration(seconds: 10), (_) {
+      if (mounted) {
+        _loadDashboard(showLoader: false);
+      }
+    });
   }
 
   void _onItemTapped(int index) {
@@ -90,75 +118,42 @@ class _RiderDashboardState extends State<RiderDashboard> {
   }
 
   Future<void> _updateOnlineStatus(bool value) async {
+    if (_isUpdatingStatus) return;
+
     try {
+      setState(() {
+        _isUpdatingStatus = true;
+      });
+
       await _authApiService.updateRiderStatus(isOnline: value);
 
       if (!mounted) return;
 
       setState(() {
         isOnline = value;
+        _isUpdatingStatus = false;
       });
+
+      _loadDashboard(showLoader: false);
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            isOnline ? "You are now Online" : "You are now Offline",
+            value ? "You are now Online" : "You are now Offline",
           ),
         ),
       );
     } catch (e) {
       if (!mounted) return;
 
+      setState(() {
+        _isUpdatingStatus = false;
+      });
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(e.toString())),
       );
     }
-  }
-
-  void _openFeature(String title) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text("$title clicked")),
-    );
-  }
-
-  void _simulateIncomingRequests() {
-    if (!isOnline) return;
-
-    RideRequestService.addRequest(
-      const RideRequestModel(
-        passengerName: "Rakib Hasan",
-        phoneNumber: "01712345678",
-        currentLocation: "Hall Gate",
-        destination: "Main Campus",
-        distanceKm: 3.4,
-        fare: 85,
-        estimatedMinutes: 12,
-      ),
-    );
-
-    RideRequestService.addRequest(
-      const RideRequestModel(
-        passengerName: "Nusrat Jahan",
-        phoneNumber: "01811223344",
-        currentLocation: "Library Front",
-        destination: "CSE Building",
-        distanceKm: 2.1,
-        fare: 60,
-        estimatedMinutes: 8,
-      ),
-    );
-
-    RideRequestService.addRequest(
-      const RideRequestModel(
-        passengerName: "Tamim",
-        phoneNumber: "01999888777",
-        currentLocation: "Dormitory Road",
-        destination: "Administrative Building",
-        distanceKm: 4.8,
-        fare: 110,
-        estimatedMinutes: 16,
-      ),
-    );
   }
 
   @override
@@ -220,7 +215,9 @@ class _RiderDashboardState extends State<RiderDashboard> {
                         activeTrackColor: const Color(0xFF0F766E),
                         inactiveThumbColor: Colors.white,
                         inactiveTrackColor: Colors.white54,
-                        onChanged: (value) {
+                        onChanged: _isUpdatingStatus
+                            ? null
+                            : (value) {
                           _updateOnlineStatus(value);
                         },
                       ),
@@ -238,7 +235,7 @@ class _RiderDashboardState extends State<RiderDashboard> {
                 Expanded(
                   child: _InfoCard(
                     title: "Today Earnings",
-                    value: "৳${_dashboardData?['today_earnings'] ?? 0}",
+                    value: "৳${_dashboardData?['todayEarnings'] ?? 0}",
                     icon: Icons.account_balance_wallet,
                   ),
                 ),
@@ -257,7 +254,7 @@ class _RiderDashboardState extends State<RiderDashboard> {
                     },
                     child: _InfoCard(
                       title: "Notifications",
-                      value: "${_dashboardData?['notification_count'] ?? 0} New",
+                      value: "${_dashboardData?['unreadNotifications'] ?? 0} New",
                       icon: Icons.notifications_active,
                     ),
                   ),
@@ -298,15 +295,15 @@ class _RiderDashboardState extends State<RiderDashboard> {
                   if (_dashboardData?['active_ride'] != null) ...[
                     _SummaryRow(
                       label: "Pickup",
-                      value: "${_dashboardData?['active_ride']?['start_location'] ?? ''}",
+                      value: "${_dashboardData?['activeRide']?['pickup'] ?? ''}",
                     ),
                     _SummaryRow(
                       label: "Destination",
-                      value: "${_dashboardData?['active_ride']?['destination'] ?? ''}",
+                      value: "${_dashboardData?['activeRide']?['destination'] ?? ''}",
                     ),
                     _SummaryRow(
                       label: "Fare",
-                      value: "৳${_dashboardData?['active_ride']?['total_fare'] ?? 0}",
+                      value: "৳${_dashboardData?['activeRide']?['fare'] ?? 0}",
                     ),
                     _SummaryRow(
                       label: "Status",
@@ -362,7 +359,7 @@ class _RiderDashboardState extends State<RiderDashboard> {
                     ),
                     _SummaryRow(
                       label: "Pickup",
-                      value: "${_dashboardData?['upcoming_reserved_ride']?['start_location'] ?? ''}",
+                      value: "${_dashboardData?['upcoming_reserved_ride']?['pickup'] ?? ''}",
                     ),
                     _SummaryRow(
                       label: "Destination",

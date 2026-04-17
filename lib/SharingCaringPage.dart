@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'services/auth_api_service.dart';
 import 'ChatListPage.dart';
 import 'map_picker_screen.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
@@ -12,6 +13,8 @@ class SharingCaringPage extends StatefulWidget {
 }
 
 class _SharingCaringPageState extends State<SharingCaringPage> {
+  final AuthApiService _authApiService = AuthApiService();
+  bool _isSubmitting = false;
   final _formKey = GlobalKey<FormState>();
 
   final TextEditingController currentLocationController =
@@ -136,28 +139,59 @@ class _SharingCaringPageState extends State<SharingCaringPage> {
     }
   }
 
-  void confirmSharing() async {
+  Future<void> confirmSharing() async {
     FocusScope.of(context).unfocus();
 
-    print("===== Co Ride =====");
-    print(currentLocationController.text);
-    print(destinationController.text);
-    print(selectedDate);
-    print(selectedTime);
-    print(selectedVehicleType);
-    print(vehicleNumberController.text);
-    print(availableSeatController.text);
-    print(selectedGender);
-    print(fareController.text);
+    if (!isFormValid || _isSubmitting) return;
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text("Ride shared successfully! Notification sent."),
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
+    setState(() {
+      _isSubmitting = true;
+    });
 
-    Navigator.pop(context);
+    try {
+      await _authApiService.createCompanySharingSession(
+        startLocation: currentLocationController.text.trim(),
+        destination: destinationController.text.trim(),
+        status: 'Active',
+        tripDate: selectedDate == null
+            ? null
+            : '${selectedDate!.year.toString().padLeft(4, '0')}-${selectedDate!.month.toString().padLeft(2, '0')}-${selectedDate!.day.toString().padLeft(2, '0')}',
+        tripTime: selectedTime == null
+            ? null
+            : selectedTime!.format(context),
+        vehicleType: selectedVehicleType,
+        vehicleNumber: vehicleNumberController.text.trim().isEmpty
+            ? null
+            : vehicleNumberController.text.trim(),
+        totalSeats: int.tryParse(availableSeatController.text.trim()),
+        preferredGender: selectedGender,
+        farePerPerson: double.tryParse(fareController.text.trim()),
+      );
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Ride shared successfully! Notification sent."),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+
+      Navigator.pop(context);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.toString()),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } finally {
+      if (!mounted) return;
+      setState(() {
+        _isSubmitting = false;
+      });
+    }
   }
 
   @override
@@ -433,8 +467,17 @@ class _SharingCaringPageState extends State<SharingCaringPage> {
                         borderRadius: BorderRadius.circular(12),
                       ),
                     ),
-                    onPressed: isFormValid ? confirmSharing : null,
-                    child: const Text(
+                    onPressed: (isFormValid && !_isSubmitting) ? confirmSharing : null,
+                    child: _isSubmitting
+                        ? const SizedBox(
+                      height: 22,
+                      width: 22,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2.2,
+                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                      ),
+                    )
+                        : const Text(
                       "Confirm & Notify",
                       style: TextStyle(
                         fontSize: 16,

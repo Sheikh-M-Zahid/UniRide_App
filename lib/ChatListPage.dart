@@ -63,6 +63,7 @@ class ChatListPage extends StatelessWidget {
                   MaterialPageRoute(
                     builder: (_) => ChatPage(
                       receiverName: "Ride User $index",
+                      sessionId: "session_$index",
                     ),
                   ),
                 );

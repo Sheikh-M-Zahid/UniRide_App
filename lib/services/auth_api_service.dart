@@ -301,7 +301,7 @@ class AuthApiService {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('token');
 
-    final url = Uri.parse('$baseUrl/support/help');
+    final url = Uri.parse('$baseUrl/help/submit');
 
     final response = await http.post(
       url,
@@ -350,6 +350,64 @@ class AuthApiService {
       return data;
     } else {
       throw Exception(data['message'] ?? 'Reserve calculation failed');
+    }
+  }
+
+
+  Future<Map<String, dynamic>> createReserve({
+    required String pickupLocation,
+    required String destinationLocation,
+    required String travelDate,
+    required String travelTime,
+    required int selectedSeats,
+    required String genderPreference,
+    required String vehicleType,
+    required double totalDistanceKm,
+    required int estimatedTravelMinutes,
+    required double estimatedCost,
+    String? note,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+
+    String mappedVehicleType = vehicleType.trim().toLowerCase();
+    if (mappedVehicleType == 'car') mappedVehicleType = 'car';
+    if (mappedVehicleType == 'bike') mappedVehicleType = 'bike';
+
+    String mappedGenderPreference = genderPreference.trim().toLowerCase();
+    if (mappedGenderPreference == 'no preference') {
+      mappedGenderPreference = 'any';
+    }
+
+    final url = Uri.parse('$baseUrl/reserve/create');
+
+    final response = await http.post(
+      url,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode({
+        'pickup_location': pickupLocation,
+        'destination_location': destinationLocation,
+        'travel_date': travelDate,
+        'travel_time': travelTime,
+        'selected_seats': selectedSeats,
+        'gender_preference': mappedGenderPreference,
+        'vehicle_type': mappedVehicleType,
+        'total_distance_km': totalDistanceKm,
+        'estimated_travel_minutes': estimatedTravelMinutes,
+        'estimated_cost': estimatedCost,
+        'note': (note ?? '').trim(),
+      }),
+    );
+
+    final data = jsonDecode(response.body);
+
+    if (response.statusCode == 200 || response.statusCode == 201) {
+      return data;
+    } else {
+      throw Exception(data['message'] ?? 'Reserve request failed');
     }
   }
 
@@ -438,7 +496,7 @@ class AuthApiService {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('token');
 
-    final url = Uri.parse('$baseUrl/rider/dashboard-summary');
+    final url = Uri.parse('$baseUrl/rider/dashboard');
 
     final response = await http.get(
       url,
@@ -1594,7 +1652,7 @@ class AuthApiService {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('token');
 
-    final url = Uri.parse('$baseUrl/support/help');
+    final url = Uri.parse('$baseUrl/help/submit');
 
     final response = await http.post(
       url,
@@ -2383,6 +2441,655 @@ class AuthApiService {
       return data;
     } else {
       throw Exception(data['message'] ?? 'Failed to load passengers');
+    }
+  }
+
+  //RideSharingHistory.dart (Admin)
+  Future<Map<String, dynamic>> getAdminRiderSharingHistory({
+    String search = '',
+    String status = 'all',
+    int page = 1,
+    int limit = 20,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+
+    final uri = Uri.parse('$baseUrl/admin/rider-sharing-history').replace(
+      queryParameters: {
+        'search': search,
+        'status': status,
+        'page': page.toString(),
+        'limit': limit.toString(),
+      },
+    );
+
+    final response = await http.get(
+      uri,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    );
+
+    final data = jsonDecode(response.body);
+
+    if (response.statusCode == 200) {
+      return data;
+    } else {
+      throw Exception(
+        data['message'] ?? 'Failed to load rider sharing history',
+      );
+    }
+  }
+
+  //SharingCaringHistory.dart (Admin)
+  Future<Map<String, dynamic>> getAdminSharingCaringHistory({
+    String search = '',
+    String status = 'all',
+    String safety = 'all',
+    int page = 1,
+    int limit = 20,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+
+    final uri = Uri.parse('$baseUrl/admin/sharing-caring-history').replace(
+      queryParameters: {
+        'search': search,
+        'status': status,
+        'safety': safety,
+        'page': page.toString(),
+        'limit': limit.toString(),
+      },
+    );
+
+    final response = await http.get(
+      uri,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    );
+
+    final data = jsonDecode(response.body);
+
+    if (response.statusCode == 200) {
+      return data;
+    } else {
+      throw Exception(
+        data['message'] ?? 'Failed to load sharing & caring history',
+      );
+    }
+  }
+
+  //TopLocationPage.dart (Admin)
+  Future<Map<String, dynamic>> getAdminTopLocationStats() async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+
+    final url = Uri.parse('$baseUrl/admin/top-locations');
+
+    final response = await http.get(
+      url,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    );
+
+    final data = jsonDecode(response.body);
+
+    if (response.statusCode == 200) {
+      return data;
+    } else {
+      throw Exception(data['message'] ?? 'Failed to load top location stats');
+    }
+  }
+
+  //AppStats.dart (Admin)
+  Future<Map<String, dynamic>> getAdminAppStats() async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+
+    final url = Uri.parse('$baseUrl/admin/app-stats');
+
+    final response = await http.get(
+      url,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    );
+
+    final data = jsonDecode(response.body);
+
+    if (response.statusCode == 200) {
+      return data;
+    } else {
+      throw Exception(data['message'] ?? 'Failed to load app statistics');
+    }
+  }
+
+  //RideOptions.dart
+  Future<Map<String, dynamic>> getRideOptions({
+    required String pickupAddress,
+    required String destinationAddress,
+    required double pickupLat,
+    required double pickupLng,
+    required double destinationLat,
+    required double destinationLng,
+    String genderPreference = 'Any',
+    String vehicleType = 'All',
+    String userType = 'All',
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+
+    final url = Uri.parse('$baseUrl/rides/options');
+
+    final response = await http.post(
+      url,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode({
+        'pickupAddress': pickupAddress,
+        'destinationAddress': destinationAddress,
+        'pickupLat': pickupLat,
+        'pickupLng': pickupLng,
+        'destinationLat': destinationLat,
+        'destinationLng': destinationLng,
+        'genderPreference': genderPreference,
+        'vehicleType': vehicleType,
+        'userType': userType,
+      }),
+    );
+
+    final data = jsonDecode(response.body);
+
+    if (response.statusCode == 200) {
+      return data;
+    } else {
+      throw Exception(data['message'] ?? 'Failed to load ride options');
+    }
+  }
+
+  Future<Map<String, dynamic>> createRideAvailabilityAlert({
+    required String pickupAddress,
+    required String destinationAddress,
+    required double pickupLat,
+    required double pickupLng,
+    required double destinationLat,
+    required double destinationLng,
+    String genderPreference = 'Any',
+    String vehicleType = 'All',
+    String userType = 'All',
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+
+    final url = Uri.parse('$baseUrl/rides/notify-availability');
+
+    final response = await http.post(
+      url,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode({
+        'pickupAddress': pickupAddress,
+        'destinationAddress': destinationAddress,
+        'pickupLat': pickupLat,
+        'pickupLng': pickupLng,
+        'destinationLat': destinationLat,
+        'destinationLng': destinationLng,
+        'genderPreference': genderPreference,
+        'vehicleType': vehicleType,
+        'userType': userType,
+      }),
+    );
+
+    final data = jsonDecode(response.body);
+
+    if (response.statusCode == 200 || response.statusCode == 201) {
+      return data;
+    } else {
+      throw Exception(data['message'] ?? 'Failed to create ride alert');
+    }
+  }
+
+  //RideDetailsPage.dart
+  Future<Map<String, dynamic>> getRideDetails({
+    required String rideId,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+
+    final url = Uri.parse('$baseUrl/rides/$rideId');
+
+    final response = await http.get(
+      url,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    );
+
+    final data = jsonDecode(response.body);
+
+    if (response.statusCode == 200) {
+      return data;
+    } else {
+      throw Exception(data['message'] ?? 'Failed to load ride details');
+    }
+  }
+
+  Future<Map<String, dynamic>> joinRide({
+    required String rideId,
+    required double fare,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+
+    final url = Uri.parse('$baseUrl/rides/$rideId/join');
+
+    final response = await http.post(
+      url,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode({
+        'fare': fare,
+      }),
+    );
+
+    final data = jsonDecode(response.body);
+
+    if (response.statusCode == 200 || response.statusCode == 201) {
+      return data;
+    } else {
+      throw Exception(data['message'] ?? 'Failed to join ride');
+    }
+  }
+
+  Future<Map<String, dynamic>> confirmRideParticipant({
+    required String rideId,
+    required String participantId,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+
+    final url = Uri.parse(
+      '$baseUrl/rides/$rideId/participants/$participantId/confirm',
+    );
+
+    final response = await http.patch(
+      url,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    );
+
+    final data = jsonDecode(response.body);
+
+    if (response.statusCode == 200) {
+      return data;
+    } else {
+      throw Exception(data['message'] ?? 'Failed to confirm participant');
+    }
+  }
+
+  //SharingCaringPage.dart
+  Future<Map<String, dynamic>> createCompanySharingSession({
+    required String startLocation,
+    required String destination,
+    required String status,
+    String? tripDate,
+    String? tripTime,
+    String? vehicleType,
+    String? vehicleNumber,
+    int? totalSeats,
+    String? preferredGender,
+    double? farePerPerson,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+
+    final url = Uri.parse('$baseUrl/company-sharing');
+
+    final response = await http.post(
+      url,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode({
+        'start_location': startLocation,
+        'destination': destination,
+        'status': status,
+        'trip_date': tripDate,
+        'trip_time': tripTime,
+        'vehicle_type': vehicleType,
+        'vehicle_number': vehicleNumber,
+        'total_seats': totalSeats,
+        'preferred_gender': preferredGender,
+        'fare_per_person': farePerPerson,
+      }),
+    );
+
+    final data = jsonDecode(response.body);
+
+    if (response.statusCode == 200 || response.statusCode == 201) {
+      return data;
+    } else {
+      throw Exception(data['message'] ?? 'Failed to create co ride session');
+    }
+  }
+
+  //ReserveDateSelection.dart
+  Future<Map<String, dynamic>> validateReserveSchedule({
+    required String pickupLocation,
+    required String destinationLocation,
+    required double totalDistanceKm,
+    required int estimatedTravelMinutes,
+    required double estimatedCost,
+    required String travelDate,
+    required String travelTime,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+
+    final url = Uri.parse('$baseUrl/reserve/validate-schedule');
+
+    final response = await http.post(
+      url,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode({
+        'pickup_location': pickupLocation,
+        'destination_location': destinationLocation,
+        'total_distance_km': totalDistanceKm,
+        'estimated_travel_minutes': estimatedTravelMinutes,
+        'estimated_cost': estimatedCost,
+        'travel_date': travelDate,
+        'travel_time': travelTime,
+      }),
+    );
+
+    final data = jsonDecode(response.body);
+
+    if (response.statusCode == 200 || response.statusCode == 201) {
+      return data;
+    } else {
+      throw Exception(data['message'] ?? 'Reserve schedule validation failed');
+    }
+  }
+
+  //ReserveRidePreference.dart
+  Future<Map<String, dynamic>> validateReservePreferences({
+    required String pickupLocation,
+    required String destinationLocation,
+    required double totalDistanceKm,
+    required int estimatedTravelMinutes,
+    required double estimatedCost,
+    required String travelDate,
+    required String travelTime,
+    required int selectedSeats,
+    String? genderPreference,
+    required String vehicleType,
+    String? note,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+
+    final url = Uri.parse('$baseUrl/reserve/validate-preferences');
+
+    final response = await http.post(
+      url,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode({
+        'pickup_location': pickupLocation,
+        'destination_location': destinationLocation,
+        'travel_date': travelDate,
+        'travel_time': travelTime,
+        'total_distance_km': totalDistanceKm,
+        'estimated_travel_minutes': estimatedTravelMinutes,
+        'estimated_cost': estimatedCost,
+        'selected_seats': selectedSeats,
+        'gender_preference': genderPreference,
+        'vehicle_type': vehicleType,
+        'note': note,
+      }),
+    );
+
+    final data = jsonDecode(response.body);
+
+    if (response.statusCode == 200 || response.statusCode == 201) {
+      return data;
+    } else {
+      throw Exception(data['message'] ?? 'Reserve preferences validation failed');
+    }
+  }
+
+
+  // CoRideChatListPage.dart
+  Future<Map<String, dynamic>> getCoRideChatList() async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+
+    final url = Uri.parse('$baseUrl/company-chat/list');
+
+    final response = await http
+        .get(
+      url,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    )
+        .timeout(const Duration(seconds: 15));
+
+    final data = jsonDecode(response.body);
+
+    if (response.statusCode == 200) {
+      return data;
+    } else {
+      throw Exception(data['message'] ?? 'Failed to load Co Ride chats');
+    }
+  }
+
+  Future<Map<String, dynamic>> markCoRideChatAsRead({
+    required String sessionId,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+
+    final url = Uri.parse('$baseUrl/company-chat/$sessionId/chats/read');
+
+    final response = await http.patch(
+      url,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    );
+
+    final data = jsonDecode(response.body);
+
+    if (response.statusCode == 200) {
+      return data;
+    } else {
+      throw Exception(data['message'] ?? 'Failed to mark chat as read');
+    }
+  }
+
+  //CoRideChatRoomPage.dart
+  Future<Map<String, dynamic>> getCoRideChatMessages({
+    required String sessionId,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+
+    final url = Uri.parse('$baseUrl/company-chat/$sessionId/chats');
+
+    final response = await http.get(
+      url,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    );
+
+    final data = jsonDecode(response.body);
+
+    if (response.statusCode == 200) {
+      return data;
+    } else {
+      throw Exception(data['message'] ?? 'Failed to load Co Ride chat messages');
+    }
+  }
+
+  Future<Map<String, dynamic>> sendCoRideChatMessage({
+    required String sessionId,
+    required String messageText,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+
+    final url = Uri.parse('$baseUrl/company-chat/$sessionId/chats');
+
+    final response = await http.post(
+      url,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode({
+        'message_text': messageText,
+      }),
+    );
+
+    final data = jsonDecode(response.body);
+
+    if (response.statusCode == 200 || response.statusCode == 201) {
+      return data;
+    } else {
+      throw Exception(data['message'] ?? 'Failed to send Co Ride message');
+    }
+  }
+
+
+  // RideRequestService.dart / Rider Active Ride flow
+  Future<Map<String, dynamic>> getRiderActiveRideDashboard() async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+
+    final url = Uri.parse('$baseUrl/dashboard');
+
+    final response = await http.get(
+      url,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    );
+
+    final data = jsonDecode(response.body);
+
+    if (response.statusCode == 200) {
+      return data;
+    } else {
+      throw Exception(data['message'] ?? 'Failed to load active ride dashboard');
+    }
+  }
+
+  Future<Map<String, dynamic>> updateRideAvailability({
+    required bool isActive,
+    double? latitude,
+    double? longitude,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+
+    final url = Uri.parse('$baseUrl/availability');
+
+    final response = await http.patch(
+      url,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode({
+        'isActive': isActive,
+        'latitude': latitude,
+        'longitude': longitude,
+      }),
+    );
+
+    final data = jsonDecode(response.body);
+
+    if (response.statusCode == 200) {
+      return data;
+    } else {
+      throw Exception(data['message'] ?? 'Failed to update ride availability');
+    }
+  }
+
+  Future<Map<String, dynamic>> startAssignedRide({
+    required String rideId,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+
+    final url = Uri.parse('$baseUrl/rides/$rideId/start');
+
+    final response = await http.patch(
+      url,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    );
+
+    final data = jsonDecode(response.body);
+
+    if (response.statusCode == 200) {
+      return data;
+    } else {
+      throw Exception(data['message'] ?? 'Failed to start ride');
+    }
+  }
+
+  Future<Map<String, dynamic>> completeOngoingRide({
+    required String rideId,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+
+    final url = Uri.parse('$baseUrl/rides/$rideId/complete');
+
+    final response = await http.patch(
+      url,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    );
+
+    final data = jsonDecode(response.body);
+
+    if (response.statusCode == 200) {
+      return data;
+    } else {
+      throw Exception(data['message'] ?? 'Failed to complete ride');
     }
   }
 }

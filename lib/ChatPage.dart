@@ -1,11 +1,16 @@
+import 'package:socket_io_client/socket_io_client.dart' as IO;
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/material.dart';
+import 'services/auth_api_service.dart';
 
 class ChatPage extends StatefulWidget {
   final String receiverName;
+  final String sessionId;
 
   const ChatPage({
     super.key,
     required this.receiverName,
+    required this.sessionId,
   });
 
   @override
@@ -13,12 +18,18 @@ class ChatPage extends StatefulWidget {
 }
 
 class MessageModel {
+  final String id;
+  final String senderId;
+  final String senderName;
   final String text;
   final String time;
   final bool isMe;
-  final String status; // sent, delivered, seen
+  final String status;
 
   MessageModel({
+    required this.id,
+    required this.senderId,
+    required this.senderName,
     required this.text,
     required this.time,
     required this.isMe,
@@ -28,40 +39,13 @@ class MessageModel {
 
 class _ChatPageState extends State<ChatPage> {
   final TextEditingController messageController = TextEditingController();
+  final AuthApiService _api = AuthApiService();
 
-  List<MessageModel> messages = [
-    MessageModel(
-      text: "Hello, are you going to campus?",
-      time: "10:15 AM",
-      isMe: false,
-      status: "seen",
-    ),
-    MessageModel(
-      text: "Yes, I am going. Where are you now?",
-      time: "10:16 AM",
-      isMe: true,
-      status: "seen",
-    ),
-    MessageModel(
-      text: "I am at the main gate.",
-      time: "10:17 AM",
-      isMe: false,
-      status: "seen",
-    ),
-  ];
+  IO.Socket? socket;
 
-  String getCurrentTime() {
-    final now = DateTime.now();
-    int hour = now.hour;
-    final int minute = now.minute;
-    final String period = hour >= 12 ? "PM" : "AM";
-
-    hour = hour % 12;
-    if (hour == 0) hour = 12;
-
-    final String minuteText = minute.toString().padLeft(2, '0');
-    return "$hour:$minuteText $period";
-  }
+  List<MessageModel> messages = [];
+  bool isLoading = true;
+  bool isSending = false;
 
   IconData getStatusIcon(String status) {
     switch (status) {
@@ -85,22 +69,152 @@ class _ChatPageState extends State<ChatPage> {
     }
   }
 
-  void sendMessage() {
-    if (messageController.text.trim().isNotEmpty) {
+  @override
+  void initState() {
+    super.initState();
+    _loadMessages();
+    _connectSocket();
+  }
+
+  Future<void> _loadMessages() async {
+    try {
+      final response = await _api.getCoRideChatMessages(
+        sessionId: widget.sessionId,
+      );
+
+      final List data = response['data'] ?? [];
+
+      setState(() {
+        messages = data.map((msg) {
+          return MessageModel(
+            id: (msg['chat_id'] ?? '').toString(),
+            senderId: (msg['sender_id'] ?? '').toString(),
+            senderName: (msg['sender_name'] ?? '').toString(),
+            text: (msg['message_text'] ?? '').toString(),
+            time: _formatTime(msg['sent_at']),
+            isMe: msg['is_me'] == true,
+            status: (msg['status'] ?? 'sent').toString(),
+          );
+        }).toList();
+        isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        isLoading = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString())),
+      );
+    }
+  }
+
+  Future<void> _connectSocket() async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+
+    if (token == null || token.isEmpty) return;
+
+    final socketBaseUrl = AuthApiService.baseUrl.replaceAll('/api', '');
+
+    socket = IO.io(
+      socketBaseUrl,
+      IO.OptionBuilder()
+          .setTransports(['websocket'])
+          .disableAutoConnect()
+          .setAuth({'token': token})
+          .build(),
+    );
+
+    socket!.connect();
+
+    socket!.onConnect((_) {
+      socket!.emit('join_company_session', widget.sessionId);
+    });
+
+    socket!.on('company_message_received', (data) {
+      if (!mounted) return;
+
+      final incomingId = (data['chat_id'] ?? '').toString();
+      final alreadyExists = messages.any((m) => m.id == incomingId);
+      if (alreadyExists) return;
+
       setState(() {
         messages.add(
           MessageModel(
-            text: messageController.text.trim(),
-            time: getCurrentTime(),
+            id: incomingId,
+            senderId: (data['sender_id'] ?? '').toString(),
+            senderName: widget.receiverName,
+            text: (data['message_text'] ?? '').toString(),
+            time: _formatTime(data['sent_at']),
+            isMe: false,
+            status: 'sent',
+          ),
+        );
+      });
+    });
+  }
+
+  String _formatTime(dynamic sentAt) {
+    if (sentAt == null) return '';
+    final dt = DateTime.tryParse(sentAt.toString())?.toLocal();
+    if (dt == null) return '';
+    int hour = dt.hour % 12;
+    if (hour == 0) hour = 12;
+    final minute = dt.minute.toString().padLeft(2, '0');
+    final period = dt.hour >= 12 ? 'PM' : 'AM';
+    return '$hour:$minute $period';
+  }
+
+  @override
+  void dispose() {
+    socket?.disconnect();
+    socket?.dispose();
+    messageController.dispose();
+    super.dispose();
+  }
+
+  Future<void> sendMessage() async {
+    final text = messageController.text.trim();
+    if (text.isEmpty || isSending) return;
+
+    setState(() {
+      isSending = true;
+    });
+
+    try {
+      final response = await _api.sendCoRideChatMessage(
+        sessionId: widget.sessionId,
+        messageText: text,
+      );
+
+      final msg = response['data'];
+
+      setState(() {
+        messages.add(
+          MessageModel(
+            id: (msg['chat_id'] ?? '').toString(),
+            senderId: (msg['sender_id'] ?? '').toString(),
+            senderName: widget.receiverName,
+            text: (msg['message_text'] ?? '').toString(),
+            time: _formatTime(msg['sent_at']),
             isMe: true,
-            status: "sent",
+            status: (msg['status'] ?? 'sent').toString(),
           ),
         );
       });
 
       messageController.clear();
-
-      // এখানে backend / database এ message save করবে
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString())),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          isSending = false;
+        });
+      }
     }
   }
 
@@ -208,7 +322,9 @@ class _ChatPageState extends State<ChatPage> {
       body: Column(
         children: [
           Expanded(
-            child: messages.isEmpty
+            child: isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : messages.isEmpty
                 ? const Center(
               child: Text(
                 "No messages yet",
@@ -292,7 +408,7 @@ class _ChatPageState extends State<ChatPage> {
                         Icons.send,
                         color: Colors.white,
                       ),
-                      onPressed: sendMessage,
+                      onPressed: isSending ? null : sendMessage,
                     ),
                   ),
                 ],

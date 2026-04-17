@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'services/auth_api_service.dart';
 import 'CoRideModels.dart';
 import 'CoRideChatRoom.dart';
 
@@ -19,13 +22,23 @@ class CoRideDetailsPage extends StatefulWidget {
 }
 
 class _CoRideDetailsPageState extends State<CoRideDetailsPage> {
+  bool _isRefreshingDetails = false;
+  final AuthApiService _authApiService = AuthApiService();
   late CoRidePost post;
   bool isConfirming = false;
+  Timer? _autoRefreshTimer;
 
   @override
   void initState() {
     super.initState();
     post = widget.post;
+    _startAutoRefresh();
+  }
+
+  @override
+  void dispose() {
+    _autoRefreshTimer?.cancel();
+    super.dispose();
   }
 
   bool get isCreator => widget.currentUserId == post.creatorId;
@@ -33,59 +46,192 @@ class _CoRideDetailsPageState extends State<CoRideDetailsPage> {
   bool get alreadyJoined =>
       post.confirmedMembers.any((m) => m.id == widget.currentUserId);
 
+  int _toInt(dynamic value, {int fallback = 0}) {
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    return int.tryParse(value?.toString() ?? '') ?? fallback;
+  }
+
+  double _toDouble(dynamic value, {double fallback = 0}) {
+    if (value is double) return value;
+    if (value is num) return value.toDouble();
+    return double.tryParse(value?.toString() ?? '') ?? fallback;
+  }
+
+  String _safeText(dynamic value, {String fallback = ''}) {
+    final text = value?.toString() ?? '';
+    return text.trim().isEmpty ? fallback : text;
+  }
+
+  String _buildFullName(Map<String, dynamic> json, {String fallback = 'User'}) {
+    final first = (json['first_name'] ?? '').toString().trim();
+    final last = (json['last_name'] ?? '').toString().trim();
+    final full = '$first $last'.trim();
+    return full.isEmpty ? fallback : full;
+  }
+
+  List<Map<String, dynamic>> _safeParticipants(dynamic raw) {
+    if (raw is! List) return [];
+    return raw
+        .whereType<Map>()
+        .map((e) => Map<String, dynamic>.from(e))
+        .toList();
+  }
+
+  CoRidePost _buildUpdatedPost({
+    required Map<String, dynamic> ride,
+    required List<Map<String, dynamic>> participants,
+  }) {
+    final creatorId = _safeText(ride['rider_id'], fallback: post.creatorId);
+
+    final updatedMembers = <CoRideMember>[
+      CoRideMember(
+        id: creatorId,
+        name: _buildFullName(ride, fallback: post.creatorName),
+        role: 'creator',
+      ),
+      ...participants.map(
+            (p) => CoRideMember(
+          id: _safeText(p['passenger_id']),
+          name: _buildFullName(p, fallback: 'User'),
+          role: (p['confirmed'] == true) ? 'confirmed' : 'participant',
+        ),
+      ),
+    ];
+
+    return CoRidePost(
+      id: post.id,
+      sessionId: post.sessionId,
+      creatorId: creatorId,
+      creatorName: _buildFullName(ride, fallback: post.creatorName),
+      creatorPhoto: post.creatorPhoto,
+      pickup: _safeText(ride['start_location'], fallback: post.pickup),
+      destination: _safeText(ride['destination'], fallback: post.destination),
+      vehicleType: _safeText(ride['vehicle_type'], fallback: post.vehicleType),
+      vehicleNumber:
+      _safeText(ride['number_plate'], fallback: post.vehicleNumber),
+      preferredGender: _safeText(
+        ride['gender_preference'],
+        fallback: post.preferredGender,
+      ),
+      dateText: _safeText(ride['travel_date'], fallback: post.dateText),
+      timeText: _safeText(ride['travel_time'], fallback: post.timeText),
+      totalSeats: _toInt(ride['total_seats'], fallback: post.totalSeats),
+      confirmedSeats: participants.length,
+      farePerPerson: _toDouble(ride['total_fare'], fallback: post.farePerPerson),
+      note: _safeText(ride['note'], fallback: post.note),
+      confirmedMembers: updatedMembers,
+    );
+  }
+
   Future<void> _confirmSeat() async {
-    if (post.isFull || alreadyJoined || isCreator) return;
+    if (post.isFull || alreadyJoined || isCreator || isConfirming) return;
 
     setState(() {
       isConfirming = true;
     });
 
-    await Future.delayed(const Duration(milliseconds: 900));
-
-    final updatedMembers = [
-      ...post.confirmedMembers,
-      CoRideMember(
-        id: widget.currentUserId,
-        name: widget.currentUserName,
-        role: 'participant',
-      ),
-    ];
-
-    setState(() {
-      post = CoRidePost(
-        id: post.id,
-        creatorId: post.creatorId,
-        creatorName: post.creatorName,
-        pickup: post.pickup,
-        destination: post.destination,
-        vehicleType: post.vehicleType,
-        vehicleNumber: post.vehicleNumber,
-        preferredGender: post.preferredGender,
-        dateText: post.dateText,
-        timeText: post.timeText,
-        totalSeats: post.totalSeats,
-        confirmedSeats: post.confirmedSeats + 1,
-        farePerPerson: post.farePerPerson,
-        note: post.note,
-        confirmedMembers: updatedMembers,
+    try {
+      await _authApiService.joinRide(
+        rideId: post.id,
+        fare: post.farePerPerson,
       );
-      isConfirming = false;
+
+      if (!mounted) return;
+
+      final detailsResponse = await _authApiService.getRideDetails(
+        rideId: post.id,
+      );
+
+      final data = Map<String, dynamic>.from(detailsResponse['data'] ?? {});
+      final ride = Map<String, dynamic>.from(data['ride'] ?? {});
+      final participants = _safeParticipants(data['participants']);
+
+      setState(() {
+        post = _buildUpdatedPost(
+          ride: ride,
+          participants: participants,
+        );
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Seat confirmed successfully."),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.toString()),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } finally {
+      if (!mounted) return;
+      setState(() {
+        isConfirming = false;
+      });
+    }
+  }
+
+  void _startAutoRefresh() {
+    _autoRefreshTimer?.cancel();
+    _autoRefreshTimer = Timer.periodic(const Duration(seconds: 8), (_) async {
+      if (!mounted) return;
+      if (!_isRefreshingDetails && !isConfirming) {
+        await _reloadRideDetails();
+      }
     });
+  }
+
+  Future<void> _reloadRideDetails() async {
+    if (_isRefreshingDetails) return;
+
+    _isRefreshingDetails = true;
+
+    try {
+      final detailsResponse = await _authApiService.getRideDetails(
+        rideId: post.id,
+      );
+
+      if (!mounted) return;
+
+      final data = Map<String, dynamic>.from(detailsResponse['data'] ?? {});
+      final ride = Map<String, dynamic>.from(data['ride'] ?? {});
+      final participants = _safeParticipants(data['participants']);
+
+      setState(() {
+        post = _buildUpdatedPost(
+          ride: ride,
+          participants: participants,
+        );
+      });
+    } catch (_) {
+      // silent refresh fail
+    } finally {
+      _isRefreshingDetails = false;
+    }
+  }
+
+  Future<void> _openChatRoom() async {
+    await _reloadRideDetails();
+
+    if (!(alreadyJoined || isCreator)) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('You can open chat only after joining or as creator.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
 
     if (!mounted) return;
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text("Seat confirmed successfully."),
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
-  }
-
-  void _openChatRoom() {
-    if (!(alreadyJoined || isCreator)) return;
-
-    Navigator.push(
+    await Navigator.push(
       context,
       MaterialPageRoute(
         builder: (_) => CoRideChatRoomPage(
@@ -95,6 +241,9 @@ class _CoRideDetailsPageState extends State<CoRideDetailsPage> {
         ),
       ),
     );
+
+    if (!mounted) return;
+    await _reloadRideDetails();
   }
 
   Widget _buildTopBar() {

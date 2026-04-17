@@ -40,7 +40,7 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
     });
 
     try {
-      await _authApiService.submitHelpRequestpage(message: message);
+      await _authApiService.submitHelpRequest(message: message);
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(

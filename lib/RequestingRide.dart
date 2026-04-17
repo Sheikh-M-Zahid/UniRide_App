@@ -12,6 +12,11 @@ class AppColors {
 }
 
 class RequestingRidePage extends StatefulWidget {
+  final String rideId;
+  final String driverName;
+  final String driverPhoneNumber;
+  final String vehicleType;
+  final String vehicleNumber;
   final String pickupAddress;
   final String destinationAddress;
   final double fare;
@@ -20,6 +25,11 @@ class RequestingRidePage extends StatefulWidget {
 
   const RequestingRidePage({
     super.key,
+    required this.rideId,
+    required this.driverName,
+    required this.driverPhoneNumber,
+    required this.vehicleType,
+    required this.vehicleNumber,
     required this.pickupAddress,
     required this.destinationAddress,
     required this.fare,

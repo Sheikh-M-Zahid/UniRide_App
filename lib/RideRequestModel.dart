@@ -1,4 +1,5 @@
 class RideRequestModel {
+  final String requestId;
   final String passengerName;
   final String phoneNumber;
   final String currentLocation;
@@ -8,6 +9,7 @@ class RideRequestModel {
   final int estimatedMinutes;
 
   const RideRequestModel({
+    required this.requestId,
     required this.passengerName,
     required this.phoneNumber,
     required this.currentLocation,
@@ -19,18 +21,20 @@ class RideRequestModel {
 
   factory RideRequestModel.fromMap(Map<String, dynamic> map) {
     return RideRequestModel(
+      requestId: map['requestId']?.toString() ?? '',
       passengerName: map['passengerName'] ?? '',
       phoneNumber: map['phoneNumber'] ?? '',
       currentLocation: map['currentLocation'] ?? '',
       destination: map['destination'] ?? '',
       distanceKm: (map['distanceKm'] ?? 0).toDouble(),
       fare: (map['fare'] ?? 0).toDouble(),
-      estimatedMinutes: map['estimatedMinutes'] ?? 0,
+      estimatedMinutes: (map['estimatedMinutes'] ?? 0) as int,
     );
   }
 
   Map<String, dynamic> toMap() {
     return {
+      'requestId': requestId,
       'passengerName': passengerName,
       'phoneNumber': phoneNumber,
       'currentLocation': currentLocation,

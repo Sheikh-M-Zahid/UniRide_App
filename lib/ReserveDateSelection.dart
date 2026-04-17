@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'services/auth_api_service.dart';
 import 'ReserveRidePreference.dart';
 
 class ReserveDateSelection extends StatefulWidget {
@@ -22,6 +23,8 @@ class ReserveDateSelection extends StatefulWidget {
 }
 
 class _ReserveDateSelectionState extends State<ReserveDateSelection> {
+  final AuthApiService _authApiService = AuthApiService();
+  bool _isSubmitting = false;
   DateTime? selectedDate;
   TimeOfDay? selectedTime;
 
@@ -105,6 +108,31 @@ class _ReserveDateSelectionState extends State<ReserveDateSelection> {
     );
 
     if (picked != null) {
+      final now = DateTime.now();
+
+      if (selectedDate != null &&
+          selectedDate!.year == now.year &&
+          selectedDate!.month == now.month &&
+          selectedDate!.day == now.day) {
+        final pickedDateTime = DateTime(
+          now.year,
+          now.month,
+          now.day,
+          picked.hour,
+          picked.minute,
+        );
+
+        if (pickedDateTime.isBefore(now)) {
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('You cannot select a past time for today.'),
+            ),
+          );
+          return;
+        }
+      }
+
       setState(() {
         selectedTime = picked;
       });
@@ -112,6 +140,59 @@ class _ReserveDateSelectionState extends State<ReserveDateSelection> {
   }
 
   bool get _isFormValid => selectedDate != null && selectedTime != null;
+
+  String _toApiDate(DateTime date) {
+    return '${date.year.toString().padLeft(4, '0')}-'
+        '${date.month.toString().padLeft(2, '0')}-'
+        '${date.day.toString().padLeft(2, '0')}';
+  }
+
+  Future<void> _validateAndContinue() async {
+    if (!_isFormValid || _isSubmitting) return;
+
+    setState(() {
+      _isSubmitting = true;
+    });
+
+    try {
+      await _authApiService.validateReserveSchedule(
+        pickupLocation: widget.pickupLocation,
+        destinationLocation: widget.destinationLocation,
+        totalDistanceKm: widget.totalDistanceKm,
+        estimatedTravelMinutes: widget.estimatedTravelMinutes,
+        estimatedCost: widget.estimatedCost,
+        travelDate: _toApiDate(selectedDate!),
+        travelTime: _formatTime(selectedTime!),
+      );
+
+      if (!mounted) return;
+
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => ReserveRidePreferencePage(
+            selectedDate: selectedDate!,
+            selectedTime: selectedTime!,
+            pickupLocation: widget.pickupLocation,
+            destinationLocation: widget.destinationLocation,
+            totalDistanceKm: widget.totalDistanceKm,
+            estimatedTravelMinutes: widget.estimatedTravelMinutes,
+            estimatedCost: widget.estimatedCost,
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString())),
+      );
+    } finally {
+      if (!mounted) return;
+      setState(() {
+        _isSubmitting = false;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -361,25 +442,9 @@ class _ReserveDateSelectionState extends State<ReserveDateSelection> {
                 width: double.infinity,
                 height: 56,
                 child: ElevatedButton(
-                  onPressed: !_isFormValid
+                  onPressed: (!_isFormValid || _isSubmitting)
                       ? null
-                      : () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => ReserveRidePreferencePage(
-                          selectedDate: selectedDate!,
-                          selectedTime: selectedTime!,
-                          pickupLocation: widget.pickupLocation,
-                          destinationLocation: widget.destinationLocation,
-                          totalDistanceKm: widget.totalDistanceKm,
-                          estimatedTravelMinutes:
-                          widget.estimatedTravelMinutes,
-                          estimatedCost: widget.estimatedCost,
-                        ),
-                      ),
-                    );
-                  },
+                      : _validateAndContinue,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF14B8A6),
                     disabledBackgroundColor: Colors.grey.shade300,
@@ -388,11 +453,19 @@ class _ReserveDateSelectionState extends State<ReserveDateSelection> {
                       borderRadius: BorderRadius.circular(14),
                     ),
                   ),
-                  child: Text(
+                  child: _isSubmitting
+                      ? const SizedBox(
+                    height: 22,
+                    width: 22,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2.2,
+                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                    ),
+                  )
+                      : Text(
                     "Next",
                     style: TextStyle(
-                      color:
-                      !_isFormValid ? Colors.grey.shade600 : Colors.white,
+                      color: !_isFormValid ? Colors.grey.shade600 : Colors.white,
                       fontSize: 16,
                       fontWeight: FontWeight.w700,
                     ),

@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
+import 'services/auth_api_service.dart';
 import 'UserHome.dart';
 import 'ReserveRide.dart';
 
-class ReserveRequestSummaryPage extends StatelessWidget {
+class ReserveRequestSummaryPage extends StatefulWidget {
   final DateTime selectedDate;
   final TimeOfDay selectedTime;
 
@@ -34,6 +35,15 @@ class ReserveRequestSummaryPage extends StatelessWidget {
     required this.note,
   });
 
+  @override
+  State<ReserveRequestSummaryPage> createState() =>
+      _ReserveRequestSummaryPageState();
+}
+
+class _ReserveRequestSummaryPageState extends State<ReserveRequestSummaryPage> {
+  final AuthApiService _authApiService = AuthApiService();
+  bool _isSubmitting = false;
+
   String _formatDate(DateTime date) {
     const List<String> months = [
       'Jan',
@@ -58,6 +68,66 @@ class ReserveRequestSummaryPage extends StatelessWidget {
     final String minute = time.minute.toString().padLeft(2, '0');
     final String period = time.period == DayPeriod.am ? 'AM' : 'PM';
     return '$hour:$minute $period';
+  }
+
+  String _toApiDate(DateTime date) {
+    return '${date.year.toString().padLeft(4, '0')}-'
+        '${date.month.toString().padLeft(2, '0')}-'
+        '${date.day.toString().padLeft(2, '0')}';
+  }
+
+  Future<void> _confirmReserve() async {
+    if (_isSubmitting) return;
+
+    setState(() {
+      _isSubmitting = true;
+    });
+
+    try {
+      await _authApiService.createReserve(
+        pickupLocation: widget.pickupLocation,
+        destinationLocation: widget.destinationLocation,
+        travelDate: _toApiDate(widget.selectedDate),
+        travelTime: _formatTime(widget.selectedTime),
+        selectedSeats: widget.selectedSeats,
+        genderPreference: widget.genderPreference,
+        vehicleType: widget.vehicleType,
+        totalDistanceKm: widget.totalDistanceKm,
+        estimatedTravelMinutes: widget.estimatedTravelMinutes,
+        estimatedCost: widget.estimatedCost,
+        note: widget.note,
+      );
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Reserve request submitted successfully.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(
+          builder: (_) => const UniRideHomePage(),
+        ),
+            (route) => false,
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.toString()),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } finally {
+      if (!mounted) return;
+      setState(() {
+        _isSubmitting = false;
+      });
+    }
   }
 
   @override
@@ -118,25 +188,25 @@ class ReserveRequestSummaryPage extends StatelessWidget {
                         _buildInfoRow(
                           icon: Icons.calendar_today_rounded,
                           label: "Travel date",
-                          value: _formatDate(selectedDate),
+                          value: _formatDate(widget.selectedDate)
                         ),
                         _buildSpacingDivider(),
                         _buildInfoRow(
                           icon: Icons.access_time_rounded,
                           label: "Travel time",
-                          value: _formatTime(selectedTime),
+                          value: _formatTime(widget.selectedTime)
                         ),
                         _buildSpacingDivider(),
                         _buildInfoRow(
                           icon: Icons.my_location_rounded,
                           label: "Pickup location",
-                          value: pickupLocation,
+                          value: widget.pickupLocation,
                         ),
                         _buildSpacingDivider(),
                         _buildInfoRow(
                           icon: Icons.location_on_rounded,
                           label: "Destination",
-                          value: destinationLocation,
+                          value: widget.destinationLocation,
                         ),
                       ],
                     ),
@@ -150,21 +220,21 @@ class ReserveRequestSummaryPage extends StatelessWidget {
                         _buildInfoRow(
                           icon: Icons.event_seat_rounded,
                           label: "Seats needed",
-                          value: "$selectedSeats",
+                          value: "${widget.selectedSeats}",
                         ),
                         _buildSpacingDivider(),
                         _buildInfoRow(
                           icon: Icons.person_outline_rounded,
                           label: "Gender preference",
-                          value: genderPreference,
+                          value: widget.genderPreference,
                         ),
                         _buildSpacingDivider(),
                         _buildInfoRow(
-                          icon: vehicleType == "Car"
+                          icon: widget.vehicleType == "Car"
                               ? Icons.directions_car_filled_rounded
                               : Icons.two_wheeler_rounded,
                           label: "Ride type",
-                          value: vehicleType,
+                          value: widget.vehicleType,
                         ),
                       ],
                     ),
@@ -178,19 +248,19 @@ class ReserveRequestSummaryPage extends StatelessWidget {
                         _buildInfoRow(
                           icon: Icons.route_rounded,
                           label: "Total distance",
-                          value: "${totalDistanceKm.toStringAsFixed(1)} km",
+                          value: "${widget.totalDistanceKm.toStringAsFixed(1)} km",
                         ),
                         _buildSpacingDivider(),
                         _buildInfoRow(
                           icon: Icons.timelapse_rounded,
                           label: "Estimated time",
-                          value: "$estimatedTravelMinutes min",
+                          value: "${widget.estimatedTravelMinutes} min",
                         ),
                         _buildSpacingDivider(),
                         _buildInfoRow(
                           icon: Icons.payments_rounded,
                           label: "Estimated cost",
-                          value: "৳ ${estimatedCost.toStringAsFixed(0)}",
+                          value: "৳ ${widget.estimatedCost.toStringAsFixed(0)}",
                           valueColor: const Color(0xFF0F766E),
                           valueWeight: FontWeight.bold,
                         ),
@@ -219,11 +289,11 @@ class ReserveRequestSummaryPage extends StatelessWidget {
                         ],
                       ),
                       child: Text(
-                        note.trim().isEmpty ? "No note added" : note.trim(),
+                        widget.note.trim().isEmpty ? "No note added" : widget.note.trim(),
                         style: TextStyle(
                           fontSize: 14,
                           height: 1.5,
-                          color: note.trim().isEmpty
+                          color: widget.note.trim().isEmpty
                               ? Colors.grey
                               : const Color(0xFF1F2937),
                         ),
@@ -320,15 +390,7 @@ class ReserveRequestSummaryPage extends StatelessWidget {
                     child: SizedBox(
                       height: 56,
                       child: ElevatedButton(
-                        onPressed: () {
-                          Navigator.pushAndRemoveUntil(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => const UniRideHomePage(),
-                            ),
-                                (route) => false,
-                          );
-                        },
+                        onPressed: _isSubmitting ? null : _confirmReserve,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color(0xFF14B8A6),
                           elevation: 0,
@@ -336,7 +398,16 @@ class ReserveRequestSummaryPage extends StatelessWidget {
                             borderRadius: BorderRadius.circular(14),
                           ),
                         ),
-                        child: const Text(
+                        child: _isSubmitting
+                            ? const SizedBox(
+                          height: 22,
+                          width: 22,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2.2,
+                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                          ),
+                        )
+                            : const Text(
                           "Confirm",
                           style: TextStyle(
                             color: Colors.white,

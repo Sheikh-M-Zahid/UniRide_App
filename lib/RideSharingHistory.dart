@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'services/auth_api_service.dart';
 
 class AppColors {
   static const Color primary = Color(0xFF14B8A6);
@@ -28,6 +29,12 @@ class _RiderSharingHistoryPageState extends State<RiderSharingHistoryPage> {
 
   String _selectedStatus = 'all';
 
+  int _totalRides = 0;
+  int _completedCount = 0;
+  int _cancelledCount = 0;
+  int _scheduledCount = 0;
+  int _ongoingCount = 0;
+
   @override
   void initState() {
     super.initState();
@@ -38,6 +45,21 @@ class _RiderSharingHistoryPageState extends State<RiderSharingHistoryPage> {
     return RiderSharingHistoryService().fetchRideHistory(
       search: _searchController.text.trim(),
       status: _selectedStatus,
+      onSummaryLoaded: (summary) {
+        if (!mounted) return;
+
+        setState(() {
+          _totalRides = int.tryParse('${summary['totalRides'] ?? 0}') ?? 0;
+          _completedCount =
+              int.tryParse('${summary['completedCount'] ?? 0}') ?? 0;
+          _cancelledCount =
+              int.tryParse('${summary['cancelledCount'] ?? 0}') ?? 0;
+          _scheduledCount =
+              int.tryParse('${summary['scheduledCount'] ?? 0}') ?? 0;
+          _ongoingCount =
+              int.tryParse('${summary['ongoingCount'] ?? 0}') ?? 0;
+        });
+      },
     );
   }
 
@@ -58,10 +80,6 @@ class _RiderSharingHistoryPageState extends State<RiderSharingHistoryPage> {
   void dispose() {
     _searchController.dispose();
     super.dispose();
-  }
-
-  int _countByStatus(List<RiderSharingHistoryModel> items, String status) {
-    return items.where((e) => e.rideStatus.toLowerCase() == status).length;
   }
 
   @override
@@ -126,21 +144,16 @@ class _RiderSharingHistoryPageState extends State<RiderSharingHistoryPage> {
                     return _EmptyView(onRefresh: _refreshHistory);
                   }
 
-                  final completedCount = _countByStatus(items, 'completed');
-                  final cancelledCount = _countByStatus(items, 'cancelled');
-                  final scheduledCount = _countByStatus(items, 'scheduled');
-                  final ongoingCount = _countByStatus(items, 'ongoing');
-
                   return ListView(
                     physics: const AlwaysScrollableScrollPhysics(),
                     padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
                     children: [
                       _OverviewCard(
-                        totalRides: items.length,
-                        completedCount: completedCount,
-                        cancelledCount: cancelledCount,
-                        scheduledCount: scheduledCount,
-                        ongoingCount: ongoingCount,
+                        totalRides: _totalRides,
+                        completedCount: _completedCount,
+                        cancelledCount: _cancelledCount,
+                        scheduledCount: _scheduledCount,
+                        ongoingCount: _ongoingCount,
                       ),
                       const SizedBox(height: 16),
                       const _SectionTitle(title: 'Ride Records'),
@@ -862,8 +875,8 @@ class RiderSharingHistoryModel {
       vehicleNumber: (json['vehicle_number'] ?? '').toString(),
       pickupLocation: (json['pickup_location'] ?? '').toString(),
       destinationLocation: (json['destination_location'] ?? '').toString(),
-      departureTime: (json['departure_time'] ?? '').toString(),
-      rideDate: (json['ride_date'] ?? '').toString(),
+      departureTime: _formatTime(json['departure_time']),
+      rideDate: _formatDate(json['ride_date']),
       offeredSeats: _toInt(json['offered_seats']),
       bookedSeats: _toInt(json['booked_seats']),
       fare: _toDouble(json['fare']),
@@ -885,48 +898,50 @@ class RiderSharingHistoryModel {
     return double.tryParse(value.toString()) ?? 0;
   }
 
+  static String _formatDate(dynamic value) {
+    if (value == null) return '';
+    final raw = value.toString().trim();
+    if (raw.isEmpty) return '';
+
+    final parsed = DateTime.tryParse(raw);
+    if (parsed == null) return raw;
+
+    final day = parsed.day.toString().padLeft(2, '0');
+    final month = parsed.month.toString().padLeft(2, '0');
+    final year = parsed.year.toString();
+
+    return '$day-$month-$year';
+  }
+
+  static String _formatTime(dynamic value) {
+    if (value == null) return '';
+    final raw = value.toString().trim();
+    if (raw.isEmpty) return '';
+    return raw;
+  }
+
   String get fareDisplay => '৳${fare.toStringAsFixed(0)}';
 }
 
 class RiderSharingHistoryService {
+  final AuthApiService _authApiService = AuthApiService();
+
   Future<List<RiderSharingHistoryModel>> fetchRideHistory({
     String search = '',
     String status = 'all',
+    required void Function(Map<String, dynamic> summary) onSummaryLoaded,
   }) async {
-    await Future.delayed(const Duration(milliseconds: 400));
-
-    throw UnimplementedError(
-      'Connect this service with your Node.js + PostgreSQL backend API.',
+    final response = await _authApiService.getAdminRiderSharingHistory(
+      search: search,
+      status: status,
     );
 
-    /*
-    Example backend response:
+    final data = Map<String, dynamic>.from(response['data'] ?? {});
+    final summary = Map<String, dynamic>.from(data['summary'] ?? {});
+    final items = List<Map<String, dynamic>>.from(data['items'] ?? const []);
 
-    [
-      {
-        "ride_id": "RIDE-1001",
-        "rider_name": "Rahim Uddin",
-        "rider_phone": "017XXXXXXXX",
-        "rider_photo_url": "",
-        "vehicle_type": "Bike",
-        "vehicle_number": "Dhaka Metro-LA-12-3456",
-        "pickup_location": "Main Gate",
-        "destination_location": "Academic Building",
-        "departure_time": "09:30 AM",
-        "ride_date": "2026-03-15",
-        "offered_seats": 2,
-        "booked_seats": 1,
-        "fare": 60,
-        "ride_status": "completed"
-      }
-    ]
+    onSummaryLoaded(summary);
 
-    Suggested query params:
-    - search
-    - status
-
-    Example:
-    GET /admin/rider-sharing-history?search=rahim&status=completed
-    */
+    return items.map((e) => RiderSharingHistoryModel.fromJson(e)).toList();
   }
 }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'services/auth_api_service.dart';
 
 class AppColors {
   static const Color primary = Color(0xFF14B8A6);
@@ -924,32 +925,11 @@ class AppStatsModel {
 }
 
 class AppStatsService {
+  final AuthApiService _authApiService = AuthApiService();
+
   Future<AppStatsModel> fetchAppStats() async {
-    await Future.delayed(const Duration(milliseconds: 500));
-
-    throw UnimplementedError(
-      'Connect this method with your Node.js + PostgreSQL backend API.',
-    );
-
-    /*
-    Example API response format from backend:
-
-    {
-      "total_users": 1200,
-      "total_riders": 260,
-      "total_passengers": 940,
-      "total_completed_rides": 5400,
-      "total_cancelled_rides": 120,
-      "active_users_today": 180,
-      "new_users_this_week": 35,
-      "new_users_this_month": 110,
-      "student_count": 980,
-      "faculty_count": 120,
-      "staff_count": 100,
-      "male_preference_count": 210,
-      "female_preference_count": 180,
-      "no_preference_count": 750
-    }
-    */
+    final response = await _authApiService.getAdminAppStats();
+    final data = Map<String, dynamic>.from(response['data'] ?? {});
+    return AppStatsModel.fromJson(data);
   }
 }

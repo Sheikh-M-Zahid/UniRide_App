@@ -1,4 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:socket_io_client/socket_io_client.dart' as IO;
+
+import 'services/auth_api_service.dart';
 import 'CoRideModels.dart';
 
 class CoRideChatRoomPage extends StatefulWidget {
@@ -20,82 +26,265 @@ class CoRideChatRoomPage extends StatefulWidget {
 class _CoRideChatRoomPageState extends State<CoRideChatRoomPage> {
   final TextEditingController messageController = TextEditingController();
   final ScrollController scrollController = ScrollController();
+  final AuthApiService _api = AuthApiService();
 
-  late List<CoRideMessage> messages;
+  IO.Socket? _socket;
+  Timer? _pollTimer;
 
-  bool get canChat {
-    return widget.post.creatorId == widget.currentUserId ||
-        widget.post.confirmedMembers.any((m) => m.id == widget.currentUserId);
+  List<CoRideMessage> messages = [];
+  bool isLoading = true;
+  bool isSending = false;
+  bool hasAccess = true;
+  String? loadError;
+
+  List<CoRideMember> get _displayMembers {
+    if (widget.post.confirmedMembers.isNotEmpty) {
+      return widget.post.confirmedMembers;
+    }
+
+    if (widget.post.creatorName.trim().isNotEmpty) {
+      return [
+        CoRideMember(
+          id: widget.post.creatorId,
+          name: widget.post.creatorName,
+          role: 'creator',
+        ),
+      ];
+    }
+
+    return [];
   }
+
+  bool get canChat => hasAccess;
 
   @override
   void initState() {
     super.initState();
-
-    messages = [
-      const CoRideMessage(
-        id: '1',
-        senderId: 'creator_1',
-        senderName: 'Arafat',
-        text: 'Hello সবাই, please 10 minutes আগে ready থাকবেন.',
-        time: '10:10 AM',
-        isMine: false,
-      ),
-      const CoRideMessage(
-        id: '2',
-        senderId: 'me_1',
-        senderName: 'You',
-        text: 'ঠিক আছে, আমি time মতো আসবো.',
-        time: '10:12 AM',
-        isMine: true,
-      ),
-    ];
+    _loadMessages();
+    _connectSocket();
+    _startPollingFallback();
   }
 
   @override
   void dispose() {
+    _pollTimer?.cancel();
+    _socket?.dispose();
     messageController.dispose();
     scrollController.dispose();
     super.dispose();
   }
 
-  void _sendMessage() {
-    final text = messageController.text.trim();
-    if (text.isEmpty || !canChat) return;
+  Future<void> _connectSocket() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('token');
 
-    setState(() {
-      messages.add(
-        CoRideMessage(
-          id: DateTime.now().millisecondsSinceEpoch.toString(),
-          senderId: widget.currentUserId,
-          senderName: widget.currentUserName,
-          text: text,
-          time: _formatNow(),
-          isMine: true,
-        ),
+      if (token == null || token.isEmpty) return;
+
+      final socketBaseUrl = AuthApiService.baseUrl.replaceAll('/api', '');
+
+      _socket = IO.io(
+        socketBaseUrl,
+        IO.OptionBuilder()
+            .setTransports(['websocket'])
+            .disableAutoConnect()
+            .setExtraHeaders({
+          'Authorization': 'Bearer $token',
+        })
+            .setQuery({
+          'sessionId': widget.post.sessionId,
+          'userId': widget.currentUserId,
+        })
+            .build(),
       );
-      messageController.clear();
-    });
 
-    Future.delayed(const Duration(milliseconds: 100), () {
+      _socket!.onConnect((_) {
+        // backend এ যদি room join handler থাকে, এই emit গুলো join করাবে
+        _socket!.emit('join_company_session', {
+          'sessionId': widget.post.sessionId,
+        });
+
+        _socket!.emit('join_user_room', {
+          'userId': widget.currentUserId,
+        });
+      });
+
+      _socket!.on('company_message_received', (data) async {
+        if (data is! Map) return;
+
+        final incoming = CoRideMessage.fromJson(
+          Map<String, dynamic>.from(data),
+        ).copyWith(
+          time: _formatServerTime((data['time'] ?? '').toString()),
+          isMine: (data['sender_id']?.toString() ?? '') == widget.currentUserId,
+        );
+
+        if (!mounted) return;
+
+        final alreadyExists = messages.any((m) => m.id == incoming.id);
+        if (alreadyExists) return;
+
+        setState(() {
+          messages.add(incoming);
+        });
+
+        _scrollToBottom();
+        await _api.markCoRideChatAsRead(sessionId: widget.post.sessionId);
+      });
+
+      _socket!.on('co_ride_chat_list_updated', (_) {
+        // এই page-এ আলাদা UI update লাগছে না।
+        // ChatList page back করলে refresh নিচ্ছেই।
+      });
+
+      _socket!.connect();
+    } catch (_) {
+      // socket fail করলে নিচের polling fallback কাজ করবে
+    }
+  }
+
+  void _startPollingFallback() {
+    _pollTimer?.cancel();
+    _pollTimer = Timer.periodic(const Duration(seconds: 3), (_) async {
+      if (!mounted || !hasAccess) return;
+      await _loadMessages(silent: true);
+    });
+  }
+
+  Future<void> _loadMessages({bool silent = false}) async {
+    try {
+      if (!silent) {
+        setState(() {
+          isLoading = true;
+          loadError = null;
+        });
+      }
+
+      final response = await _api.getCoRideChatMessages(
+        sessionId: widget.post.sessionId,
+      );
+
+      final List<dynamic> list = response['data'] ?? [];
+
+      final loadedMessages = list
+          .map((e) => CoRideMessage.fromJson(e as Map<String, dynamic>))
+          .map(
+            (msg) => msg.copyWith(
+          time: _formatServerTime(msg.time),
+        ),
+      )
+          .toList();
+
+      if (!mounted) return;
+
+      setState(() {
+        hasAccess = true;
+        messages = loadedMessages;
+        isLoading = false;
+        loadError = null;
+      });
+
+      await _api.markCoRideChatAsRead(sessionId: widget.post.sessionId);
+      _scrollToBottom();
+    } catch (e) {
+      if (!mounted) return;
+
+      final text = e.toString().toLowerCase();
+      final denied = text.contains('not allowed') ||
+          text.contains('cannot access') ||
+          text.contains('you are not allowed');
+
+      setState(() {
+        hasAccess = !denied ? hasAccess : false;
+        isLoading = false;
+        loadError = e.toString();
+        if (denied) {
+          messages = [];
+        }
+      });
+    }
+  }
+
+  void _scrollToBottom() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!scrollController.hasClients) return;
       scrollController.animateTo(
-        scrollController.position.maxScrollExtent + 80,
+        scrollController.position.maxScrollExtent + 100,
         duration: const Duration(milliseconds: 250),
         curve: Curves.easeOut,
       );
     });
   }
 
-  String _formatNow() {
-    final now = TimeOfDay.now();
-    final hour = now.hourOfPeriod == 0 ? 12 : now.hourOfPeriod;
-    final minute = now.minute.toString().padLeft(2, '0');
-    final period = now.period == DayPeriod.am ? 'AM' : 'PM';
-    return '$hour:$minute $period';
+  String _formatServerTime(String rawTime) {
+    if (rawTime.trim().isEmpty) return '';
+
+    try {
+      final dt = DateTime.parse(rawTime).toLocal();
+      final hour24 = dt.hour;
+      final minute = dt.minute.toString().padLeft(2, '0');
+      final period = hour24 >= 12 ? 'PM' : 'AM';
+      final hour12 = hour24 % 12 == 0 ? 12 : hour24 % 12;
+      return '$hour12:$minute $period';
+    } catch (_) {
+      return rawTime;
+    }
+  }
+
+  Future<void> _sendMessage() async {
+    final text = messageController.text.trim();
+    if (text.isEmpty || !canChat || isSending) return;
+
+    try {
+      setState(() {
+        isSending = true;
+      });
+
+      messageController.clear();
+
+      final response = await _api.sendCoRideChatMessage(
+        sessionId: widget.post.sessionId,
+        messageText: text,
+      );
+
+      final data = response['data'] as Map<String, dynamic>;
+      final newMessage = CoRideMessage.fromJson(data).copyWith(
+        time: _formatServerTime((data['time'] ?? '').toString()),
+        isMine: true,
+      );
+
+      if (!mounted) return;
+
+      final alreadyExists = messages.any((m) => m.id == newMessage.id);
+      if (!alreadyExists) {
+        setState(() {
+          messages.add(newMessage);
+        });
+      }
+
+      _scrollToBottom();
+      await _api.markCoRideChatAsRead(sessionId: widget.post.sessionId);
+    } catch (e) {
+      if (!mounted) return;
+      messageController.text = text;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString())),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          isSending = false;
+        });
+      }
+    }
   }
 
   Widget _buildMemberStrip() {
+    if (_displayMembers.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
@@ -106,7 +295,7 @@ class _CoRideChatRoomPageState extends State<CoRideChatRoomPage> {
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         child: Row(
-          children: widget.post.confirmedMembers.map((member) {
+          children: _displayMembers.map((member) {
             return Padding(
               padding: const EdgeInsets.only(right: 10),
               child: Container(
@@ -215,6 +404,8 @@ class _CoRideChatRoomPageState extends State<CoRideChatRoomPage> {
                 controller: messageController,
                 minLines: 1,
                 maxLines: 4,
+                textInputAction: TextInputAction.send,
+                onSubmitted: (_) => _sendMessage(),
                 decoration: const InputDecoration(
                   hintText: "Type a message",
                   border: InputBorder.none,
@@ -228,7 +419,7 @@ class _CoRideChatRoomPageState extends State<CoRideChatRoomPage> {
           ),
           const SizedBox(width: 10),
           InkWell(
-            onTap: _sendMessage,
+            onTap: isSending ? null : _sendMessage,
             borderRadius: BorderRadius.circular(18),
             child: Container(
               width: 48,
@@ -266,6 +457,49 @@ class _CoRideChatRoomPageState extends State<CoRideChatRoomPage> {
     );
   }
 
+  Widget _buildErrorView() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              "Failed to load messages",
+              style: TextStyle(
+                color: AppColors.text,
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              loadError ?? "Something went wrong",
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: AppColors.mutedText,
+                height: 1.5,
+              ),
+            ),
+            const SizedBox(height: 14),
+            ElevatedButton(
+              onPressed: _loadMessages,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor: Colors.white,
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              child: const Text("Retry"),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -287,7 +521,7 @@ class _CoRideChatRoomPageState extends State<CoRideChatRoomPage> {
               ),
             ),
             Text(
-              "${widget.post.pickup} → ${widget.post.destination}",
+              "${widget.post.pickupLocation} → ${widget.post.destinationLocation}",
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: const TextStyle(
@@ -299,13 +533,21 @@ class _CoRideChatRoomPageState extends State<CoRideChatRoomPage> {
         ),
       ),
       body: SafeArea(
-        child: !canChat
+        child: !hasAccess
             ? _buildNoAccessView()
             : Column(
           children: [
             _buildMemberStrip(),
             Expanded(
-              child: ListView.builder(
+              child: isLoading
+                  ? const Center(
+                child: CircularProgressIndicator(
+                  color: AppColors.primary,
+                ),
+              )
+                  : loadError != null && messages.isEmpty
+                  ? _buildErrorView()
+                  : ListView.builder(
                 controller: scrollController,
                 padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
                 physics: const BouncingScrollPhysics(),

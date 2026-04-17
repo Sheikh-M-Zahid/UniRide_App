@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'services/auth_api_service.dart';
 
 class AppColors {
   static const Color primary = Color(0xFF14B8A6);
@@ -1091,49 +1092,24 @@ class SharingCaringHistoryModel {
 }
 
 class SharingCaringHistoryService {
+  final AuthApiService _authApiService = AuthApiService();
+
   Future<List<SharingCaringHistoryModel>> fetchSharingCaringHistory({
     String search = '',
     String status = 'all',
     String safety = 'all',
   }) async {
-    await Future.delayed(const Duration(milliseconds: 400));
-
-    throw UnimplementedError(
-      'Connect this service with your Node.js + PostgreSQL backend API.',
+    final response = await _authApiService.getAdminSharingCaringHistory(
+      search: search,
+      status: status,
+      safety: safety,
     );
 
-    /*
-    Example backend response:
+    final data = Map<String, dynamic>.from(response['data'] ?? {});
+    final items = List<Map<String, dynamic>>.from(data['items'] ?? const []);
 
-    [
-      {
-        "trip_id": "SC-1001",
-        "creator_name": "Zahid Hossain",
-        "creator_type": "Student",
-        "creator_phone": "017XXXXXXXX",
-        "creator_photo_url": "",
-        "vehicle_type": "Rental Car",
-        "pickup_location": "Main Gate",
-        "destination_location": "Boys Hall",
-        "trip_date": "2026-03-15",
-        "trip_time": "05:30 PM",
-        "total_seats": 4,
-        "joined_members": 3,
-        "total_cost": 240,
-        "per_seat_cost": 60,
-        "trip_status": "completed",
-        "has_safety_flag": false,
-        "safety_note": ""
-      }
-    ]
-
-    Suggested query params:
-    - search
-    - status
-    - safety
-
-    Example:
-    GET /admin/sharing-caring-history?search=main%20gate&status=completed&safety=safe
-    */
+    return items
+        .map((e) => SharingCaringHistoryModel.fromJson(e))
+        .toList();
   }
 }

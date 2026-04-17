@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'services/auth_api_service.dart';
 
 class AppColors {
   static const Color primary = Color(0xFF14B8A6);
@@ -782,51 +783,11 @@ class TopLocationStatsModel {
 }
 
 class TopLocationService {
+  final AuthApiService _authApiService = AuthApiService();
+
   Future<TopLocationStatsModel> fetchTopLocationStats() async {
-    await Future.delayed(const Duration(milliseconds: 400));
-
-    throw UnimplementedError(
-      'Connect this service with your Node.js + PostgreSQL backend API.',
-    );
-
-    /*
-    Backend response example:
-
-    {
-      "top_pickup_points": [
-        {
-          "location_name": "Main Gate",
-          "count": 120,
-          "sub_text": "Most selected pickup point"
-        },
-        {
-          "location_name": "Boys Hall",
-          "count": 95,
-          "sub_text": "Frequently used by students"
-        }
-      ],
-      "top_destination_points": [
-        {
-          "location_name": "Academic Building",
-          "count": 110,
-          "sub_text": "Top drop-off point"
-        }
-      ],
-      "high_demand_locations": [
-        {
-          "location_name": "Library",
-          "count": 88,
-          "sub_text": "High ride request volume"
-        }
-      ],
-      "high_rider_availability_locations": [
-        {
-          "location_name": "Transport Area",
-          "count": 24,
-          "sub_text": "Most riders available here"
-        }
-      ]
-    }
-    */
+    final response = await _authApiService.getAdminTopLocationStats();
+    final data = Map<String, dynamic>.from(response['data'] ?? {});
+    return TopLocationStatsModel.fromJson(data);
   }
 }

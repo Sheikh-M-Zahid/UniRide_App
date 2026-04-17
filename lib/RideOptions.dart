@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'RideModels.dart';
-import 'requestingride.dart';
+import 'package:uni_ride/RequestingRide.dart';
+import 'services/auth_api_service.dart';
 
 class AppColors {
   static const Color primary = Color(0xFF14B8A6);
@@ -43,6 +44,7 @@ class RideOptionsPage extends StatefulWidget {
 }
 
 class _RideOptionsPageState extends State<RideOptionsPage> {
+  final AuthApiService _authApiService = AuthApiService();
   RideSortType selectedSort = RideSortType.lowestFare;
 
   String selectedGender = 'Any';
@@ -106,9 +108,77 @@ class _RideOptionsPageState extends State<RideOptionsPage> {
     return hour * 60 + minute;
   }
 
+  Future<void> _reloadRideOptions() async {
+    try {
+      final response = await _authApiService.getRideOptions(
+        pickupAddress: widget.pickupLocation.address,
+        destinationAddress: widget.destinationLocation.address,
+        pickupLat: widget.pickupLocation.latLng.latitude,
+        pickupLng: widget.pickupLocation.latLng.longitude,
+        destinationLat: widget.destinationLocation.latLng.latitude,
+        destinationLng: widget.destinationLocation.latLng.longitude,
+        genderPreference: selectedGender,
+        vehicleType: selectedVehicleType,
+        userType: selectedUserType,
+      );
+
+      final data = Map<String, dynamic>.from(response['data'] ?? {});
+      final routeSummary = Map<String, dynamic>.from(data['routeSummary'] ?? {});
+      final rides = List<Map<String, dynamic>>.from(data['availableRides'] ?? const []);
+
+      final mappedRides = rides.map((ride) => RideOptionModel.fromJson(ride)).toList();
+
+      if (!mounted) return;
+
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => RideOptionsPage(
+            pickupLocation: widget.pickupLocation,
+            destinationLocation: widget.destinationLocation,
+            routeDistanceKm: (routeSummary['routeDistanceKm'] ?? widget.routeDistanceKm).toDouble(),
+            estimatedTravelMinutes: (routeSummary['estimatedTravelMinutes'] ?? widget.estimatedTravelMinutes).toInt(),
+            totalCost: (routeSummary['totalCost'] ?? widget.totalCost).toDouble(),
+            availableRides: mappedRides,
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to refresh ride options: $e')),
+      );
+    }
+  }
+
   void _onViewDetails(RideOptionModel ride) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text("View details: ${ride.driverName}")),
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text(ride.driverName),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Phone: ${ride.driverPhoneNumber}'),
+              Text('Vehicle: ${ride.vehicleType}'),
+              Text('Vehicle Number: ${ride.vehicleNumber}'),
+              Text('Seats: ${ride.emptySeats}'),
+              Text('Departure: ${ride.departureTime}'),
+              Text('Gender: ${ride.genderPreference}'),
+              Text('Distance: ${ride.distanceAwayKm.toStringAsFixed(1)} km'),
+              Text('Fare: ৳${ride.estimatedFare.toStringAsFixed(0)}'),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Close'),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -117,9 +187,14 @@ class _RideOptionsPageState extends State<RideOptionsPage> {
       context,
       MaterialPageRoute(
         builder: (_) => RequestingRidePage(
+          rideId: ride.id,
+          driverName: ride.driverName,
+          driverPhoneNumber: ride.driverPhoneNumber,
+          vehicleType: ride.vehicleType,
+          vehicleNumber: ride.vehicleNumber,
           pickupAddress: widget.pickupLocation.address,
           destinationAddress: widget.destinationLocation.address,
-          fare: widget.totalCost,
+          fare: ride.estimatedFare,
           distanceKm: widget.routeDistanceKm,
           estimatedMinutes: widget.estimatedTravelMinutes,
         ),
@@ -143,20 +218,39 @@ class _RideOptionsPageState extends State<RideOptionsPage> {
     }
   }
 
-  void _onNotifyMe() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text("You’ll be notified when a ride becomes available."),
-        duration: Duration(seconds: 1),
-      ),
-    );
+  Future<void> _onNotifyMe() async {
+    try {
+      await _authApiService.createRideAvailabilityAlert(
+        pickupAddress: widget.pickupLocation.address,
+        destinationAddress: widget.destinationLocation.address,
+        pickupLat: widget.pickupLocation.latLng.latitude,
+        pickupLng: widget.pickupLocation.latLng.longitude,
+        destinationLat: widget.destinationLocation.latLng.latitude,
+        destinationLng: widget.destinationLocation.latLng.longitude,
+        genderPreference: selectedGender,
+        vehicleType: selectedVehicleType,
+        userType: selectedUserType,
+      );
 
-    Future.delayed(const Duration(seconds: 1), () {
       if (!mounted) return;
-      Navigator.popUntil(context, (route) => route.isFirst);
-    });
 
-    /// পরে backend এ notification request/save দিবা
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("You’ll be notified when a ride becomes available."),
+          duration: Duration(seconds: 1),
+        ),
+      );
+
+      Future.delayed(const Duration(seconds: 1), () {
+        if (!mounted) return;
+        Navigator.popUntil(context, (route) => route.isFirst);
+      });
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Failed to save notification request: $e")),
+      );
+    }
   }
 
   @override
@@ -556,6 +650,7 @@ class _RideOptionsPageState extends State<RideOptionsPage> {
               setState(() {
                 selectedGender = value;
               });
+              _reloadRideOptions();
             },
           ),
           const SizedBox(height: 12),
@@ -568,6 +663,7 @@ class _RideOptionsPageState extends State<RideOptionsPage> {
               setState(() {
                 selectedUserType = value;
               });
+              _reloadRideOptions();
             },
           ),
           const SizedBox(height: 12),
@@ -580,6 +676,7 @@ class _RideOptionsPageState extends State<RideOptionsPage> {
               setState(() {
                 selectedVehicleType = value;
               });
+              _reloadRideOptions();
             },
           ),
         ],
