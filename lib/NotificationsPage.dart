@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'UserOffer.dart';
+import 'services/auth_api_service.dart';
 
 class AppColors {
   static const Color primary = Color(0xFF14B8A6);
@@ -78,6 +79,68 @@ class NotificationItemModel {
       targetRole: targetRole ?? this.targetRole,
     );
   }
+
+  factory NotificationItemModel.fromJson(Map<String, dynamic> json) {
+    return NotificationItemModel(
+      id: (json['id'] ?? '').toString(),
+      title: (json['title'] ?? '').toString(),
+      message: (json['message'] ?? '').toString(),
+      type: _notificationTypeFromString((json['type'] ?? '').toString()),
+      createdAt: DateTime.tryParse((json['createdAt'] ?? '').toString()) ??
+          DateTime.now(),
+      isRead: json['isRead'] == true,
+      isImportant: json['isImportant'] == true,
+      targetRole: _userRoleFromString((json['targetRole'] ?? '').toString()),
+    );
+  }
+}
+
+NotificationType _notificationTypeFromString(String value) {
+  switch (value.trim().toLowerCase()) {
+    case 'offer':
+      return NotificationType.offer;
+    case 'reserve_request':
+    case 'reserverequest':
+      return NotificationType.reserveRequest;
+    case 'reserve_accepted':
+    case 'reserveaccepted':
+      return NotificationType.reserveAccepted;
+    case 'reserve_rejected':
+    case 'reserverejected':
+      return NotificationType.reserveRejected;
+    case 'co_ride':
+    case 'coride':
+      return NotificationType.coRide;
+    case 'send_item':
+    case 'senditem':
+      return NotificationType.sendItem;
+    case 'payment':
+      return NotificationType.payment;
+    case 'admin_notice':
+    case 'adminnotice':
+      return NotificationType.adminNotice;
+    case 'verification':
+      return NotificationType.verification;
+    case 'safety':
+      return NotificationType.safety;
+    case 'booking':
+      return NotificationType.booking;
+    default:
+      return NotificationType.general;
+  }
+}
+
+UserRole _userRoleFromString(String value) {
+  switch (value.trim().toLowerCase()) {
+    case 'passenger':
+      return UserRole.passenger;
+    case 'rider':
+      return UserRole.rider;
+    case 'admin':
+      return UserRole.admin;
+    default:
+      return UserRole.passenger;
+  }
 }
 
 class NotificationsPage extends StatefulWidget {
@@ -93,6 +156,8 @@ class NotificationsPage extends StatefulWidget {
 }
 
 class _NotificationsPageState extends State<NotificationsPage> {
+  final AuthApiService _api = AuthApiService();
+
   bool isLoading = false;
   int selectedFilterIndex = 0;
 
@@ -111,22 +176,53 @@ class _NotificationsPageState extends State<NotificationsPage> {
   void initState() {
     super.initState();
     allNotifications = [];
+    _loadNotifications();
   }
 
-  Future<void> _refreshNotifications() async {
+  Future<void> _loadNotifications() async {
     setState(() {
       isLoading = true;
     });
 
-    await Future.delayed(const Duration(milliseconds: 900));
+    try {
+      final response = await _api.getNotifications();
+      final List rawList = response['data'] ?? [];
 
-    setState(() {
-      isLoading = false;
-    });
+      final loadedNotifications = rawList
+          .whereType<Map>()
+          .map((item) => NotificationItemModel.fromJson(
+        Map<String, dynamic>.from(item),
+      ))
+          .toList();
+
+      if (!mounted) return;
+
+      setState(() {
+        allNotifications = loadedNotifications;
+      });
+    } catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            e.toString().replaceFirst('Exception: ', ''),
+          ),
+          backgroundColor: AppColors.danger,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } finally {
+      if (!mounted) return;
+
+      setState(() {
+        isLoading = false;
+      });
+    }
   }
 
-  List<NotificationItemModel> _getDummyNotificationsForRole(UserRole role) {
-    return [];
+  Future<void> _refreshNotifications() async {
+    await _loadNotifications();
   }
 
   List<NotificationItemModel> get filteredNotifications {
@@ -174,15 +270,39 @@ class _NotificationsPageState extends State<NotificationsPage> {
     }
   }
 
-  void _markAllAsRead() {
+  Future<void> _markAllAsRead() async {
+    final previous = List<NotificationItemModel>.from(allNotifications);
+
     setState(() {
       allNotifications = allNotifications
           .map((item) => item.copyWith(isRead: true))
           .toList();
     });
+
+    try {
+      await _api.markAllNotificationsAsRead();
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        allNotifications = previous;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            e.toString().replaceFirst('Exception: ', ''),
+          ),
+          backgroundColor: AppColors.danger,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
   }
 
-  void _markSingleAsRead(String id) {
+  Future<void> _markSingleAsRead(String id) async {
+    final previous = List<NotificationItemModel>.from(allNotifications);
+
     setState(() {
       allNotifications = allNotifications.map((item) {
         if (item.id == id) {
@@ -191,16 +311,62 @@ class _NotificationsPageState extends State<NotificationsPage> {
         return item;
       }).toList();
     });
+
+    try {
+      await _api.markNotificationAsRead(notificationId: id);
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        allNotifications = previous;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            e.toString().replaceFirst('Exception: ', ''),
+          ),
+          backgroundColor: AppColors.danger,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
   }
 
-  void _deleteNotification(String id) {
+  Future<void> _deleteNotification(String id) async {
+    final previous = List<NotificationItemModel>.from(allNotifications);
+
     setState(() {
       allNotifications.removeWhere((item) => item.id == id);
     });
+
+    try {
+      await _api.deleteNotification(notificationId: id);
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        allNotifications = previous;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            e.toString().replaceFirst('Exception: ', ''),
+          ),
+          backgroundColor: AppColors.danger,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
   }
 
-  void _handleNotificationTap(NotificationItemModel item) {
-    _markSingleAsRead(item.id);
+  Future<void> _handleNotificationTap(NotificationItemModel item) async {
+    if (!item.isRead) {
+      await _markSingleAsRead(item.id);
+    }
+
+    if (!mounted) return;
 
     if (item.type == NotificationType.offer) {
       Navigator.push(
@@ -313,7 +479,9 @@ class _NotificationsPageState extends State<NotificationsPage> {
         actions: [
           if (allNotifications.isNotEmpty)
             TextButton(
-              onPressed: _markAllAsRead,
+              onPressed: () async {
+                await _markAllAsRead();
+              },
               child: const Text(
                 "Mark all read",
                 style: TextStyle(
@@ -421,11 +589,11 @@ class _NotificationsPageState extends State<NotificationsPage> {
                         color: Colors.white,
                       ),
                     ),
-                    onDismissed: (_) {
-                      _deleteNotification(item.id);
+                    onDismissed: (_) async {
+                      await _deleteNotification(item.id);
                     },
                     child: GestureDetector(
-                      onTap: () => _handleNotificationTap(item),
+                      onTap: () async => _handleNotificationTap(item),
                       child: AnimatedContainer(
                         duration: const Duration(milliseconds: 220),
                         padding: const EdgeInsets.all(14),

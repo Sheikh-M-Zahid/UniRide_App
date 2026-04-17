@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'services/auth_api_service.dart';
 
 class AppColors {
   static const Color primary = Color(0xFF14B8A6);
@@ -37,68 +38,51 @@ class RideRatingRequest {
   });
 }
 
-class RideRatingSubmission {
-  final String rideId;
-  final String fromUserId;
-  final String fromUserName;
-  final String toUserId;
-  final String toUserName;
-  final int rating;
-  final String ratingLabel;
-  final String? note;
-  final DateTime createdAt;
-
-  const RideRatingSubmission({
-    required this.rideId,
-    required this.fromUserId,
-    required this.fromUserName,
-    required this.toUserId,
-    required this.toUserName,
-    required this.rating,
-    required this.ratingLabel,
-    this.note,
-    required this.createdAt,
-  });
-
-  Map<String, dynamic> toMap() {
-    return {
-      'rideId': rideId,
-      'fromUserId': fromUserId,
-      'fromUserName': fromUserName,
-      'toUserId': toUserId,
-      'toUserName': toUserName,
-      'rating': rating,
-      'ratingLabel': ratingLabel,
-      'note': note,
-      'createdAt': createdAt.toIso8601String(),
-    };
-  }
-}
-
 class RideRatingService {
   RideRatingService._();
 
   static final RideRatingService instance = RideRatingService._();
+  final AuthApiService _api = AuthApiService();
 
   Future<bool> hasUserRated({
     required String rideId,
     required String fromUserId,
     required String toUserId,
   }) async {
-    await Future.delayed(const Duration(milliseconds: 250));
+    final response = await _api.checkRatingStatus(
+      rideId: rideId,
+      toUserId: toUserId,
+    );
 
-    // TODO:
-    // backend call বসবে
-    // GET /ratings/check?rideId=...&fromUserId=...&toUserId=...
-    return false;
+    final data = response['data'] ?? {};
+    return data['alreadyRated'] == true;
   }
 
-  Future<void> submitRating(RideRatingSubmission submission) async {
-    await Future.delayed(const Duration(milliseconds: 700));
+  Future<void> submitRating({
+    required RideRatingRequest request,
+    required int rating,
+    String? note,
+  }) async {
+    if (request.fromRole == 'passenger' && request.toRole == 'rider') {
+      await _api.passengerRatesRider(
+        rideId: request.rideId,
+        rating: rating,
+        note: note,
+      );
+      return;
+    }
 
-    // TODO:
-    // POST /ratings/submit
-    // body: submission.toMap()
+    if (request.fromRole == 'rider' && request.toRole == 'passenger') {
+      await _api.riderRatesParticipant(
+        rideId: request.rideId,
+        participantId: request.toUserId,
+        rating: rating,
+        note: note,
+      );
+      return;
+    }
+
+    throw Exception('Invalid rating flow.');
   }
 
   Future<void> sendRatingRequestNotification({
@@ -107,13 +91,7 @@ class RideRatingService {
     required String otherPersonName,
     required String otherPersonRole,
   }) async {
-    await Future.delayed(const Duration(milliseconds: 250));
-
-    // TODO:
-    // POST /notifications/create
-    // type: ride_rating_request
-    // title: Rate your recent ride
-    // body: Please rate $otherPersonName
+    return;
   }
 
   Future<void> sendThankYouNotification({
@@ -121,12 +99,7 @@ class RideRatingService {
     required String rideId,
     required String senderName,
   }) async {
-    await Future.delayed(const Duration(milliseconds: 250));
-
-    // TODO:
-    // POST /notifications/create
-    // type: ride_rating_thanks
-    // body: $senderName rated you. Thanks for sharing feedback.
+    return;
   }
 }
 
@@ -170,13 +143,19 @@ Future<void> showRideRatingSheet(
       VoidCallback? onSkipped,
       VoidCallback? onSubmitted,
     }) async {
-  final alreadyRated = await RideRatingService.instance.hasUserRated(
-    rideId: request.rideId,
-    fromUserId: request.fromUserId,
-    toUserId: request.toUserId,
-  );
+  bool alreadyRated = request.alreadyRated;
 
-  if (alreadyRated || request.alreadyRated) return;
+  try {
+    alreadyRated = await RideRatingService.instance.hasUserRated(
+      rideId: request.rideId,
+      fromUserId: request.fromUserId,
+      toUserId: request.toUserId,
+    );
+  } catch (_) {
+    alreadyRated = request.alreadyRated;
+  }
+
+  if (alreadyRated) return;
 
   if (!context.mounted) return;
 
@@ -226,22 +205,16 @@ class _RideRatingSheetState extends State<RideRatingSheet> {
 
     setState(() => _isSubmitting = true);
 
-    final submission = RideRatingSubmission(
-      rideId: widget.request.rideId,
-      fromUserId: widget.request.fromUserId,
-      fromUserName: widget.request.fromUserName,
-      toUserId: widget.request.toUserId,
-      toUserName: widget.request.toUserName,
-      rating: _selectedRating,
-      ratingLabel: getRatingLabel(_selectedRating),
-      note: _noteController.text.trim().isEmpty
-          ? null
-          : _noteController.text.trim(),
-      createdAt: DateTime.now(),
-    );
+    final note = _noteController.text.trim().isEmpty
+        ? null
+        : _noteController.text.trim();
 
     try {
-      await RideRatingService.instance.submitRating(submission);
+      await RideRatingService.instance.submitRating(
+        request: widget.request,
+        rating: _selectedRating,
+        note: note,
+      );
 
       await RideRatingService.instance.sendThankYouNotification(
         receiverUserId: widget.request.toUserId,
@@ -262,13 +235,15 @@ class _RideRatingSheetState extends State<RideRatingSheet> {
           behavior: SnackBarBehavior.floating,
         ),
       );
-    } catch (_) {
+    } catch (e) {
       if (!mounted) return;
       setState(() => _isSubmitting = false);
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Rating submit করা যায়নি। আবার চেষ্টা করো।'),
+        SnackBar(
+          content: Text(
+            e.toString().replaceFirst('Exception: ', ''),
+          ),
           behavior: SnackBarBehavior.floating,
         ),
       );

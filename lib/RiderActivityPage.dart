@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'RideRequestModel.dart';
-import 'RideRequestService.dart';
+import 'services/auth_api_service.dart';
+import 'services/activity_socket_service.dart';
 
 class ActivityPage extends StatefulWidget {
   const ActivityPage({super.key});
@@ -10,167 +10,140 @@ class ActivityPage extends StatefulWidget {
 }
 
 class _ActivityPageState extends State<ActivityPage> {
+  final AuthApiService _api = AuthApiService();
+
   String selectedType = "All";
   String selectedTime = "Today";
 
-  /// Later database থেকে আসবে
-  final List<Map<String, dynamic>> allActivities = [
-    {
-      "type": "Completed",
-      "title": "Ride Completed",
-      "name": "Rahim",
-      "phone": "01712345678",
-      "pickup": "Hall Gate",
-      "destination": "Main Gate",
-      "fare": 80.0,
-      "time": "10:15 AM",
-      "date": DateTime.now(),
-    },
-    {
-      "type": "Cancelled",
-      "title": "Ride Cancelled",
-      "name": "Karim",
-      "phone": "01899887766",
-      "pickup": "Library",
-      "destination": "CSE Building",
-      "fare": 0.0,
-      "time": "11:10 AM",
-      "date": DateTime.now(),
-    },
-    {
-      "type": "Reserved",
-      "title": "Reserved Ride",
-      "name": "Nusrat",
-      "phone": "01911112222",
-      "pickup": "Dormitory",
-      "destination": "Business Faculty",
-      "fare": 120.0,
-      "time": "Tomorrow 8:30 AM",
-      "date": DateTime.now().subtract(const Duration(days: 1)),
-    },
-    {
-      "type": "Send Item",
-      "title": "Parcel Delivered",
-      "name": "Sadia",
-      "phone": "01655554444",
-      "pickup": "Admin Building",
-      "destination": "University Gate",
-      "fare": 60.0,
-      "time": "02:20 PM",
-      "date": DateTime.now().subtract(const Duration(days: 2)),
-    },
-    {
-      "type": "Completed",
-      "title": "Ride Completed",
-      "name": "Tamim",
-      "phone": "01577778888",
-      "pickup": "Central Mosque",
-      "destination": "Hall Gate",
-      "fare": 90.0,
-      "time": "04:10 PM",
-      "date": DateTime.now().subtract(const Duration(days: 6)),
-    },
-  ];
+  bool _isLoading = true;
+  bool _isLoadingMore = false;
 
-  List<Map<String, dynamic>> get filteredActivities {
-    List<Map<String, dynamic>> data = List.from(allActivities);
+  int _page = 1;
+  final int _limit = 20;
+  int _totalPages = 1;
 
-    if (selectedType != "All") {
-      data = data.where((item) => item["type"] == selectedType).toList();
+  int totalCount = 0;
+  int completedCount = 0;
+  int cancelledCount = 0;
+  double totalEarnings = 0;
+
+  List<Map<String, dynamic>> allActivities = [];
+
+  List<Map<String, dynamic>> get filteredActivities => allActivities;
+
+  String _mapTypeToApi(String value) {
+    switch (value) {
+      case "Completed":
+        return "completed";
+      case "Cancelled":
+        return "cancelled";
+      case "Reserved":
+        return "reserved";
+      case "Send Item":
+        return "send_item";
+      default:
+        return "all";
     }
+  }
 
-    final now = DateTime.now();
-
-    if (selectedTime == "Today") {
-      data = data.where((item) {
-        final DateTime date = item["date"];
-        return date.year == now.year &&
-            date.month == now.month &&
-            date.day == now.day;
-      }).toList();
-    } else if (selectedTime == "This Week") {
-      final DateTime startOfWeek =
-      now.subtract(Duration(days: now.weekday - 1));
-      final DateTime weekStart =
-      DateTime(startOfWeek.year, startOfWeek.month, startOfWeek.day);
-      final DateTime weekEnd = weekStart.add(const Duration(days: 7));
-
-      data = data.where((item) {
-        final DateTime date = item["date"];
-        return date.isAfter(weekStart.subtract(const Duration(seconds: 1))) &&
-            date.isBefore(weekEnd);
-      }).toList();
-    } else if (selectedTime == "This Month") {
-      data = data.where((item) {
-        final DateTime date = item["date"];
-        return date.year == now.year && date.month == now.month;
-      }).toList();
+  String _mapTimeToApi(String value) {
+    switch (value) {
+      case "This Week":
+        return "this_week";
+      case "This Month":
+        return "this_month";
+      default:
+        return "today";
     }
-
-    data.sort(
-          (a, b) => (b["date"] as DateTime).compareTo(a["date"] as DateTime),
-    );
-
-    return data;
   }
 
-  int get totalRidesToday {
-    return allActivities.where((item) {
-      final DateTime date = item["date"];
-      final now = DateTime.now();
-      return date.year == now.year &&
-          date.month == now.month &&
-          date.day == now.day;
-    }).length;
+  String _mapApiTypeToUi(String value) {
+    switch (value) {
+      case "completed":
+        return "Completed";
+      case "cancelled":
+        return "Cancelled";
+      case "reserved":
+        return "Reserved";
+      case "send_item":
+        return "Send Item";
+      default:
+        return "Activity";
+    }
   }
 
-  int get completedToday {
-    return allActivities.where((item) {
-      final DateTime date = item["date"];
-      final now = DateTime.now();
-      return item["type"] == "Completed" &&
-          date.year == now.year &&
-          date.month == now.month &&
-          date.day == now.day;
-    }).length;
+  Future<void> _loadActivity({bool reset = false}) async {
+    try {
+      if (reset) {
+        _page = 1;
+        setState(() {
+          _isLoading = true;
+        });
+      } else {
+        setState(() {
+          _isLoadingMore = true;
+        });
+      }
+
+      final response = await _api.getActivityDashboard(
+        type: _mapTypeToApi(selectedType),
+        time: _mapTimeToApi(selectedTime),
+        page: _page,
+        limit: _limit,
+      );
+
+      final data = response['data'] ?? response;
+      final summary = data['summary'] ?? {};
+      final filters = data['filters'] ?? {};
+      final activitiesRaw = data['activities'] as List? ?? [];
+
+      final mappedActivities = activitiesRaw.map<Map<String, dynamic>>((item) {
+        final map = Map<String, dynamic>.from(item as Map);
+        map['uiType'] = _mapApiTypeToUi((map['type'] ?? '').toString());
+        return map;
+      }).toList();
+
+      setState(() {
+        totalCount = (summary['total'] ?? 0) as int;
+        completedCount = (summary['completed'] ?? 0) as int;
+        cancelledCount = (summary['cancelled'] ?? 0) as int;
+        totalEarnings = ((summary['earnings'] ?? 0) as num).toDouble();
+        _totalPages = (filters['totalPages'] ?? 1) as int;
+
+        if (reset) {
+          allActivities = mappedActivities;
+        } else {
+          allActivities.addAll(mappedActivities);
+        }
+      });
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
+      );
+    } finally {
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+        _isLoadingMore = false;
+      });
+    }
   }
 
-  int get cancelledToday {
-    return allActivities.where((item) {
-      final DateTime date = item["date"];
-      final now = DateTime.now();
-      return item["type"] == "Cancelled" &&
-          date.year == now.year &&
-          date.month == now.month &&
-          date.day == now.day;
-    }).length;
+  Future<void> _loadMore() async {
+    if (_isLoadingMore) return;
+    if (_page >= _totalPages) return;
+
+    _page++;
+    await _loadActivity();
   }
 
-  double get todayEarnings {
-    return allActivities.where((item) {
-      final DateTime date = item["date"];
-      final now = DateTime.now();
-      return date.year == now.year &&
-          date.month == now.month &&
-          date.day == now.day;
-    }).fold(
-      0.0,
-          (sum, item) => sum + ((item["fare"] as num).toDouble()),
-    );
-  }
-
-  void _simulateRideRequest() {
-    RideRequestService.addRequest(
-      const RideRequestModel(
-        passengerName: "Jubayer",
-        phoneNumber: "01611224455",
-        currentLocation: "Central Mosque",
-        destination: "Science Building",
-        distanceKm: 3.9,
-        fare: 95,
-        estimatedMinutes: 13,
-      ),
-    );
+  Future<void> _connectSocket() async {
+    await ActivitySocketService.instance.connect();
+    ActivitySocketService.instance.joinActivityRoom();
+    ActivitySocketService.instance.onActivityUpdated((_) {
+      _loadActivity(reset: true);
+    });
   }
 
   Color _statusColor(String type) {
@@ -188,6 +161,13 @@ class _ActivityPageState extends State<ActivityPage> {
     }
   }
 
+  @override
+  void initState() {
+    super.initState();
+    _loadActivity(reset: true);
+    _connectSocket();
+  }
+
   IconData _statusIcon(String type) {
     switch (type) {
       case "Completed":
@@ -201,6 +181,14 @@ class _ActivityPageState extends State<ActivityPage> {
       default:
         return Icons.info;
     }
+  }
+
+  @override
+  void dispose() {
+    ActivitySocketService.instance.leaveActivityRoom();
+    ActivitySocketService.instance.offActivityUpdated();
+    ActivitySocketService.instance.disconnect();
+    super.dispose();
   }
 
   @override
@@ -231,7 +219,7 @@ class _ActivityPageState extends State<ActivityPage> {
                     Expanded(
                       child: _SummaryCard(
                         title: "Total",
-                        value: totalRidesToday.toString(),
+                        value: totalCount.toString(),
                         icon: Icons.list_alt,
                       ),
                     ),
@@ -239,7 +227,7 @@ class _ActivityPageState extends State<ActivityPage> {
                     Expanded(
                       child: _SummaryCard(
                         title: "Completed",
-                        value: completedToday.toString(),
+                        value: completedCount.toString(),
                         icon: Icons.check_circle_outline,
                       ),
                     ),
@@ -251,7 +239,7 @@ class _ActivityPageState extends State<ActivityPage> {
                     Expanded(
                       child: _SummaryCard(
                         title: "Cancelled",
-                        value: cancelledToday.toString(),
+                        value: cancelledCount.toString(),
                         icon: Icons.cancel_outlined,
                       ),
                     ),
@@ -259,7 +247,7 @@ class _ActivityPageState extends State<ActivityPage> {
                     Expanded(
                       child: _SummaryCard(
                         title: "Earnings",
-                        value: "৳${todayEarnings.toStringAsFixed(0)}",
+                        value: "৳${totalEarnings.toStringAsFixed(0)}",
                         icon: Icons.account_balance_wallet_outlined,
                       ),
                     ),
@@ -296,24 +284,6 @@ class _ActivityPageState extends State<ActivityPage> {
                 ),
 
                 const SizedBox(height: 16),
-
-                /// Optional demo button
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton.icon(
-                    onPressed: _simulateRideRequest,
-                    icon: const Icon(Icons.notifications_active),
-                    label: const Text("Simulate Ride Request"),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF14B8A6),
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 13),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                    ),
-                  ),
-                ),
               ],
             ),
           ),
@@ -423,10 +393,11 @@ class _ActivityPageState extends State<ActivityPage> {
     return Padding(
       padding: const EdgeInsets.only(right: 8),
       child: InkWell(
-        onTap: () {
+        onTap: () async {
           setState(() {
             selectedType = title;
           });
+          await _loadActivity(reset: true);
         },
         borderRadius: BorderRadius.circular(20),
         child: Container(
@@ -456,10 +427,11 @@ class _ActivityPageState extends State<ActivityPage> {
     final bool isSelected = selectedTime == title;
 
     return InkWell(
-      onTap: () {
+      onTap: () async {
         setState(() {
           selectedTime = title;
         });
+        await _loadActivity(reset: true);
       },
       borderRadius: BorderRadius.circular(12),
       child: Container(

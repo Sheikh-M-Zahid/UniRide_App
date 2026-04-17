@@ -1,7 +1,6 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'PersonalInfo.dart';
+import 'services/auth_api_service.dart';
 
 class PrivacyDataPage extends StatefulWidget {
   const PrivacyDataPage({super.key});
@@ -34,6 +33,8 @@ class PrivacyDataModel {
   final String locationAccess; // never, during_ride, always
   final String profileVisibility; // matched_only, university_only, admin_only
   final String phonePrivacy; // hidden, after_accept, always_visible
+  final bool hasDuePayment;
+  final double dueAmount;
 
   const PrivacyDataModel({
     required this.fullName,
@@ -43,17 +44,23 @@ class PrivacyDataModel {
     required this.locationAccess,
     required this.profileVisibility,
     required this.phonePrivacy,
+    required this.hasDuePayment,
+    required this.dueAmount,
   });
 
   factory PrivacyDataModel.fromJson(Map<String, dynamic> json) {
     return PrivacyDataModel(
-      fullName: json['fullName'] ?? '',
-      email: json['email'] ?? '',
-      phoneNumber: json['phoneNumber'] ?? '',
-      canDownloadData: json['canDownloadData'] ?? true,
-      locationAccess: json['locationAccess'] ?? 'during_ride',
-      profileVisibility: json['profileVisibility'] ?? 'matched_only',
-      phonePrivacy: json['phonePrivacy'] ?? 'after_accept',
+      fullName: (json['fullName'] ?? '').toString(),
+      email: (json['email'] ?? '').toString(),
+      phoneNumber: (json['phoneNumber'] ?? '').toString(),
+      canDownloadData: json['canDownloadData'] == true,
+      locationAccess: (json['locationAccess'] ?? 'during_ride').toString(),
+      profileVisibility: (json['profileVisibility'] ?? 'matched_only').toString(),
+      phonePrivacy: (json['phonePrivacy'] ?? 'after_accept').toString(),
+      hasDuePayment: json['hasDuePayment'] == true,
+      dueAmount: (json['dueAmount'] is num)
+          ? (json['dueAmount'] as num).toDouble()
+          : double.tryParse('${json['dueAmount'] ?? 0}') ?? 0,
     );
   }
 
@@ -66,6 +73,8 @@ class PrivacyDataModel {
       'locationAccess': locationAccess,
       'profileVisibility': profileVisibility,
       'phonePrivacy': phonePrivacy,
+      'hasDuePayment': hasDuePayment,
+      'dueAmount': dueAmount,
     };
   }
 
@@ -77,6 +86,8 @@ class PrivacyDataModel {
     String? locationAccess,
     String? profileVisibility,
     String? phonePrivacy,
+    bool? hasDuePayment,
+    double? dueAmount,
   }) {
     return PrivacyDataModel(
       fullName: fullName ?? this.fullName,
@@ -86,93 +97,9 @@ class PrivacyDataModel {
       locationAccess: locationAccess ?? this.locationAccess,
       profileVisibility: profileVisibility ?? this.profileVisibility,
       phonePrivacy: phonePrivacy ?? this.phonePrivacy,
+      hasDuePayment: hasDuePayment ?? this.hasDuePayment,
+      dueAmount: dueAmount ?? this.dueAmount,
     );
-  }
-}
-
-/* =========================
-   SERVICE
-   Node.js + PostgreSQL ready
-========================= */
-class PrivacyDataService {
-  // এখানে তোমার backend base url বসাবে
-  static const String baseUrl = 'https://your-api-domain.com/api';
-
-  // auth token থাকলে এখানে বসাতে পারো
-  static Map<String, String> _headers() {
-    return {
-      'Content-Type': 'application/json',
-      // 'Authorization': 'Bearer YOUR_TOKEN',
-    };
-  }
-
-  // GET privacy settings
-  static Future<PrivacyDataModel> fetchPrivacyData() async {
-    final response = await http.get(
-      Uri.parse('$baseUrl/privacy-data'),
-      headers: _headers(),
-    );
-
-    if (response.statusCode == 200) {
-      final Map<String, dynamic> data = jsonDecode(response.body);
-      return PrivacyDataModel.fromJson(data);
-    } else {
-      throw Exception('Failed to load privacy data');
-    }
-  }
-
-  // PATCH location access
-  static Future<void> updateLocationAccess(String value) async {
-    final response = await http.patch(
-      Uri.parse('$baseUrl/privacy-data/location-access'),
-      headers: _headers(),
-      body: jsonEncode({'locationAccess': value}),
-    );
-
-    if (response.statusCode != 200) {
-      throw Exception('Failed to update location access');
-    }
-  }
-
-  // PATCH profile visibility
-  static Future<void> updateProfileVisibility(String value) async {
-    final response = await http.patch(
-      Uri.parse('$baseUrl/privacy-data/profile-visibility'),
-      headers: _headers(),
-      body: jsonEncode({'profileVisibility': value}),
-    );
-
-    if (response.statusCode != 200) {
-      throw Exception('Failed to update profile visibility');
-    }
-  }
-
-  // PATCH phone privacy
-  static Future<void> updatePhonePrivacy(String value) async {
-    final response = await http.patch(
-      Uri.parse('$baseUrl/privacy-data/phone-privacy'),
-      headers: _headers(),
-      body: jsonEncode({'phonePrivacy': value}),
-    );
-
-    if (response.statusCode != 200) {
-      throw Exception('Failed to update phone number privacy');
-    }
-  }
-
-  // POST download request
-  static Future<String> requestDataDownload() async {
-    final response = await http.post(
-      Uri.parse('$baseUrl/privacy-data/download'),
-      headers: _headers(),
-    );
-
-    if (response.statusCode == 200) {
-      final data = jsonDecode(response.body);
-      return data['message'] ?? 'Your data download request has been submitted.';
-    } else {
-      throw Exception('Failed to request data download');
-    }
   }
 }
 
@@ -180,6 +107,8 @@ class PrivacyDataService {
    UI
 ========================= */
 class _PrivacyDataPageState extends State<PrivacyDataPage> {
+  final AuthApiService _api = AuthApiService();
+
   late Future<PrivacyDataModel> _privacyFuture;
   PrivacyDataModel? _privacyData;
 
@@ -195,7 +124,10 @@ class _PrivacyDataPageState extends State<PrivacyDataPage> {
   }
 
   Future<PrivacyDataModel> _loadPrivacyData() async {
-    final data = await PrivacyDataService.fetchPrivacyData();
+    final response = await _api.getPrivacyData();
+    final data = PrivacyDataModel.fromJson(
+      Map<String, dynamic>.from(response['data'] ?? {}),
+    );
     _privacyData = data;
     return data;
   }
@@ -254,7 +186,7 @@ class _PrivacyDataPageState extends State<PrivacyDataPage> {
     });
 
     try {
-      await PrivacyDataService.updateLocationAccess(value);
+      await _api.updatePrivacyLocationAccess(locationAccess: value);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Location data control updated')),
@@ -287,7 +219,7 @@ class _PrivacyDataPageState extends State<PrivacyDataPage> {
     });
 
     try {
-      await PrivacyDataService.updateProfileVisibility(value);
+      await _api.updatePrivacyProfileVisibility(profileVisibility: value);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Profile visibility updated')),
@@ -320,7 +252,7 @@ class _PrivacyDataPageState extends State<PrivacyDataPage> {
     });
 
     try {
-      await PrivacyDataService.updatePhonePrivacy(value);
+      await _api.updatePrivacyPhonePrivacy(phonePrivacy: value);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Phone number privacy updated')),
@@ -348,15 +280,25 @@ class _PrivacyDataPageState extends State<PrivacyDataPage> {
     });
 
     try {
-      final message = await PrivacyDataService.requestDataDownload();
+      final response = await _api.requestPrivacyDataDownload();
+      final message = (response['message'] ??
+          'Your data download request has been submitted.')
+          .toString();
+
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(message)),
       );
+
+      await _refreshData();
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to request data download: $e')),
+        SnackBar(
+          content: Text(
+            e.toString().replaceFirst('Exception: ', ''),
+          ),
+        ),
       );
     } finally {
       if (mounted) {
@@ -420,9 +362,9 @@ class _PrivacyDataPageState extends State<PrivacyDataPage> {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      '${
-                          snapshot.error
-                      }',
+                      snapshot.error
+                          .toString()
+                          .replaceFirst('Exception: ', ''),
                       textAlign: TextAlign.center,
                       style: const TextStyle(
                         fontSize: 14,

@@ -1,8 +1,7 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'WalletPage.dart';
 import 'report_problem_page.dart';
+import 'services/auth_api_service.dart';
 
 class SecurityPage extends StatefulWidget {
   final WalletUserRole userRole;
@@ -33,44 +32,20 @@ class SecurityData {
 
   factory SecurityData.fromJson(Map<String, dynamic> json) {
     return SecurityData(
-      emailVerified: json['emailVerified'],
-      emergencyContact: json['emergencyContact'],
-      hasDuePayment: json['hasDuePayment'],
-      dueAmount: json['dueAmount'].toDouble(),
+      emailVerified: json['emailVerified'] == true,
+      emergencyContact: (json['emergencyContact'] ?? '').toString(),
+      hasDuePayment: json['hasDuePayment'] == true,
+      dueAmount: (json['dueAmount'] is num)
+          ? (json['dueAmount'] as num).toDouble()
+          : double.tryParse('${json['dueAmount'] ?? 0}') ?? 0,
     );
-  }
-}
-
-/* ================= SERVICE ================= */
-
-class SecurityService {
-
-  static Future<SecurityData> getSecurityData() async {
-
-    final response = await http.get(
-      Uri.parse("https://yourapi.com/security-data"),
-    );
-
-    if (response.statusCode == 200) {
-      return SecurityData.fromJson(jsonDecode(response.body));
-    } else {
-      throw Exception("Failed to load security data");
-    }
-  }
-
-  static Future<void> saveEmergencyContact(String phone) async {
-
-    await http.post(
-      Uri.parse("https://yourapi.com/emergency-contact"),
-      body: {"phone": phone},
-    );
-
   }
 }
 
 /* ================= UI ================= */
 
 class _SecurityPageState extends State<SecurityPage> {
+  final AuthApiService _api = AuthApiService();
 
   late Future<SecurityData> securityData;
 
@@ -82,7 +57,13 @@ class _SecurityPageState extends State<SecurityPage> {
   @override
   void initState() {
     super.initState();
-    securityData = SecurityService.getSecurityData();
+    securityData = _loadSecurityData();
+  }
+
+  Future<SecurityData> _loadSecurityData() async {
+    final response = await _api.getSecuritySummary();
+    final data = response['data'] ?? {};
+    return SecurityData.fromJson(Map<String, dynamic>.from(data));
   }
 
   @override
@@ -115,7 +96,11 @@ class _SecurityPageState extends State<SecurityPage> {
           }
 
           if (snapshot.hasError) {
-            return const Center(child: Text("Failed to load security data"));
+            return Center(
+              child: Text(
+                snapshot.error.toString().replaceFirst('Exception: ', ''),
+              ),
+            );
           }
 
           final data = snapshot.data!;
@@ -128,14 +113,20 @@ class _SecurityPageState extends State<SecurityPage> {
                 icon: Icons.lock_outline,
                 title: "Change Password",
                 subtitle: "Update your account password",
-                onTap: () {},
+                onTap: _changePassword,
               ),
 
               _tile(
                 icon: Icons.history,
                 title: "Login Activity",
-                subtitle: "View recent login devices",
-                onTap: () {},
+                subtitle: "Currently unavailable",
+                onTap: () {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text("Login Activity is not available yet"),
+                    ),
+                  );
+                },
               ),
 
               ListTile(
@@ -284,50 +275,193 @@ class _SecurityPageState extends State<SecurityPage> {
   /* ================= EMERGENCY CONTACT ================= */
 
   void _addEmergencyContact() {
-
     final controller = TextEditingController();
+    bool isSaving = false;
 
     showDialog(
       context: context,
-
-      builder: (_) => AlertDialog(
-        title: const Text("Emergency Contact"),
-
-        content: TextField(
-          controller: controller,
-          keyboardType: TextInputType.phone,
-          decoration: const InputDecoration(
-            labelText: "Enter phone number",
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text("Emergency Contact"),
+          content: TextField(
+            controller: controller,
+            keyboardType: TextInputType.phone,
+            decoration: const InputDecoration(
+              labelText: "Enter phone number",
+            ),
           ),
+          actions: [
+            TextButton(
+              child: const Text("Cancel"),
+              onPressed: isSaving
+                  ? null
+                  : () {
+                Navigator.pop(dialogContext);
+              },
+            ),
+            ElevatedButton(
+              child: isSaving
+                  ? const SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+                  : const Text("Save"),
+              onPressed: isSaving
+                  ? null
+                  : () async {
+                final phone = controller.text.trim();
+
+                if (phone.isEmpty) {
+                  ScaffoldMessenger.of(this.context).showSnackBar(
+                    const SnackBar(
+                      content: Text("Phone number is required"),
+                    ),
+                  );
+                  return;
+                }
+
+                try {
+                  setDialogState(() {
+                    isSaving = true;
+                  });
+
+                  await _api.updateEmergencyContact(phone: phone);
+
+                  if (!mounted) return;
+                  Navigator.pop(dialogContext);
+
+                  setState(() {
+                    securityData = _loadSecurityData();
+                  });
+
+                  ScaffoldMessenger.of(this.context).showSnackBar(
+                    const SnackBar(
+                      content: Text("Emergency contact updated"),
+                    ),
+                  );
+                } catch (e) {
+                  if (!mounted) return;
+
+                  setDialogState(() {
+                    isSaving = false;
+                  });
+
+                  ScaffoldMessenger.of(this.context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        e.toString().replaceFirst('Exception: ', ''),
+                      ),
+                    ),
+                  );
+                }
+              },
+            ),
+          ],
         ),
+      ),
+    );
+  }
+  void _changePassword() {
+    final currentPasswordController = TextEditingController();
+    final newPasswordController = TextEditingController();
+    bool isSaving = false;
 
-        actions: [
-
-          TextButton(
-            child: const Text("Cancel"),
-            onPressed: () {
-              Navigator.pop(context);
-            },
+    showDialog(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text("Change Password"),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: currentPasswordController,
+                obscureText: true,
+                decoration: const InputDecoration(
+                  labelText: "Current Password",
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: newPasswordController,
+                obscureText: true,
+                decoration: const InputDecoration(
+                  labelText: "New Password",
+                ),
+              ),
+            ],
           ),
+          actions: [
+            TextButton(
+              onPressed: isSaving
+                  ? null
+                  : () {
+                Navigator.pop(dialogContext);
+              },
+              child: const Text("Cancel"),
+            ),
+            ElevatedButton(
+              onPressed: isSaving
+                  ? null
+                  : () async {
+                final currentPassword =
+                currentPasswordController.text.trim();
+                final newPassword = newPasswordController.text.trim();
 
-          ElevatedButton(
-            child: const Text("Save"),
+                if (currentPassword.isEmpty || newPassword.isEmpty) {
+                  ScaffoldMessenger.of(this.context).showSnackBar(
+                    const SnackBar(
+                      content: Text("Both passwords are required"),
+                    ),
+                  );
+                  return;
+                }
 
-            onPressed: () async {
+                try {
+                  setDialogState(() {
+                    isSaving = true;
+                  });
 
-              await SecurityService.saveEmergencyContact(
-                controller.text,
-              );
+                  await _api.changeSecurityPassword(
+                    currentPassword: currentPassword,
+                    newPassword: newPassword,
+                  );
 
-              Navigator.pop(context);
+                  if (!mounted) return;
+                  Navigator.pop(dialogContext);
 
-              setState(() {
-                securityData = SecurityService.getSecurityData();
-              });
-            },
-          ),
+                  ScaffoldMessenger.of(this.context).showSnackBar(
+                    const SnackBar(
+                      content: Text("Password changed successfully"),
+                    ),
+                  );
+                } catch (e) {
+                  if (!mounted) return;
 
-        ],
+                  setDialogState(() {
+                    isSaving = false;
+                  });
+
+                  ScaffoldMessenger.of(this.context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        e.toString().replaceFirst('Exception: ', ''),
+                      ),
+                    ),
+                  );
+                }
+              },
+              child: isSaving
+                  ? const SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+                  : const Text("Save"),
+            ),
+          ],
+        ),
       ),
     );
   }

@@ -1,11 +1,9 @@
 import 'dart:async';
-import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:geocoding/geocoding.dart';
-import 'package:http/http.dart' as http;
+import 'services/auth_api_service.dart';
 
 class MapPickerScreen extends StatefulWidget {
   final String googleApiKey;
@@ -24,6 +22,8 @@ class MapPickerScreen extends StatefulWidget {
 }
 
 class _MapPickerScreenState extends State<MapPickerScreen> {
+  final AuthApiService _api = AuthApiService();
+
   GoogleMapController? _mapController;
 
   late LatLng _selectedPosition;
@@ -41,6 +41,8 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
 
   String _selectedAddress = "Loading address...";
   List<dynamic> _placePredictions = [];
+
+  bool _isUserTypingSearch = false;
 
   static const Color primaryColor = Color(0xFF14B8A6);
   static const Color secondaryColor = Color(0xFF0F766E);
@@ -69,7 +71,10 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
     return distance <= 20;
   }
 
-  bool get _canConfirm => !_isLoadingAddress;
+  bool get _canConfirm =>
+      !_isLoadingAddress &&
+          _selectedAddress.trim().isNotEmpty &&
+          _selectedAddress.trim() != "Loading address...";
 
   String _latLngText(LatLng latLng) {
     return "${latLng.latitude.toStringAsFixed(5)}, ${latLng.longitude.toStringAsFixed(5)}";
@@ -93,77 +98,73 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
     });
 
     try {
-      final List<Placemark> placemarks = await placemarkFromCoordinates(
-        latLng.latitude,
-        latLng.longitude,
-      ).timeout(const Duration(seconds: 12));
+      final response = await _api.mapsReverseGeocode(
+        lat: latLng.latitude,
+        lng: latLng.longitude,
+      );
+
+      final data = Map<String, dynamic>.from(response['data'] ?? {});
+      final formattedAddress =
+      (data['formattedAddress'] ?? '').toString().trim();
 
       if (!mounted) return;
 
-      if (placemarks.isNotEmpty) {
-        final Placemark place = placemarks.first;
+      final fallback = _latLngText(latLng);
+      final resolvedAddress =
+      formattedAddress.isNotEmpty ? formattedAddress : fallback;
 
-        final List<String> parts = [
-          place.name,
-          place.street,
-          place.subLocality,
-          place.locality,
-          place.administrativeArea,
-          place.country,
-        ].where((e) => e != null && e.trim().isNotEmpty).cast<String>().toList();
+      setState(() {
+        _selectedAddress = resolvedAddress;
+        if (!_isUserTypingSearch) {
+          _searchController.text = resolvedAddress;
+        }
+        _isLoadingAddress = false;
+      });
 
-        final String formattedAddress = parts.isNotEmpty
-            ? parts.join(", ")
-            : _latLngText(latLng);
-
-        setState(() {
-          _selectedAddress = formattedAddress;
-          _searchController.text = formattedAddress;
-          _isLoadingAddress = false;
-        });
-      } else {
-        final String fallback = _latLngText(latLng);
-
-        setState(() {
-          _selectedAddress = fallback;
-          _searchController.text = fallback;
-          _isLoadingAddress = false;
-        });
-
-        _showSnackBar("Exact address পাওয়া যায়নি.");
+      if (formattedAddress.isEmpty) {
+        _showSnackBar("Exact address could not be found.");
       }
     } on TimeoutException {
       if (!mounted) return;
 
-      final String fallback = _latLngText(latLng);
+      final fallback = _latLngText(latLng);
 
       setState(() {
         _selectedAddress = fallback;
-        _searchController.text = fallback;
+        if (!_isUserTypingSearch) {
+          _searchController.text = fallback;
+        }
         _isLoadingAddress = false;
       });
 
-      _showSnackBar("Address fetch timeout হয়েছে.");
+      _showSnackBar("Address fetch timed out.");
     } catch (e) {
       if (!mounted) return;
 
-      final String fallback = _latLngText(latLng);
+      final fallback = _latLngText(latLng);
 
       setState(() {
         _selectedAddress = fallback;
-        _searchController.text = fallback;
+        if (!_isUserTypingSearch) {
+          _searchController.text = fallback;
+        }
         _isLoadingAddress = false;
       });
 
-      _showSnackBar("Address fetch করতে সমস্যা হয়েছে.");
+      _showSnackBar("Failed to fetch address.");
     }
   }
 
   void _searchPlaces(String input) {
     _debounce?.cancel();
 
+    if (!mounted) return;
+
+    setState(() {
+      _isUserTypingSearch = input.trim().isNotEmpty;
+    });
+
     if (input.trim().isEmpty) {
-      if (!mounted) return;
       setState(() {
         _placePredictions = [];
         _isSearchingPlaces = false;
@@ -179,40 +180,15 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
       });
 
       try {
-        final Uri url = Uri.parse(
-          "https://maps.googleapis.com/maps/api/place/autocomplete/json"
-              "?input=${Uri.encodeComponent(input)}"
-              "&key=${widget.googleApiKey}"
-              "&components=country:bd",
-        );
-
-        final http.Response response = await http
-            .get(url)
-            .timeout(const Duration(seconds: 12));
-
-        final dynamic data = jsonDecode(response.body);
+        final response = await _api.mapsAutocomplete(input: input.trim());
+        final List predictions = response['data'] ?? [];
 
         if (!mounted) return;
 
-        if (response.statusCode == 200 &&
-            data is Map<String, dynamic> &&
-            (data["status"] == "OK" || data["status"] == "ZERO_RESULTS")) {
-          setState(() {
-            _placePredictions = (data["predictions"] as List?) ?? [];
-            _isSearchingPlaces = false;
-          });
-        } else {
-          final String apiStatus = data is Map<String, dynamic>
-              ? (data["status"]?.toString() ?? "UNKNOWN_ERROR")
-              : "INVALID_RESPONSE";
-
-          setState(() {
-            _placePredictions = [];
-            _isSearchingPlaces = false;
-          });
-
-          _showSnackBar("Place search failed. ($apiStatus)");
-        }
+        setState(() {
+          _placePredictions = predictions;
+          _isSearchingPlaces = false;
+        });
       } on TimeoutException {
         if (!mounted) return;
 
@@ -221,7 +197,7 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
           _isSearchingPlaces = false;
         });
 
-        _showSnackBar("Place search timeout হয়েছে.");
+        _showSnackBar("lace search timed out.");
       } catch (e) {
         if (!mounted) return;
 
@@ -230,7 +206,7 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
           _isSearchingPlaces = false;
         });
 
-        _showSnackBar("Place search-এ সমস্যা হয়েছে.");
+        _showSnackBar("Error occurred during place search.");
       }
     });
   }
@@ -245,62 +221,47 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
     }
 
     try {
-      final Uri url = Uri.parse(
-        "https://maps.googleapis.com/maps/api/place/details/json"
-            "?place_id=$placeId"
-            "&key=${widget.googleApiKey}",
+      final response = await _api.mapsPlaceDetails(placeId: placeId);
+      final data = Map<String, dynamic>.from(response['data'] ?? {});
+
+      final lat = data["lat"];
+      final lng = data["lng"];
+
+      if (lat == null || lng == null) {
+        _showSnackBar("Selected place load failed.");
+        return;
+      }
+
+      final LatLng latLng = LatLng(
+        (lat as num).toDouble(),
+        (lng as num).toDouble(),
       );
 
-      final http.Response response = await http
-          .get(url)
-          .timeout(const Duration(seconds: 12));
+      _selectedPosition = latLng;
 
-      final dynamic data = jsonDecode(response.body);
-
-      if (response.statusCode == 200 &&
-          data is Map<String, dynamic> &&
-          data["status"] == "OK" &&
-          data["result"] != null &&
-          data["result"]["geometry"] != null &&
-          data["result"]["geometry"]["location"] != null) {
-        final dynamic location = data["result"]["geometry"]["location"];
-
-        final LatLng latLng = LatLng(
-          (location["lat"] as num).toDouble(),
-          (location["lng"] as num).toDouble(),
-        );
-
-        _selectedPosition = latLng;
-
-        await _mapController?.animateCamera(
-          CameraUpdate.newCameraPosition(
-            CameraPosition(
-              target: latLng,
-              zoom: 17,
-            ),
+      await _mapController?.animateCamera(
+        CameraUpdate.newCameraPosition(
+          CameraPosition(
+            target: latLng,
+            zoom: 17,
           ),
-        );
+        ),
+      );
 
-        if (!mounted) return;
+      if (!mounted) return;
 
-        setState(() {
-          _searchController.text = description;
-          _placePredictions = [];
-        });
+      setState(() {
+        _isUserTypingSearch = false;
+        _searchController.text = description;
+        _placePredictions = [];
+      });
 
-        _searchFocusNode.unfocus();
-        await _getAddressFromLatLng(latLng);
-      } else {
-        final String apiStatus = data is Map<String, dynamic>
-            ? (data["status"]?.toString() ?? "UNKNOWN_ERROR")
-            : "INVALID_RESPONSE";
-
-        _showSnackBar("Selected place load failed. ($apiStatus)");
-      }
+      _searchFocusNode.unfocus();
+      await _getAddressFromLatLng(latLng);
     } on TimeoutException {
-      _showSnackBar("Place details timeout হয়েছে.");
+      _showSnackBar("Place details request timed out.");
     } catch (e) {
-      _showSnackBar("Place details load করতে সমস্যা হয়েছে.");
+      _showSnackBar("Failed to load place details.");
     }
   }
 
@@ -370,6 +331,7 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
 
       if (!mounted) return;
       setState(() {
+        _isUserTypingSearch = false;
         _placePredictions = [];
         _isFetchingCurrentLocation = false;
       });
@@ -524,7 +486,9 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
                   child: TextField(
                     controller: _searchController,
                     focusNode: _searchFocusNode,
-                    onChanged: _searchPlaces,
+                    onChanged: (value) {
+                      _searchPlaces(value);
+                    },
                     decoration: InputDecoration(
                       hintText: "Search location",
                       prefixIcon: const Icon(
@@ -537,6 +501,7 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
                         onPressed: () {
                           _searchController.clear();
                           setState(() {
+                            _isUserTypingSearch = false;
                             _placePredictions = [];
                           });
                         },
@@ -709,8 +674,7 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
                             color: primaryColor,
                           ),
                           title: Text(
-                            item["structured_formatting"]?["main_text"]
-                                ?.toString() ??
+                            item["main_text"]?.toString() ??
                                 item["description"]?.toString() ??
                                 "",
                             style: const TextStyle(
@@ -720,9 +684,7 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
                             ),
                           ),
                           subtitle: Text(
-                            item["structured_formatting"]?["secondary_text"]
-                                ?.toString() ??
-                                "",
+                            item["secondary_text"]?.toString() ?? "",
                             style: const TextStyle(
                               fontSize: 12,
                               color: mutedTextColor,

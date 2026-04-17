@@ -1,6 +1,8 @@
+import 'dart:async';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'services/auth_api_service.dart';
 import 'map_picker_screen.dart';
 
 class ActiveRidesPage extends StatefulWidget {
@@ -11,98 +13,282 @@ class ActiveRidesPage extends StatefulWidget {
 }
 
 class _ActiveRidesPageState extends State<ActiveRidesPage> {
+  final AuthApiService _api = AuthApiService();
 
-  String riderName = "Rider Name"; // backend থেকে আসবে
+  String riderName = "Rider Name";
 
   DateTime today = DateTime.now();
   TimeOfDay time = TimeOfDay.now();
 
-  List<String> vehicleTypes = ["Private Car", "Bike"]; // DB থেকে আসবে
-  String? selectedVehicleType;
+  List<Map<String, dynamic>> vehicles = [];
+  Map<String, dynamic>? selectedVehicle;
 
-  String vehicleModel = "Toyota Axio";
-  String vehicleNumber = "Dhaka Metro GA-123456";
+  String vehicleModel = "";
+  String vehicleNumber = "";
 
   String currentLocation = "Detecting location...";
   String destination = "Select destination";
 
   LatLng? destinationLatLng;
 
+  double? currentLat;
+  double? currentLng;
+
+  bool isLoading = true;
+  bool isConfirming = false;
+  StreamSubscription<Position>? _positionStream;
+
   @override
   void initState() {
     super.initState();
-    selectedVehicleType = vehicleTypes.first;
-    _getCurrentLocation();
+    _initializePage();
+  }
+
+  Future<void> _initializePage() async {
+    try {
+      await _loadSetupData();
+      await _getCurrentLocation();
+      _startLocationTracking();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
+      );
+    } finally {
+      if (!mounted) return;
+      setState(() {
+        isLoading = false;
+      });
+    }
+  }
+
+  Future<void> _loadSetupData() async {
+    final response = await _api.getActiveRideSetupData();
+    final data = response['data'] ?? {};
+
+    final List rawVehicles = data['vehicles'] ?? [];
+
+    final validVehicles = rawVehicles
+        .whereType<Map>()
+        .map((e) => Map<String, dynamic>.from(e))
+        .where((vehicle) => vehicle['verified'] == true)
+        .toList();
+
+    if (!mounted) return;
+
+    setState(() {
+      riderName = (data['riderName'] ?? 'Rider Name').toString();
+      vehicles = validVehicles;
+
+      if (vehicles.isNotEmpty) {
+        selectedVehicle = vehicles.first;
+        vehicleModel = (selectedVehicle?['model'] ?? '').toString();
+        vehicleNumber = (selectedVehicle?['vehicleNumber'] ?? '').toString();
+      } else {
+        selectedVehicle = null;
+        vehicleModel = "No verified vehicle found";
+        vehicleNumber = "";
+      }
+    });
   }
 
   // ================= CURRENT LOCATION =================
 
   Future<void> _getCurrentLocation() async {
-
     bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
-    if (!serviceEnabled) return;
+    if (!serviceEnabled) {
+      throw Exception('Location service is turned off');
+    }
 
-    LocationPermission permission =
-    await Geolocator.checkPermission();
+    LocationPermission permission = await Geolocator.checkPermission();
 
     if (permission == LocationPermission.denied) {
       permission = await Geolocator.requestPermission();
     }
 
-    Position position =
-    await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high);
+    if (permission == LocationPermission.denied) {
+      throw Exception('Location permission denied');
+    }
+
+    if (permission == LocationPermission.deniedForever) {
+      throw Exception('Location permission permanently denied');
+    }
+
+    final position = await Geolocator.getCurrentPosition(
+      desiredAccuracy: LocationAccuracy.high,
+    );
+
+    if (!mounted) return;
 
     setState(() {
+      currentLat = position.latitude;
+      currentLng = position.longitude;
       currentLocation =
       "${position.latitude.toStringAsFixed(5)}, ${position.longitude.toStringAsFixed(5)}";
+    });
+  }
+
+  void _startLocationTracking() {
+    _positionStream?.cancel();
+
+    _positionStream = Geolocator.getPositionStream(
+      locationSettings: const LocationSettings(
+        accuracy: LocationAccuracy.high,
+        distanceFilter: 20,
+      ),
+    ).listen((position) async {
+      currentLat = position.latitude;
+      currentLng = position.longitude;
+
+      if (mounted) {
+        setState(() {
+          currentLocation =
+          "${position.latitude.toStringAsFixed(5)}, ${position.longitude.toStringAsFixed(5)}";
+        });
+      }
+
+      try {
+        await _api.updateActiveRideLocation(
+          latitude: position.latitude,
+          longitude: position.longitude,
+        );
+      } catch (_) {}
     });
   }
 
   // ================= PICK DESTINATION =================
 
   Future<void> pickDestination() async {
+    final initialPosition = (currentLat != null && currentLng != null)
+        ? LatLng(currentLat!, currentLng!)
+        : const LatLng(23.8103, 90.4125);
 
     final result = await Navigator.push(
       context,
       MaterialPageRoute(
         builder: (_) => MapPickerScreen(
-          googleApiKey: "YOUR_GOOGLE_MAPS_API_KEY",
-          initialPosition: const LatLng(23.8103, 90.4125),
+          googleApiKey: "AIzaSyCF5mVtZ2woOu8P1Jwf-7IfzRw_QoPilCI",
+          initialPosition: initialPosition,
           title: "Select Destination",
         ),
       ),
     );
 
-    if (result != null) {
+    if (result == null || result is! Map) return;
+
+    final address = result["address"];
+    final latLng = result["latLng"];
+
+    if (address == null || latLng == null || latLng is! LatLng) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Invalid destination selected")),
+      );
+      return;
+    }
+
+    setState(() {
+      destination = address.toString();
+      destinationLatLng = latLng;
+    });
+  }
+
+  Future<void> confirmRide() async {
+    if (selectedVehicle == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("No verified vehicle available")),
+      );
+      return;
+    }
+
+    if (currentLat == null || currentLng == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Current location not available")),
+      );
+      return;
+    }
+
+    if (destinationLatLng == null || destination == "Select destination") {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Please select destination")),
+      );
+      return;
+    }
+
+    try {
       setState(() {
-        destination = result["address"];
-        destinationLatLng = result["latLng"];
+        isConfirming = true;
+      });
+
+      final response = await _api.activateActiveRide(
+        vehicleId: (selectedVehicle!['vehicleId'] ?? '').toString(),
+        destination: destination,
+        destinationLat: destinationLatLng!.latitude,
+        destinationLng: destinationLatLng!.longitude,
+        currentLat: currentLat!,
+        currentLng: currentLng!,
+        currentLocationText: currentLocation,
+        travelDate:
+        "${today.year.toString().padLeft(4, '0')}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}",
+        travelTime:
+        "${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}:00",
+      );
+
+      final data = response['data'] ?? {};
+      final rideId = data['rideId']?.toString();
+
+      await _api.updateActiveRideLocation(
+        latitude: currentLat!,
+        longitude: currentLng!,
+        rideId: rideId,
+      );
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Ride Activated Successfully"),
+        ),
+      );
+
+      Navigator.pop(context, true);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
+      );
+    } finally {
+      if (!mounted) return;
+      setState(() {
+        isConfirming = false;
       });
     }
   }
 
-  void confirmRide() {
-
-    print("===== ACTIVE RIDE =====");
-    print(riderName);
-    print(selectedVehicleType);
-    print(vehicleModel);
-    print(vehicleNumber);
-    print(currentLocation);
-    print(destination);
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text("Ride Activated Successfully"),
-      ),
-    );
-
-    Navigator.pop(context);
+  @override
+  void dispose() {
+    _positionStream?.cancel();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    if (isLoading) {
+      return Scaffold(
+        backgroundColor: const Color(0xFFF9FAFB),
+        appBar: AppBar(
+          backgroundColor: const Color(0xFF14B8A6),
+          title: const Text(
+            "Activate your Ride",
+            style: TextStyle(color: Colors.white),
+          ),
+          centerTitle: true,
+        ),
+        body: const Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
 
     return Scaffold(
       backgroundColor: const Color(0xFFF9FAFB),
@@ -176,23 +362,33 @@ class _ActiveRidesPageState extends State<ActiveRidesPage> {
                 children: [
 
                   DropdownButton<String>(
-                    value: selectedVehicleType,
+                    value: selectedVehicle?['vehicleId']?.toString(),
                     isExpanded: true,
                     underline: const SizedBox(),
-                    items: vehicleTypes
+                    items: vehicles
                         .map(
-                          (type) => DropdownMenuItem(
-                        value: type,
+                          (vehicle) => DropdownMenuItem<String>(
+                        value: vehicle['vehicleId'].toString(),
                         child: Text(
-                          type,
+                          (vehicle['vehicleTypeLabel'] ?? 'Vehicle').toString(),
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
                     )
                         .toList(),
                     onChanged: (value) {
+                      final matched = vehicles.where(
+                            (vehicle) => vehicle['vehicleId'].toString() == value,
+                      );
+
+                      if (matched.isEmpty) return;
+
                       setState(() {
-                        selectedVehicleType = value;
+                        selectedVehicle = matched.first;
+                        vehicleModel =
+                            (selectedVehicle?['model'] ?? '').toString();
+                        vehicleNumber =
+                            (selectedVehicle?['vehicleNumber'] ?? '').toString();
                       });
                     },
                   ),
@@ -318,17 +514,24 @@ class _ActiveRidesPageState extends State<ActiveRidesPage> {
 
                 Expanded(
                   child: ElevatedButton(
-                    onPressed: confirmRide,
+                    onPressed: isConfirming ? null : confirmRide,
                     style: ElevatedButton.styleFrom(
-                      backgroundColor:
-                      const Color(0xFF14B8A6),
-                      minimumSize:
-                      const Size.fromHeight(55),
+                      backgroundColor: const Color(0xFF14B8A6),
+                      minimumSize: const Size.fromHeight(55),
                     ),
-                    child: const Text(
+                    child: isConfirming
+                        ? const SizedBox(
+                      height: 22,
+                      width: 22,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2.4,
+                        valueColor:
+                        AlwaysStoppedAnimation<Color>(Colors.white),
+                      ),
+                    )
+                        : const Text(
                       "Confirm",
-                      style: TextStyle(
-                          color: Colors.white),
+                      style: TextStyle(color: Colors.white),
                     ),
                   ),
                 ),

@@ -1,8 +1,9 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'RideRequestModel.dart';
-import 'RideRequestService.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'services/auth_api_service.dart';
+import 'services/rider_activity_socket_service.dart';
 
 class ActiveRidesPage extends StatefulWidget {
   const ActiveRidesPage({super.key});
@@ -12,24 +13,37 @@ class ActiveRidesPage extends StatefulWidget {
 }
 
 class _ActiveRidesPageState extends State<ActiveRidesPage> {
+  final AuthApiService _api = AuthApiService();
+
   bool rideIsActive = false;
+  bool _isLoading = true;
+  bool _isSubmitting = false;
+
   Timer? _timer;
 
-  ConfirmedRideData? get _currentRide {
-    final rides = RideRequestService.getConfirmedRides();
-    if (rides.isEmpty) return null;
-    return rides.last;
-  }
+  Map<String, dynamic>? _currentRide;
+  List<Map<String, dynamic>> _pendingRequests = [];
+
+  Map<String, dynamic>? get currentRide => _currentRide;
 
   @override
   void initState() {
     super.initState();
-    _startTimerIfNeeded();
+    _loadDashboard();
+    _connectSocket();
   }
 
   @override
   void dispose() {
     _timer?.cancel();
+    RiderActivitySocketService.instance.off('rider:availability:updated');
+    RiderActivitySocketService.instance.off('ride-request:accepted');
+    RiderActivitySocketService.instance.off('ride-request:rejected');
+    RiderActivitySocketService.instance.off('active-ride:updated');
+    RiderActivitySocketService.instance.off('confirmed-ride:cancelled');
+    RiderActivitySocketService.instance.off('ride:ongoing');
+    RiderActivitySocketService.instance.off('ride:completed');
+    RiderActivitySocketService.instance.disconnect();
     super.dispose();
   }
 
@@ -38,92 +52,321 @@ class _ActiveRidesPageState extends State<ActiveRidesPage> {
 
     if (_currentRide != null) {
       _timer = Timer.periodic(const Duration(seconds: 1), (_) {
-        if (mounted) {
-          setState(() {});
+        if (!mounted || _currentRide == null) return;
+
+        final remaining =
+        (_currentRide!['remainingFreeCancelSeconds'] ?? 0) as int;
+
+        if (remaining > 0) {
+          setState(() {
+            _currentRide!['remainingFreeCancelSeconds'] = remaining - 1;
+            _currentRide!['isFreeCancelAvailable'] =
+                (remaining - 1) > 0;
+          });
+        } else {
+          setState(() {
+            _currentRide!['remainingFreeCancelSeconds'] = 0;
+            _currentRide!['isFreeCancelAvailable'] = false;
+          });
         }
       });
     }
   }
 
-  void _toggleRideStatus() {
-    setState(() {
-      rideIsActive = !rideIsActive;
-    });
+  Future<void> _loadDashboard() async {
+    try {
+      setState(() {
+        _isLoading = true;
+      });
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          rideIsActive ? "Ride activated" : "Ride deactivated",
-        ),
-      ),
+      final response = await _api.getRiderActiveRideDashboard();
+      final payload = response['data'] ?? response;
+
+      final confirmedRideRaw = payload['confirmedRide'];
+      final pendingRaw = payload['pendingRequests'];
+
+      setState(() {
+        rideIsActive = payload['rideIsActive'] == true;
+        _currentRide = confirmedRideRaw == null
+            ? null
+            : Map<String, dynamic>.from(confirmedRideRaw);
+        _pendingRequests = pendingRaw is List
+            ? pendingRaw
+            .map<Map<String, dynamic>>(
+              (e) => Map<String, dynamic>.from(e),
+        )
+            .toList()
+            : [];
+      });
+
+      if (_currentRide != null &&
+          (_currentRide!['confirmedRideId']?.toString().isNotEmpty ?? false)) {
+        RiderActivitySocketService.instance
+            .joinRideRoom(_currentRide!['confirmedRideId'].toString());
+      }
+
+      _startTimerIfNeeded();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _connectSocket() async {
+    await RiderActivitySocketService.instance.connect();
+
+    RiderActivitySocketService.instance.on(
+      'rider:availability:updated',
+          (_) => _loadDashboard(),
+    );
+
+    RiderActivitySocketService.instance.on(
+      'ride-request:accepted',
+          (_) => _loadDashboard(),
+    );
+
+    RiderActivitySocketService.instance.on(
+      'ride-request:rejected',
+          (_) => _loadDashboard(),
+    );
+
+    RiderActivitySocketService.instance.on(
+      'active-ride:updated',
+          (_) => _loadDashboard(),
+    );
+
+    RiderActivitySocketService.instance.on(
+      'confirmed-ride:cancelled',
+          (_) => _loadDashboard(),
+    );
+
+    RiderActivitySocketService.instance.on(
+      'ride:ongoing',
+          (_) => _loadDashboard(),
+    );
+
+    RiderActivitySocketService.instance.on(
+      'ride:completed',
+          (_) => _loadDashboard(),
     );
   }
 
-  void _cancelConfirmedRide() {
-    final currentRide = _currentRide;
-    if (currentRide == null) {
+  Future<void> _toggleRideStatus() async {
+    if (_isSubmitting) return;
+
+    final nextValue = !rideIsActive;
+
+    try {
+      setState(() {
+        _isSubmitting = true;
+      });
+
+      await _api.updateRideAvailability(isActive: nextValue);
+
+      setState(() {
+        rideIsActive = nextValue;
+      });
+
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("No confirmed ride found"),
+        SnackBar(
+          content: Text(
+            nextValue ? "Ride activated" : "Ride deactivated",
+          ),
         ),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSubmitting = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _cancelConfirmedRide() async {
+    final ride = _currentRide;
+    if (ride == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("No confirmed ride found")),
       );
       return;
     }
 
-    final result = RideRequestService.rejectConfirmedRide(
-      currentRide.confirmedRideId,
-    );
+    try {
+      setState(() {
+        _isSubmitting = true;
+      });
 
-    setState(() {});
+      final result = await _api.cancelConfirmedRide(
+        requestId: ride['requestId'].toString(),
+      );
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(result.message),
-      ),
-    );
-  }
+      await _loadDashboard();
 
-  void _simulateRideRequestsFromActivePage() {
-    if (!rideIsActive) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Please activate ride first"),
+        SnackBar(
+          content: Text(result['message'] ?? 'Ride cancelled successfully'),
         ),
       );
-      return;
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSubmitting = false;
+        });
+      }
     }
+  }
 
-    RideRequestService.addRequest(
-      const RideRequestModel(
-        passengerName: "Afsana",
-        phoneNumber: "01700001111",
-        currentLocation: "Girls Hall",
-        destination: "Business Faculty",
-        distanceKm: 2.7,
-        fare: 70,
-        estimatedMinutes: 9,
-      ),
-    );
+  Future<void> _acceptPendingRequest(String requestId) async {
+    try {
+      setState(() {
+        _isSubmitting = true;
+      });
 
-    RideRequestService.addRequest(
-      const RideRequestModel(
-        passengerName: "Jubayer",
-        phoneNumber: "01611224455",
-        currentLocation: "Central Mosque",
-        destination: "Science Building",
-        distanceKm: 3.9,
-        fare: 95,
-        estimatedMinutes: 13,
-      ),
-    );
+      final result = await _api.acceptPendingRideRequest(requestId: requestId);
+      await _loadDashboard();
 
-    _startTimerIfNeeded();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(result['message'] ?? 'Ride request accepted'),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSubmitting = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _rejectPendingRequest(String requestId) async {
+    try {
+      setState(() {
+        _isSubmitting = true;
+      });
+
+      final result = await _api.rejectPendingRideRequest(requestId: requestId);
+      await _loadDashboard();
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(result['message'] ?? 'Ride request rejected'),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSubmitting = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _startRide() async {
+    final ride = _currentRide;
+    if (ride == null) return;
+
+    try {
+      setState(() {
+        _isSubmitting = true;
+      });
+
+      final result = await _api.startAssignedRide(
+        rideId: ride['confirmedRideId'].toString(),
+      );
+
+      await _loadDashboard();
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(result['message'] ?? 'Ride started successfully'),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSubmitting = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _completeRide() async {
+    final ride = _currentRide;
+    if (ride == null) return;
+
+    try {
+      setState(() {
+        _isSubmitting = true;
+      });
+
+      final result = await _api.completeOngoingRide(
+        rideId: ride['confirmedRideId'].toString(),
+      );
+
+      await _loadDashboard();
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(result['message'] ?? 'Ride completed successfully'),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSubmitting = false;
+        });
+      }
+    }
   }
 
   @override
   Widget build(BuildContext context) {
 
-    final currentRide = _currentRide;
+    final currentRide = this.currentRide;
     return Scaffold(
       backgroundColor: const Color(0xFFF9FAFB),
       appBar: AppBar(
@@ -203,37 +446,37 @@ class _ActiveRidesPageState extends State<ActiveRidesPage> {
                   const SizedBox(height: 12),
                   _RideInfoRow(
                     label: "Passenger",
-                    value: currentRide?.request.passengerName ?? "No current ride",
+                    value: currentRide?['passengerName'] ?? "No current ride",
                   ),
                   _RideInfoRow(
                     label: "Phone",
-                    value: currentRide?.request.phoneNumber ?? "-",
+                    value: currentRide?['phoneNumber'] ?? "-",
                   ),
                   _RideInfoRow(
                     label: "Pickup",
-                    value: currentRide?.request.currentLocation ?? "-",
+                    value: currentRide?['currentLocation'] ?? "-",
                   ),
                   _RideInfoRow(
                     label: "Destination",
-                    value: currentRide?.request.destination ?? "-",
+                    value: currentRide?['destination'] ?? "-",
                   ),
                   _RideInfoRow(
                     label: "Fare",
                     value: currentRide != null
-                        ? "৳${currentRide.request.fare.toStringAsFixed(0)}"
+                        ? "৳${currentRide['fare']}"
                         : "-",
                   ),
                   _RideInfoRow(
                     label: "Time",
                     value: currentRide != null
-                        ? "${currentRide.request.estimatedMinutes} min"
+                        ? "${currentRide['estimatedMinutes']} min"
                         : "-",
                   ),
                   if (currentRide != null) ...[
                     _RideInfoRow(
                       label: "Free Cancel",
-                      value: currentRide.isFreeCancelAvailable
-                          ? "${currentRide.remainingFreeCancelSeconds}s left"
+                      value: currentRide['isFreeCancelAvailable'] == true
+                          ? "${currentRide['remainingFreeCancelSeconds']}s left"
                           : "Expired",
                     ),
                     const SizedBox(height: 12),
@@ -255,25 +498,6 @@ class _ActiveRidesPageState extends State<ActiveRidesPage> {
                     ),
                   ],
                 ],
-              ),
-            ),
-
-            const SizedBox(height: 24),
-
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: _simulateRideRequestsFromActivePage,
-                icon: const Icon(Icons.notifications_active),
-                label: const Text("Simulate New Requests"),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF14B8A6),
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                ),
               ),
             ),
           ],
