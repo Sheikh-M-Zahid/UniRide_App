@@ -14,25 +14,24 @@ const vehicleDir = path.join(__dirname, '..', 'uploads', 'vehicles');
 const fileFilter = (req, file, cb) => {
   const allowedMimeTypes = [
     'image/jpeg',
-    'image/png',
     'image/jpg',
+    'image/png',
     'image/webp',
   ];
 
   if (!allowedMimeTypes.includes(file.mimetype)) {
-    return cb(new Error('Only jpg, jpeg, png, webp images are allowed.'));
+    return cb(new Error('Only jpg, jpeg, png, and webp images are allowed.'));
   }
 
   cb(null, true);
 };
 
-// ===== Profile picture upload =====
 const profileStorage = multer.diskStorage({
   destination: (req, file, cb) => {
     cb(null, profileDir);
   },
   filename: (req, file, cb) => {
-    const uniqueName = `profile-${Date.now()}${path.extname(file.originalname)}`;
+    const uniqueName = `profile-${Date.now()}-${Math.round(Math.random() * 1e9)}${path.extname(file.originalname)}`;
     cb(null, uniqueName);
   },
 });
@@ -45,7 +44,6 @@ const uploadProfilePicture = multer({
   },
 });
 
-// ===== Vehicle documents upload =====
 const vehicleStorage = multer.diskStorage({
   destination: (req, file, cb) => {
     cb(null, vehicleDir);
