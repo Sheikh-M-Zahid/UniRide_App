@@ -1,9 +1,9 @@
 const rideDb = require('../config/rideDb');
 const {
   emitRideRequestStatusUpdate,
-  emitToRiderRoom,
-  emitToPassengerRoom,
-} = require('../utils/rideRequestEmitter');
+  emitToRider,
+  emitToPassenger,
+} = require('./utils/rideRequestEmitter');
 
 const REQUEST_TIMEOUT_SECONDS = 60;
 
@@ -145,7 +145,7 @@ const createRequest = async (passengerId, payload) => {
     vehicleType: request.vehicle_type,
   };
 
-  emitToRiderRoom(request.rider_id, riderPayload);
+  emitToRider(request.rider_id, riderPayload);
 
   setTimeout(async () => {
     try {
@@ -207,7 +207,7 @@ const cancelRequest = async (passengerId, requestId, cancelReason = null) => {
   };
 
   emitRideRequestStatusUpdate(request.request_id, payload);
-  emitToRiderRoom(request.rider_id, payload);
+  emitToRider(request.rider_id, payload);
 
   return mapRequestResponse(request);
 };
@@ -310,7 +310,7 @@ const acceptRequest = async (riderId, requestId) => {
     };
 
     emitRideRequestStatusUpdate(acceptedRequest.request_id, payload);
-    emitToPassengerRoom(acceptedRequest.passenger_id, payload);
+    emitToPassenger(acceptedRequest.passenger_id, payload);
 
     return mapRequestResponse(acceptedRequest);
   } catch (error) {
@@ -350,7 +350,7 @@ const rejectRequest = async (riderId, requestId, cancelReason = null) => {
   };
 
   emitRideRequestStatusUpdate(request.request_id, payload);
-  emitToPassengerRoom(request.passenger_id, payload);
+  emitToPassenger(request.passenger_id, payload);
 
   return mapRequestResponse(request);
 };
@@ -381,7 +381,7 @@ const expireRequestIfPending = async (requestId) => {
   };
 
   emitRideRequestStatusUpdate(request.request_id, payload);
-  emitToPassengerRoom(request.passenger_id, payload);
+  emitToPassenger(request.passenger_id, payload);
 
   return request;
 };
