@@ -404,7 +404,20 @@ const register = async (payload) => {
 
     await client.query('COMMIT');
 
-    return { user };
+    const adminCheck = await checkAdminStatus(email, user.user_id);
+
+    const token = generateToken({
+      userId: user.user_id,
+      email: user.university_email,
+      isAdmin: adminCheck.isAdmin,
+    });
+
+    return {
+      user,
+      token,
+      isAdmin: adminCheck.isAdmin,
+    };
+    
   } catch (error) {
     await client.query('ROLLBACK');
     throw error;
