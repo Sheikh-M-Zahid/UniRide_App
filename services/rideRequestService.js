@@ -3,7 +3,7 @@ const {
   emitRideRequestStatusUpdate,
   emitToRider,
   emitToPassenger,
-} = require('./utils/rideRequestEmitter');
+} = require('../utils/rideRequestEmitter');
 
 const REQUEST_TIMEOUT_SECONDS = 60;
 
