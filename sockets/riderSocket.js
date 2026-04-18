@@ -45,9 +45,29 @@ module.exports = (io) => {
   io.on('connection', (socket) => {
     const userId = socket.user.userId;
 
-    console.log('Socket connected:', userId);
+   console.log('Socket connected:', userId);
+       socket.join(`user_${userId}`);
 
-    onlineRiders.set(userId, socket.id);
+   onlineRiders.set(userId, socket.id);
+      socket.on('join_user_room', ({ userId }) => {
+       if (!userId) return;
+       socket.join(`user_${userId}`);
+      });
+
+      socket.on('join_rider_room', ({ riderId }) => {
+       if (!riderId) return;
+       socket.join(`rider_${riderId}`);
+      });
+
+      socket.on('join_request_room', ({ requestId }) => {
+       if (!requestId) return;
+       socket.join(`request_${requestId}`);
+      });
+
+      socket.on('leave_request_room', ({ requestId }) => {
+        if (!requestId) return;
+        socket.leave(`request_${requestId}`);
+      });
 
 //REGISTER FEATURE SOCKETS
 
