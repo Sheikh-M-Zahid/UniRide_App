@@ -74,7 +74,6 @@ router.post(
     'gender',
     'date_of_birth',
     'home_address',
-    'hostel_address',
     'password',
   ]),
   authController.register
