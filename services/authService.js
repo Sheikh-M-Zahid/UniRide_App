@@ -404,7 +404,20 @@ const register = async (payload) => {
 
     await client.query('COMMIT');
 
-    return { user };
+    const adminCheck = await checkAdminStatus(email, user.user_id);
+
+    const token = generateToken({
+      userId: user.user_id,
+      email: user.university_email,
+      isAdmin: adminCheck.isAdmin,
+    });
+
+    return {
+      user,
+      token,
+      isAdmin: adminCheck.isAdmin,
+    };
+    
   } catch (error) {
     await client.query('ROLLBACK');
     throw error;
@@ -536,8 +549,8 @@ const login = async (emailInput, password) => {
     throw new Error(allowed.reason);
   }
 
-  const result = await rideDb.query(
-    `SELECT user_id, university_email, password_hash, first_name, last_name, phone, account_status
+    const result = await rideDb.query(
+    `SELECT user_id, university_email, password_hash, first_name, last_name, phone, account_status, selected_mode
      FROM users
      WHERE university_email = $1`,
     [email]
@@ -570,9 +583,29 @@ const login = async (emailInput, password) => {
     isAdmin: adminCheck.isAdmin,
   });
 
+    const vehicleCountResult = await rideDb.query(
+    `
+    SELECT COUNT(*)::int AS vehicle_count
+    FROM vehicles
+    WHERE user_id = $1
+    `,
+    [user.user_id]
+  );
+
+  const vehicleCount = vehicleCountResult.rows[0]?.vehicle_count || 0;
+  const selectedMode = user.selected_mode || 'passenger';
+
+  let nextScreen = 'passenger_home';
+
+  if (selectedMode === 'rider') {
+    nextScreen = vehicleCount > 0 ? 'rider_dashboard' : 'rider_onboarding';
+  }
+
   return {
     token,
     isAdmin: adminCheck.isAdmin,
+    nextScreen,
+    selectedMode,
     user: {
       user_id: user.user_id,
       university_email: user.university_email,
@@ -580,6 +613,7 @@ const login = async (emailInput, password) => {
       last_name: user.last_name,
       phone: user.phone,
       account_status: user.account_status,
+      selected_mode: selectedMode,
     },
   };
 };
@@ -593,7 +627,7 @@ const googleLogin = async (emailInput) => {
   }
 
   let userResult = await rideDb.query(
-    `SELECT user_id, university_email, first_name, last_name, phone, account_status
+    `SELECT user_id, university_email, first_name, last_name, phone, account_status, selected_mode
      FROM users
      WHERE university_email = $1`,
     [email]
@@ -633,9 +667,29 @@ const googleLogin = async (emailInput) => {
     isAdmin: adminCheck.isAdmin,
   });
 
+    const vehicleCountResult = await rideDb.query(
+    `
+    SELECT COUNT(*)::int AS vehicle_count
+    FROM vehicles
+    WHERE user_id = $1
+    `,
+    [user.user_id]
+  );
+
+  const vehicleCount = vehicleCountResult.rows[0]?.vehicle_count || 0;
+  const selectedMode = user.selected_mode || 'passenger';
+
+  let nextScreen = 'passenger_home';
+
+  if (selectedMode === 'rider') {
+    nextScreen = vehicleCount > 0 ? 'rider_dashboard' : 'rider_onboarding';
+  }
+
   return {
     token,
     isAdmin: adminCheck.isAdmin,
+    nextScreen,
+    selectedMode,
     user,
   };
 };
