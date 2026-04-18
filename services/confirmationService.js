@@ -56,6 +56,15 @@ const selectMode = async ({ userId, selectedMode }) => {
     throw new Error('Valid selectedMode is required. Use rider or passenger.');
   }
 
+  await rideDb.query(
+    `
+    UPDATE users
+    SET selected_mode = $1
+    WHERE user_id = $2
+    `,
+    [normalizedMode, userId]
+  );
+
   const vehicleCount = await getVehicleCount(userId);
   const riderReady = inferRiderReadiness({ vehicleCount });
   const nextScreen = resolveNextScreen({
@@ -70,7 +79,6 @@ const selectMode = async ({ userId, selectedMode }) => {
     nextScreen,
   };
 };
-
 module.exports = {
   getConfirmationStatus,
   selectMode,
