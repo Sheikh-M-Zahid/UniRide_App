@@ -96,7 +96,6 @@ const updateMyProfile = async (userId, payload) => {
 
   if (
     !phone ||
-    !recovery_phone ||
     !emergency_phone ||
     !gender ||
     !date_of_birth ||
