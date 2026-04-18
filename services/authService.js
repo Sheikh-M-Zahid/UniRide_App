@@ -549,8 +549,8 @@ const login = async (emailInput, password) => {
     throw new Error(allowed.reason);
   }
 
-  const result = await rideDb.query(
-    `SELECT user_id, university_email, password_hash, first_name, last_name, phone, account_status
+    const result = await rideDb.query(
+    `SELECT user_id, university_email, password_hash, first_name, last_name, phone, account_status, selected_mode
      FROM users
      WHERE university_email = $1`,
     [email]
