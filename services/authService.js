@@ -288,7 +288,6 @@ const register = async (payload) => {
     !phone ||
     !gender ||
     !date_of_birth ||
-    !home_address ||
     !hostel_address ||
     !password
   ) {
