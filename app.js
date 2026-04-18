@@ -52,6 +52,7 @@ const securityRoutes = require('./routes/securityRoutes');
 const privacyRoutes = require('./routes/privacyRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
 const mapsRoutes = require('./routes/mapsRoutes');
+const rideRequestRoutes = require('./routes/rideRequestRoutes');
 
 const errorMiddleware = require('./middlewares/errorMiddleware');
 
@@ -119,6 +120,7 @@ app.use('/api/security', securityRoutes);
 app.use('/api/privacy-data', privacyRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/maps', mapsRoutes);
+app.use('/api/ride-requests', rideRequestRoutes);
 
 app.use(errorMiddleware);
 

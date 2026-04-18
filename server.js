@@ -24,6 +24,8 @@ const riderMapSocket = require('./sockets/riderMapSocket');
 const rideAvailabilitySocket = require('./sockets/rideAvailabilitySocket');
 const { setRideAvailabilityIo } = require('./utils/rideAvailabilityEmitter');
 
+const { setNotificationIo } = require('./utils/notificationEmitter');
+
 const PORT = process.env.PORT || 5000;
 
 const server = http.createServer(app);
@@ -38,7 +40,7 @@ riderDeliverySocket(io);
 rideAvailabilitySocket(io);
 
 setRideAvailabilityIo(io);
-
+setNotificationIo(io);
 
 io.on('connection', (socket) => {
   activeRiderSocket(socket);

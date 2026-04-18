@@ -1,34 +1,79 @@
 let io;
+
+// userId -> Set(socketId)
 const onlineUsers = new Map();
 
+/* =========================
+   INIT
+========================= */
 const setNotificationIo = (ioInstance) => {
   io = ioInstance;
 };
 
+/* =========================
+   USER SOCKET REGISTRY
+========================= */
 const registerUserSocket = (userId, socketId) => {
-  onlineUsers.set(userId, socketId);
+  if (!userId || !socketId) return;
+
+  const normalizedUserId = String(userId);
+
+  if (!onlineUsers.has(normalizedUserId)) {
+    onlineUsers.set(normalizedUserId, new Set());
+  }
+
+  onlineUsers.get(normalizedUserId).add(socketId);
 };
 
-const removeUserSocket = (socketId) => {
-  for (const [userId, id] of onlineUsers.entries()) {
-    if (id === socketId) {
-      onlineUsers.delete(userId);
-      break;
-    }
+const removeUserSocket = (userId, socketId) => {
+  if (!userId || !socketId) return;
+
+  const normalizedUserId = String(userId);
+  const userSockets = onlineUsers.get(normalizedUserId);
+
+  if (!userSockets) return;
+
+  userSockets.delete(socketId);
+
+  if (userSockets.size === 0) {
+    onlineUsers.delete(normalizedUserId);
   }
 };
 
+/* =========================
+   HELPERS
+========================= */
+const isUserOnline = (userId) => {
+  const normalizedUserId = String(userId);
+  const userSockets = onlineUsers.get(normalizedUserId);
+
+  return !!(userSockets && userSockets.size > 0);
+};
+
+const getOnlineUserSocketIds = (userId) => {
+  const normalizedUserId = String(userId);
+  const userSockets = onlineUsers.get(normalizedUserId);
+
+  return userSockets ? Array.from(userSockets) : [];
+};
+
+/* =========================
+   EMIT NOTIFICATION
+========================= */
 const emitNotification = (userId, notification) => {
-  const socketId = onlineUsers.get(userId);
+  if (!io || !userId || !notification) return;
 
-  if (socketId && io) {
-    io.to(socketId).emit('notification:new', notification);
-  }
+  const normalizedUserId = String(userId);
+
+  // room emit only
+  io.to(`user_${normalizedUserId}`).emit('notification:new', notification);
 };
 
 module.exports = {
   setNotificationIo,
   registerUserSocket,
   removeUserSocket,
+  isUserOnline,
+  getOnlineUserSocketIds,
   emitNotification,
 };
