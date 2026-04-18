@@ -21,6 +21,7 @@ const normalizeGenderFilter = (value) => {
 const normalizeVehicleFilter = (value) => {
   if (!value) return 'all';
   const normalized = String(value).trim().toLowerCase();
+
   if (['all', 'bike', 'car'].includes(normalized)) return normalized;
   return 'all';
 };
@@ -28,8 +29,12 @@ const normalizeVehicleFilter = (value) => {
 const normalizeUserTypeFilter = (value) => {
   if (!value) return 'all';
   const normalized = String(value).trim().toLowerCase();
+
   if (normalized === 'teacher') return 'faculty';
-  if (['all', 'student', 'faculty', 'staff'].includes(normalized)) return normalized;
+  if (['all', 'student', 'faculty', 'staff'].includes(normalized)) {
+    return normalized;
+  }
+
   return 'all';
 };
 
@@ -37,6 +42,7 @@ const mapOccupation = (occupation) => {
   if (!occupation) return 'User';
 
   const value = String(occupation).trim().toLowerCase();
+
   if (value === 'student') return 'Student';
   if (value === 'faculty') return 'Teacher';
   if (value === 'staff') return 'Staff';
@@ -78,7 +84,6 @@ const getRideOptions = async ({ body }) => {
   const normalizedVehicleType = normalizeVehicleFilter(vehicleType);
   const normalizedUserType = normalizeUserTypeFilter(userType);
 
-  // Real route summary from Google Routes API
   const route = await computeRoute({
     originLat: pickupLat,
     originLng: pickupLng,
@@ -147,9 +152,11 @@ const getRideOptions = async ({ body }) => {
 
   if (emails.length) {
     const occRes = await ewuAdminDb.query(
-      `SELECT university_email, occupation
-       FROM ewu_users
-       WHERE university_email = ANY($1::text[])`,
+      `
+      SELECT university_email, occupation
+      FROM ewu_users
+      WHERE university_email = ANY($1::text[])
+      `,
       [emails]
     );
 
@@ -158,7 +165,6 @@ const getRideOptions = async ({ body }) => {
     );
   }
 
-  // Google Route Matrix for rider -> passenger pickup comparison
   const riderDestinations = rides
     .map((ride, index) => ({
       index,
@@ -226,7 +232,7 @@ const getRideOptions = async ({ body }) => {
         rating: Number(ride.rating || 5),
         vehicleNumber: ride.number_plate || '',
         emptySeats: Number(ride.available_seats || 0),
-        departureTime: ride.travel_time || null,
+        departureTime: ride.travel_time || '',
         genderPreference:
           ride.gender_preference === 'male'
             ? 'Male'
@@ -238,24 +244,23 @@ const getRideOptions = async ({ body }) => {
         isAvailable:
           Number(ride.available_seats || 0) > 0 &&
           !['cancelled', 'completed'].includes(String(ride.status).toLowerCase()),
-        _etaToPickup: matrix?.durationMinutes ?? calculateETA(distanceAwayKm || 0),
+        _etaToPickup:
+          matrix?.durationMinutes ?? calculateETA(distanceAwayKm || 0),
       };
     })
     .filter((ride) => {
       if (!ride.isAvailable) return false;
 
-      if (ride.distanceAwayKm === null || ride.distanceAwayKm > MAX_MATCH_DISTANCE_KM) {
+      if (
+        ride.distanceAwayKm === null ||
+        ride.distanceAwayKm > MAX_MATCH_DISTANCE_KM
+      ) {
         return false;
       }
 
       if (
         normalizedGender !== 'any' &&
-        String(ride.genderPreference).toLowerCase() !==
-          (normalizedGender === 'male'
-            ? 'male'
-            : normalizedGender === 'female'
-            ? 'female'
-            : 'any') &&
+        String(ride.genderPreference).toLowerCase() !== normalizedGender &&
         String(ride.genderPreference).toLowerCase() !== 'any'
       ) {
         return false;
@@ -278,6 +283,7 @@ const getRideOptions = async ({ body }) => {
 
       return true;
     })
+    .sort((a, b) => a.distanceAwayKm - b.distanceAwayKm)
     .map(({ _etaToPickup, ...rest }) => rest);
 
   return {
