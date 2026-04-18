@@ -288,8 +288,6 @@ const register = async (payload) => {
     !phone ||
     !gender ||
     !date_of_birth ||
-    !home_address ||
-    !hostel_address ||
     !password
   ) {
     throw new Error('Required fields are missing.');
@@ -383,7 +381,7 @@ const register = async (payload) => {
         blood_group ? String(blood_group).trim() : null,
         date_of_birth,
         String(home_address).trim(),
-        String(hostel_address).trim(),
+        hostel_address ? String(hostel_address).trim() : null,
         campus_address ? String(campus_address).trim() : null,
       ]
     );

@@ -185,10 +185,10 @@ const updateProfilePicture = async (userId, file) => {
 ========================= */
 const getRoleOptions = async (userId) => {
   const userResult = await rideDb.query(
-    `SELECT user_id, university_email, account_status, activity_status, rider
+     `SELECT user_id, university_email, account_status, activity_status, selected_mode
      FROM users
      WHERE user_id = $1`,
-    [userId]
+     [userId]
   );
 
   if (userResult.rowCount === 0) {
@@ -204,14 +204,14 @@ const getRoleOptions = async (userId) => {
     [userId]
   );
 
-  const vehicleCount = vehicleCountResult.rows[0].vehicle_count;
-  const riderFlag = user.rider ? String(user.rider).toLowerCase() : 'no';
+   const vehicleCount = vehicleCountResult.rows[0].vehicle_count;
+   const riderFlag = vehicleCount > 0 ? 'yes' : 'no';
 
   const isAccountActive =
     user.account_status &&
     String(user.account_status).toLowerCase() === 'active';
 
-  const riderAllowed = riderFlag === 'yes' || vehicleCount > 0;
+  const riderAllowed = isAccountActive && vehicleCount > 0;
   const passengerAllowed = isAccountActive;
 
   let riderReason = null;
