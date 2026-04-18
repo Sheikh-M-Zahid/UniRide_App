@@ -288,7 +288,6 @@ const register = async (payload) => {
     !phone ||
     !gender ||
     !date_of_birth ||
-    !hostel_address ||
     !password
   ) {
     throw new Error('Required fields are missing.');
