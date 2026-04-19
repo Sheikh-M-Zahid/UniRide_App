@@ -10,6 +10,18 @@ router.post('/create', authMiddleware, reserveController.createReserve);
 // Get upcoming reserved rides (protected)
 router.get('/upcoming', authMiddleware, reserveController.getUpcomingReserve);
 
+router.patch(
+  '/:reserveId/cancel',
+  authMiddleware,
+  reserveController.cancelReserve
+);
+
+router.patch(
+  '/:reserveId/accept',
+  authMiddleware,
+  reserveController.assignRiderToReserve
+);
+
 // Calculate reserve ride (public)
 router.post('/calculate', reserveController.calculateReserveRide);
 
