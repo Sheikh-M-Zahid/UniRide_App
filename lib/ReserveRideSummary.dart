@@ -76,12 +76,37 @@ class _ReserveRequestSummaryPageState extends State<ReserveRequestSummaryPage> {
         '${date.day.toString().padLeft(2, '0')}';
   }
 
+  String _mapVehicleType(String value) {
+    switch (value) {
+      case 'Car':
+        return 'car';
+      case 'Bike':
+        return 'bike';
+      default:
+        return value.toLowerCase();
+    }
+  }
+
+  String? _mapGenderPreference(String? value) {
+    if (value == null || value == 'No Preference') {
+      return 'any';
+    }
+
+    if (value == 'Male') return 'male';
+    if (value == 'Female') return 'female';
+
+    return null;
+  }
+
   Future<void> _confirmReserve() async {
     if (_isSubmitting) return;
 
     setState(() {
       _isSubmitting = true;
     });
+
+    final mappedVehicleType = _mapVehicleType(widget.vehicleType);
+    final mappedGenderPreference = _mapGenderPreference(widget.genderPreference);
 
     try {
       await _authApiService.createReserve(
@@ -90,12 +115,12 @@ class _ReserveRequestSummaryPageState extends State<ReserveRequestSummaryPage> {
         travelDate: _toApiDate(widget.selectedDate),
         travelTime: _formatTime(widget.selectedTime),
         selectedSeats: widget.selectedSeats,
-        genderPreference: widget.genderPreference,
-        vehicleType: widget.vehicleType,
+        genderPreference: mappedGenderPreference ?? 'any',
+        vehicleType: mappedVehicleType,
         totalDistanceKm: widget.totalDistanceKm,
         estimatedTravelMinutes: widget.estimatedTravelMinutes,
         estimatedCost: widget.estimatedCost,
-        note: widget.note,
+        note: widget.note.trim().isEmpty ? null : widget.note.trim(),
       );
 
       if (!mounted) return;

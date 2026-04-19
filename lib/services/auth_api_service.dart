@@ -62,6 +62,16 @@ class AuthApiService {
       await prefs.setBool('is_logged_in', true);
       await prefs.setBool('is_admin', data['data']?['isAdmin'] == true);
 
+// ✅ ADD THESE
+      await prefs.setInt(
+        'last_login_at',
+        DateTime.now().millisecondsSinceEpoch,
+      );
+
+      if (data['data']?['isAdmin'] == true) {
+        await prefs.setString('last_role', 'admin');
+      }
+
       return data;
     } else {
       throw Exception(data['message'] ?? 'Login failed');
@@ -160,6 +170,16 @@ class AuthApiService {
 
       await prefs.setBool('is_logged_in', true);
       await prefs.setBool('is_admin', data['data']?['isAdmin'] == true);
+
+// ✅ ADD
+      await prefs.setInt(
+        'last_login_at',
+        DateTime.now().millisecondsSinceEpoch,
+      );
+
+      if (data['data']?['isAdmin'] == true) {
+        await prefs.setString('last_role', 'admin');
+      }
 
       return data;
     } else {
@@ -1612,10 +1632,16 @@ class AuthApiService {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('token');
 
-    final uri = Uri.parse('$baseUrl/rider/activity').replace(
+    final mappedTime = time == 'this_week'
+        ? 'week'
+        : time == 'this_month'
+        ? 'month'
+        : time;
+
+    final uri = Uri.parse('$baseUrl/rider/activity/dashboard').replace(
       queryParameters: {
         'type': type,
-        'time': time,
+        'time': mappedTime,
         'page': page.toString(),
         'limit': limit.toString(),
       },
@@ -1628,6 +1654,12 @@ class AuthApiService {
         'Content-Type': 'application/json',
       },
     );
+
+    final contentType = response.headers['content-type'] ?? '';
+
+    if (!contentType.contains('application/json')) {
+      throw Exception('Server returned non-JSON response');
+    }
 
     final data = jsonDecode(response.body);
 
@@ -1907,18 +1939,38 @@ class AuthApiService {
   //LogIn.dart
   Future<bool> isLoggedIn() async {
     final prefs = await SharedPreferences.getInstance();
+
     final token = prefs.getString('token');
     final isLoggedIn = prefs.getBool('is_logged_in') ?? false;
+    final lastLoginMillis = prefs.getInt('last_login_at');
+
+    if (lastLoginMillis != null) {
+      final lastLoginTime = DateTime.fromMillisecondsSinceEpoch(lastLoginMillis);
+      final now = DateTime.now();
+
+      if (now.difference(lastLoginTime).inDays >= 30) {
+        await logout();
+        return false;
+      }
+    }
 
     return isLoggedIn && token != null && token.isNotEmpty;
   }
 
   Future<void> logout() async {
     final prefs = await SharedPreferences.getInstance();
+
     await prefs.remove('token');
     await prefs.remove('user_email');
+    await prefs.remove('user_id');
+    await prefs.remove('user_name');
+
     await prefs.remove('is_logged_in');
     await prefs.remove('is_admin');
+
+    // ✅ ADD
+    await prefs.remove('last_role');
+    await prefs.remove('last_login_at');
   }
 
   //ConfirmationPage.dart
@@ -2205,12 +2257,15 @@ class AuthApiService {
     required double destinationLat,
     required double destinationLng,
   }) async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
     final url = Uri.parse('$baseUrl/rides/search');
 
     final response = await http.post(
       url,
       headers: {
         'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
       },
       body: jsonEncode({
         'pickup_lat': pickupLat,
@@ -3993,6 +4048,88 @@ class AuthApiService {
       return data;
     } else {
       throw Exception(data['message'] ?? 'Failed to cancel ride request');
+    }
+  }
+
+  Future<Map<String, dynamic>> uploadProfileImage(File imageFile) async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+
+    final uri = Uri.parse('$baseUrl/profile/image');
+
+    final request = http.MultipartRequest('PATCH', uri);
+
+    if (token != null && token.isNotEmpty) {
+      request.headers['Authorization'] = 'Bearer $token';
+    }
+
+    request.files.add(
+      await http.MultipartFile.fromPath(
+        'profile_picture',
+        imageFile.path,
+      ),
+    );
+
+    final streamedResponse = await request.send();
+    final response = await http.Response.fromStream(streamedResponse);
+
+    final Map<String, dynamic> data = jsonDecode(response.body);
+
+    if (response.statusCode >= 200 && response.statusCode < 300) {
+      return data;
+    } else {
+      throw Exception(data['message'] ?? 'Failed to upload profile image.');
+    }
+  }
+
+  //ReserveRideCancel
+  Future<Map<String, dynamic>> cancelReserve({
+    required String reserveId,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+
+    final url = Uri.parse('$baseUrl/reserve/$reserveId/cancel');
+
+    final response = await http.patch(
+      url,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    );
+
+    final data = jsonDecode(response.body);
+
+    if (response.statusCode == 200) {
+      return data;
+    } else {
+      throw Exception(data['message'] ?? 'Failed to cancel reserve request');
+    }
+  }
+
+  Future<Map<String, dynamic>> acceptReserveAsRider({
+    required String reserveId,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+
+    final url = Uri.parse('$baseUrl/reserve/$reserveId/accept');
+
+    final response = await http.patch(
+      url,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    );
+
+    final data = jsonDecode(response.body);
+
+    if (response.statusCode == 200) {
+      return data;
+    } else {
+      throw Exception(data['message'] ?? 'Failed to accept reserve request');
     }
   }
 }

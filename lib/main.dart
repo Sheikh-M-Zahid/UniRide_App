@@ -1,8 +1,12 @@
 import 'dart:async';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:geolocator/geolocator.dart';
 import 'LogIn.dart';
+import 'UserHome.dart';
+import 'RiderDashboard.dart';
+import 'AdminHome.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -118,16 +122,62 @@ class _SplashScreenState extends State<SplashScreen>
     }
   }
 
-  void _goNextIfReady() {
+  Future<void> _goNextIfReady() async {
     if (!_minimumSplashFinished || !_locationCheckFinished || _navigated) return;
 
     _navigated = true;
+
+    final prefs = await SharedPreferences.getInstance();
+
+    final token = prefs.getString('token');
+    final isLoggedIn = prefs.getBool('is_logged_in') ?? false;
+    final lastRole = prefs.getString('last_role') ?? '';
+    final lastLoginMillis = prefs.getInt('last_login_at');
+
+    if (lastLoginMillis != null) {
+      final lastLoginTime = DateTime.fromMillisecondsSinceEpoch(lastLoginMillis);
+      final now = DateTime.now();
+      final difference = now.difference(lastLoginTime);
+
+      if (difference.inDays >= 30) {
+        await prefs.remove('token');
+        await prefs.remove('user_email');
+        await prefs.remove('user_id');
+        await prefs.remove('user_name');
+        await prefs.remove('is_logged_in');
+        await prefs.remove('is_admin');
+        await prefs.remove('last_role');
+        await prefs.remove('last_login_at');
+      }
+    }
+
+    final updatedToken = prefs.getString('token');
+    final updatedIsLoggedIn = prefs.getBool('is_logged_in') ?? false;
+    final updatedLastRole = prefs.getString('last_role') ?? '';
+
+    Widget nextPage = const UniRideLogin();
+
+    if (updatedIsLoggedIn &&
+        updatedToken != null &&
+        updatedToken.isNotEmpty) {
+      if (updatedLastRole == 'passenger') {
+        nextPage = const UniRideHomePage();
+      } else if (updatedLastRole == 'rider') {
+        nextPage = const RiderDashboard();
+      } else if (updatedLastRole == 'admin') {
+        nextPage = AdminDashboard();
+      } else {
+        nextPage = const UniRideLogin();
+      }
+    }
+
+    if (!mounted) return;
 
     Navigator.pushReplacement(
       context,
       PageRouteBuilder(
         transitionDuration: const Duration(milliseconds: 500),
-        pageBuilder: (_, animation, __) => const UniRideLogin(),
+        pageBuilder: (_, animation, __) => nextPage,
         transitionsBuilder: (_, animation, __, child) {
           return FadeTransition(
             opacity: animation,

@@ -289,7 +289,7 @@ class _UniRideProfilePageState extends State<UniRideProfilePage> {
       if (Platform.isIOS) {
         status = await Permission.photos.request();
       } else {
-        status = await Permission.storage.request();
+        status = await Permission.photos.request();
       }
 
       if (status.isGranted || status.isLimited) {
@@ -299,10 +299,33 @@ class _UniRideProfilePageState extends State<UniRideProfilePage> {
         );
 
         if (pickedFile != null) {
+          final File imageFile = File(pickedFile.path);
+
           setState(() {
-            _profileImage = File(pickedFile.path);
+            _profileImage = imageFile;
           });
+
           await _saveProfileCompletionData();
+
+          // backend upload
+          final response = await _authApiService.updateProfilePicture(imageFile);
+
+          if (!mounted) return;
+
+          final data = response['data'] ?? {};
+          final profilePicture = data['profilePicture']?.toString();
+
+          if (profilePicture != null && profilePicture.isNotEmpty) {
+            setState(() {
+              _profileImageUrl = _authApiService.getFullImageUrl(profilePicture);
+            });
+          }
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Profile image updated successfully.'),
+            ),
+          );
         }
       } else if (status.isPermanentlyDenied) {
         if (!mounted) return;

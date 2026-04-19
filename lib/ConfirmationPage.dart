@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'services/auth_api_service.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'RideSelection.dart';
 import 'UserHome.dart';
@@ -138,6 +139,19 @@ class _ConfirmationPageState extends State<ConfirmationPage> {
                     setState(() {
                       _isLoading = false;
                     });
+
+                    final prefs = await SharedPreferences.getInstance();
+
+                    if (selectedMode == 'passenger') {
+                      await prefs.setString('last_role', 'passenger');
+                    } else if (selectedMode == 'rider') {
+                      await prefs.setString('last_role', 'rider');
+                    }
+
+                    await prefs.setInt(
+                      'last_login_at',
+                      DateTime.now().millisecondsSinceEpoch,
+                    );
 
                     if (nextScreen == 'passenger_home') {
                       Navigator.push(

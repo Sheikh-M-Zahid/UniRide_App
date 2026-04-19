@@ -115,6 +115,20 @@ class _LoginCheckState extends State<LoginCheck> {
         return;
       }
 
+// ✅ role অনুযায়ী save
+      if (selectedRole == "Passenger") {
+        await prefs.setString('last_role', 'passenger');
+      } else if (selectedRole == "Rider") {
+        await prefs.setString('last_role', 'rider');
+      }
+
+// ✅ login time update
+      await prefs.setInt(
+        'last_login_at',
+        DateTime.now().millisecondsSinceEpoch,
+      );
+
+// ✅ navigation
       if (selectedRole == "Passenger") {
         Navigator.pushReplacement(
           context,

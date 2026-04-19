@@ -40,6 +40,7 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
   bool _isMapMoving = false;
 
   String _selectedAddress = "Loading address...";
+  String _lastReadableAddress = "";
   List<dynamic> _placePredictions = [];
 
   bool _isUserTypingSearch = false;
@@ -55,7 +56,10 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
   void initState() {
     super.initState();
     _selectedPosition = widget.initialPosition;
-    _getAddressFromLatLng(_selectedPosition);
+
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await _useCurrentLocation(loadOnlyCurrentAddress: true);
+    });
   }
 
   bool get _isOnCurrentLocation {
@@ -71,10 +75,7 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
     return distance <= 20;
   }
 
-  bool get _canConfirm =>
-      !_isLoadingAddress &&
-          _selectedAddress.trim().isNotEmpty &&
-          _selectedAddress.trim() != "Loading address...";
+  bool get _canConfirm => !_isLoadingAddress;
 
   String _latLngText(LatLng latLng) {
     return "${latLng.latitude.toStringAsFixed(5)}, ${latLng.longitude.toStringAsFixed(5)}";
@@ -109,30 +110,42 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
 
       if (!mounted) return;
 
-      final fallback = _latLngText(latLng);
+      final fallback = _lastReadableAddress.trim().isNotEmpty
+          ? _lastReadableAddress.trim()
+          : _latLngText(latLng);
+
       final resolvedAddress =
       formattedAddress.isNotEmpty ? formattedAddress : fallback;
 
       setState(() {
         _selectedAddress = resolvedAddress;
-        if (!_isUserTypingSearch) {
-          _searchController.text = resolvedAddress;
+
+        if (formattedAddress.isNotEmpty) {
+          _lastReadableAddress = formattedAddress;
         }
+
+        if (!_isUserTypingSearch) {
+          _searchController.text =
+          formattedAddress.isNotEmpty ? formattedAddress : _lastReadableAddress;
+        }
+
         _isLoadingAddress = false;
       });
 
-      if (formattedAddress.isEmpty) {
+      if (formattedAddress.isEmpty && _lastReadableAddress.trim().isEmpty) {
         _showSnackBar("Exact address could not be found.");
       }
     } on TimeoutException {
       if (!mounted) return;
 
-      final fallback = _latLngText(latLng);
+      final fallback = _lastReadableAddress.trim().isNotEmpty
+          ? _lastReadableAddress.trim()
+          : _latLngText(latLng);
 
       setState(() {
         _selectedAddress = fallback;
-        if (!_isUserTypingSearch) {
-          _searchController.text = fallback;
+        if (!_isUserTypingSearch && _lastReadableAddress.trim().isNotEmpty) {
+          _searchController.text = _lastReadableAddress.trim();
         }
         _isLoadingAddress = false;
       });
@@ -141,12 +154,14 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
     } catch (e) {
       if (!mounted) return;
 
-      final fallback = _latLngText(latLng);
+      final fallback = _lastReadableAddress.trim().isNotEmpty
+          ? _lastReadableAddress.trim()
+          : _latLngText(latLng);
 
       setState(() {
         _selectedAddress = fallback;
-        if (!_isUserTypingSearch) {
-          _searchController.text = fallback;
+        if (!_isUserTypingSearch && _lastReadableAddress.trim().isNotEmpty) {
+          _searchController.text = _lastReadableAddress.trim();
         }
         _isLoadingAddress = false;
       });
@@ -197,7 +212,7 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
           _isSearchingPlaces = false;
         });
 
-        _showSnackBar("lace search timed out.");
+        _showSnackBar("Place search timed out.");
       } catch (e) {
         if (!mounted) return;
 
@@ -253,9 +268,10 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
       setState(() {
         _isUserTypingSearch = false;
         _searchController.text = description;
+        _selectedAddress = description;
+        _lastReadableAddress = description;
         _placePredictions = [];
       });
-
       _searchFocusNode.unfocus();
       await _getAddressFromLatLng(latLng);
     } on TimeoutException {
@@ -265,7 +281,7 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
     }
   }
 
-  Future<void> _useCurrentLocation() async {
+  Future<void> _useCurrentLocation({bool loadOnlyCurrentAddress = false}) async {
     try {
       if (!mounted) return;
 
@@ -336,7 +352,9 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
         _isFetchingCurrentLocation = false;
       });
 
-      _searchFocusNode.unfocus();
+      if (!loadOnlyCurrentAddress) {
+        _searchFocusNode.unfocus();
+      }
     } catch (e) {
       if (!mounted) return;
 

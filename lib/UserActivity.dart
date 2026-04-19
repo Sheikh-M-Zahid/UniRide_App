@@ -136,7 +136,7 @@ class _ActivityPageState extends State<ActivityPage> {
   Color _statusColor(String status) {
     final safe = status.toLowerCase();
 
-    if (safe == 'completed' || safe == 'solved') {
+    if (safe == 'completed' || safe == 'confirmed') {
       return const Color(0xFF0F766E);
     }
 
@@ -144,8 +144,12 @@ class _ActivityPageState extends State<ActivityPage> {
       return Colors.red;
     }
 
-    if (safe == 'reserved' || safe == 'scheduled') {
+    if (safe == 'pending') {
       return Colors.orange;
+    }
+
+    if (safe == 'ongoing') {
+      return Colors.blue;
     }
 
     return AppColors.mutedText;
@@ -343,6 +347,12 @@ class _ActivityPageState extends State<ActivityPage> {
               itemBuilder: (context, index) {
                 final item = activities[index];
                 final status = (item['status'] ?? 'unknown').toString();
+                final canCancel = item['canCancel'] == true;
+                final riderName =
+                (item['riderName'] ?? item['name'] ?? '').toString();
+                final riderPhone =
+                (item['riderPhone'] ?? item['phone'] ?? '').toString();
+                final itemType = (item['item_type'] ?? 'ride').toString();
 
                 return Container(
                   padding: const EdgeInsets.all(14),
@@ -394,19 +404,114 @@ class _ActivityPageState extends State<ActivityPage> {
                         ],
                       ),
                       const SizedBox(height: 10),
-                      _activityRow('Name', (item['name'] ?? '').toString()),
-                      _activityRow('Phone', (item['phone'] ?? '').toString()),
-                      _activityRow('Pickup', (item['pickup'] ?? '').toString()),
-                      _activityRow(
-                        'Destination',
-                        (item['destination'] ?? '').toString(),
-                      ),
-                      _activityRow('Time', (item['time'] ?? '').toString()),
-                      _activityRow(
-                        'Fare',
-                        _formatMoney(item['fare'] ?? 0),
-                      ),
-                      _activityRow('Date', (item['date'] ?? '').toString()),
+
+                      if (itemType == 'reserve') ...[
+                        _activityRow(
+                          'Route',
+                          '${(item['pickup'] ?? '').toString()} → ${(item['destination'] ?? '').toString()}',
+                        ),
+                        _activityRow(
+                          'Distance',
+                          item['totalDistanceKm'] == null
+                              ? ''
+                              : '${item['totalDistanceKm']} km',
+                        ),
+                        _activityRow(
+                          'Estimated Time',
+                          item['estimatedTravelMinutes'] == null
+                              ? ''
+                              : '${item['estimatedTravelMinutes']} min',
+                        ),
+                        _activityRow(
+                          'Fare',
+                          _formatMoney(item['fare'] ?? 0),
+                        ),
+                        _activityRow('Date', (item['date'] ?? '').toString()),
+                        _activityRow('Time', (item['time'] ?? '').toString()),
+                        _activityRow(
+                          'Rider Name',
+                          riderName.isEmpty || riderName == 'Waiting for rider'
+                              ? 'Waiting for rider'
+                              : riderName,
+                        ),
+                        _activityRow(
+                          'Rider Phone',
+                          riderPhone.isEmpty || riderPhone == 'Not assigned yet'
+                              ? 'Not assigned yet'
+                              : riderPhone,
+                        ),
+                      ] else ...[
+                        _activityRow('Name', (item['name'] ?? '').toString()),
+                        _activityRow('Phone', (item['phone'] ?? '').toString()),
+                        _activityRow('Pickup', (item['pickup'] ?? '').toString()),
+                        _activityRow(
+                          'Destination',
+                          (item['destination'] ?? '').toString(),
+                        ),
+                        _activityRow('Time', (item['time'] ?? '').toString()),
+                        _activityRow(
+                          'Fare',
+                          _formatMoney(item['fare'] ?? 0),
+                        ),
+                        _activityRow('Date', (item['date'] ?? '').toString()),
+                      ],
+
+                      if (itemType == 'reserve' && canCancel) ...[
+                        const SizedBox(height: 10),
+                        SizedBox(
+                          width: double.infinity,
+                          child: OutlinedButton(
+                            onPressed: () async {
+                              try {
+                                final reserveId = (item['id'] ?? '').toString();
+                                if (reserveId.isEmpty) return;
+
+                                await _authApiService.cancelReserve(
+                                  reserveId: reserveId,
+                                );
+
+                                if (!mounted) return;
+
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text(
+                                      'Reserve request cancelled successfully.',
+                                    ),
+                                  ),
+                                );
+
+                                setState(() {
+                                  isLoading = true;
+                                });
+
+                                await _loadActivityDashboard();
+                              } catch (e) {
+                                if (!mounted) return;
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(
+                                      e.toString().replaceFirst('Exception: ', ''),
+                                    ),
+                                  ),
+                                );
+                              }
+                            },
+                            style: OutlinedButton.styleFrom(
+                              side: const BorderSide(color: Colors.red),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            child: const Text(
+                              'Cancel Request',
+                              style: TextStyle(
+                                color: Colors.red,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 );
