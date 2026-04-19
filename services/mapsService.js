@@ -24,6 +24,37 @@ const normalizeAddressText = (value) => {
     .trim();
 };
 
+const pickBestReverseGeocodeAddress = (results = []) => {
+  if (!Array.isArray(results) || results.length === 0) return '';
+
+  const preferredTypeGroups = [
+    ['street_address'],
+    ['premise'],
+    ['subpremise'],
+    ['route'],
+    ['neighborhood'],
+    ['sublocality', 'sublocality_level_1'],
+    ['locality'],
+    ['administrative_area_level_2'],
+    ['administrative_area_level_1'],
+  ];
+
+  for (const group of preferredTypeGroups) {
+    const match = results.find((item) => {
+      const types = Array.isArray(item.types) ? item.types : [];
+      return group.every((type) => types.includes(type));
+    });
+
+    if (match?.formatted_address) {
+      return normalizeAddressText(match.formatted_address);
+    }
+  }
+
+  const firstWithAddress = results.find((item) => item?.formatted_address);
+
+  return normalizeAddressText(firstWithAddress?.formatted_address || '');
+};
+
 /* =========================
    AUTOCOMPLETE (Places API New)
 ========================= */
@@ -114,9 +145,10 @@ const reverseGeocode = async ({ lat, lng }) => {
     }
   );
 
+  const status = response.data?.status || '';
   const results = response.data?.results || [];
 
-  if (!results.length) {
+  if (status !== 'OK' || !results.length) {
     return {
       lat,
       lng,
@@ -127,7 +159,7 @@ const reverseGeocode = async ({ lat, lng }) => {
   return {
     lat,
     lng,
-    formattedAddress: normalizeAddressText(results[0].formatted_address || ''),
+    formattedAddress: pickBestReverseGeocodeAddress(results),
   };
 };
 
