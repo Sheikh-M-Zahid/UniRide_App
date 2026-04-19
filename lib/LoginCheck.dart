@@ -1,3 +1,4 @@
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/material.dart';
 import 'RiderDashboard.dart';
 import 'UserHome.dart';
@@ -59,15 +60,31 @@ class _LoginCheckState extends State<LoginCheck> {
     try {
       final String email = widget.email.trim().toLowerCase();
 
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('token');
+
+      print("TOKEN => $token");
+
+      if (token == null || token.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Session expired. Please login again."),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
+
       final response = await checkRoleInDatabase();
-      final data = response['data'];
+      print("ROLE RESPONSE => $response");
+      final data = response['data'] ?? {};
 
       bool isValid = false;
 
       if (selectedRole == "Passenger") {
         isValid = data['passengerAllowed'] == true;
       } else if (selectedRole == "Rider") {
-        isValid = data['riderAllowed'] == true;
+        isValid = data['riderAllowed'] == true ? true : false;
       }
 
       if (!mounted) return;
@@ -86,7 +103,7 @@ class _LoginCheckState extends State<LoginCheck> {
       }
 
       if (!isValid) {
-        final reason = data['riderReason'] ?? "Access not allowed";
+        final reason = data['riderReason'] ?? data['message'] ?? "Access not allowed";
 
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -116,8 +133,8 @@ class _LoginCheckState extends State<LoginCheck> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Something went wrong. Please try again."),
+        SnackBar(
+          content: Text("Error: ${e.toString()}"),
           backgroundColor: Colors.red,
           behavior: SnackBarBehavior.floating,
         ),

@@ -1,4 +1,5 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.unitedgroup.uni_ride">
 
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
@@ -11,17 +12,17 @@
         android:required="false" />
 
     <application
-        android:label="uni_ride"
+        android:label="UniRide"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
         android:usesCleartextTraffic="true">
 
         <meta-data
             android:name="com.google.android.geo.API_KEY"
-            android:value="AIzaSyCF5mVtZ2wo0u8P1Jwf-7IfzRw_QoPilCI" />
+            android:value="AIzaSyCF5mVtZ2woOu8P1Jwf-7IfzRw_QoPilCI" />
 
         <activity
-            android:name=".MainActivity"
+            android:name="com.unitedgroup.uni_ride.MainActivity"
             android:exported="true"
             android:launchMode="singleTop"
             android:taskAffinity=""

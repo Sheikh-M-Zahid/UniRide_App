@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'ConfirmationPage.dart';
 import 'services/auth_api_service.dart';
 
@@ -191,27 +192,43 @@ class _PersonalInfoFormState extends State<PersonalInfoForm> {
     });
 
     try {
-      await _authApiService.registerUser(
+      final response = await _authApiService.registerUser(
         signupToken: signupToken!.trim(),
         firstName: _firstNameController.text.trim(),
         lastName: _lastNameController.text.trim(),
         phone: _phoneController.text.trim(),
-        recoveryPhone: _recoveryPhoneController.text.trim().isEmpty
-            ? null
-            : _recoveryPhoneController.text.trim(),
         emergencyPhone: _emergencyPhoneController.text.trim().isEmpty
             ? null
             : _emergencyPhoneController.text.trim(),
         gender: (selectedGender ?? '').trim(),
-        bloodGroup: selectedBloodGroup,
         dateOfBirth: _dateOfBirthController.text.trim(),
         homeAddress: _homeAddressController.text.trim(),
-        hostelAddress: _hostelAddressController.text.trim(),
         campusAddress: _campusAddressController.text.trim().isEmpty
             ? null
             : _campusAddressController.text.trim(),
         password: _passwordController.text.trim(),
       );
+
+      final prefs = await SharedPreferences.getInstance();
+      final data = response['data'] ?? {};
+      final user = data['user'] ?? {};
+
+      if ((data['token'] ?? '').toString().trim().isNotEmpty) {
+        await prefs.setString('token', data['token'].toString());
+      }
+
+      if ((user['user_id'] ?? '').toString().trim().isNotEmpty) {
+        await prefs.setString('user_id', user['user_id'].toString());
+      }
+
+      final emailToSave =
+      (user['university_email'] ?? userEmail ?? '').toString();
+      if (emailToSave.trim().isNotEmpty) {
+        await prefs.setString('user_email', emailToSave);
+      }
+
+      await prefs.setBool('is_logged_in', true);
+      await prefs.setBool('is_admin', data['isAdmin'] == true);
 
       if (!mounted) return;
 
@@ -602,18 +619,6 @@ class _PersonalInfoFormState extends State<PersonalInfoForm> {
               const SizedBox(height: 15),
 
               TextFormField(
-                controller: _hostelAddressController,
-                textInputAction: TextInputAction.next,
-                decoration: _buildInputDecoration(
-                  labelText: "Hostel Address",
-                  hintText: "Enter Your Hostel Address",
-                  prefixIcon: Icons.location_on,
-                ),
-                validator: (value) => null,
-              ),
-              const SizedBox(height: 15),
-
-              TextFormField(
                 controller: _homeAddressController,
                 textInputAction: TextInputAction.next,
                 decoration: _buildInputDecoration(
@@ -640,24 +645,6 @@ class _PersonalInfoFormState extends State<PersonalInfoForm> {
               const SizedBox(height: 15),
 
               TextFormField(
-                controller: _recoveryPhoneController,
-                textInputAction: TextInputAction.next,
-                keyboardType: TextInputType.phone,
-                inputFormatters: [
-                  FilteringTextInputFormatter.allow(
-                    RegExp(r'[0-9+]'),
-                  ),
-                  LengthLimitingTextInputFormatter(15),
-                ],
-                decoration: _buildInputDecoration(
-                  labelText: "Recovery Phone (Optional)",
-                  hintText: "Enter Recovery Phone",
-                  prefixIcon: Icons.phone_in_talk,
-                ),
-              ),
-              const SizedBox(height: 15),
-
-              TextFormField(
                 controller: _emergencyPhoneController,
                 textInputAction: TextInputAction.next,
                 keyboardType: TextInputType.phone,
@@ -677,12 +664,27 @@ class _PersonalInfoFormState extends State<PersonalInfoForm> {
 
               TextFormField(
                 controller: _dateOfBirthController,
-                textInputAction: TextInputAction.next,
+                readOnly: true,
                 decoration: _buildInputDecoration(
                   labelText: "Date of Birth",
-                  hintText: "YYYY-MM-DD",
+                  hintText: "Select Date",
                   prefixIcon: Icons.calendar_today,
                 ),
+                onTap: () async {
+                  DateTime? pickedDate = await showDatePicker(
+                    context: context,
+                    initialDate: DateTime(2000),
+                    firstDate: DateTime(1950),
+                    lastDate: DateTime.now(),
+                  );
+
+                  if (pickedDate != null) {
+                    setState(() {
+                      _dateOfBirthController.text =
+                      "${pickedDate.year}-${pickedDate.month.toString().padLeft(2, '0')}-${pickedDate.day.toString().padLeft(2, '0')}";
+                    });
+                  }
+                },
                 validator: (value) =>
                 (value == null || value.trim().isEmpty)
                     ? 'Date of birth is required'

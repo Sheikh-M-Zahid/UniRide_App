@@ -7,6 +7,11 @@ import 'package:uni_ride/LogIn.dart';
 import 'UserProfile.dart';
 import 'app_storage.dart';
 import 'saved_places_page.dart';
+import 'RideSelection.dart';
+import 'WalletPage.dart';
+import 'help_support_page.dart';
+import 'report_problem_page.dart';
+import 'ride_history_page.dart';
 import 'services/auth_api_service.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
@@ -43,6 +48,7 @@ class _SettingsPageState extends State<SettingsPage> {
   String? userPhotoUrl;
   String? userPhotoPath;
   double userRating = 5.0;
+  String riderStatus = 'no';
   final AuthApiService _authApiService = AuthApiService();
   bool _isLoading = false;
 
@@ -71,11 +77,18 @@ class _SettingsPageState extends State<SettingsPage> {
       if (!mounted) return;
 
       setState(() {
-        displayName = ((data['name'] ?? '').toString().trim().isNotEmpty)
-            ? data['name'].toString().trim()
+        final firstName = (data['first_name'] ?? '').toString().trim();
+        final lastName = (data['last_name'] ?? '').toString().trim();
+        final apiFullName = (data['name'] ?? '').toString().trim();
+        final combinedName = '$firstName $lastName'.trim();
+
+        displayName = apiFullName.isNotEmpty
+            ? apiFullName
+            : (combinedName.isNotEmpty
+            ? combinedName
             : ((widget.userName ?? '').trim().isNotEmpty
             ? widget.userName!.trim()
-            : 'User Name');
+            : 'User Name'));
 
         displayEmail = ((data['email'] ?? '').toString().trim().isNotEmpty)
             ? data['email'].toString().trim()
@@ -99,6 +112,8 @@ class _SettingsPageState extends State<SettingsPage> {
         } else {
           userRating = double.tryParse(ratingValue.toString()) ?? 5.0;
         }
+
+        riderStatus = (data['rider'] ?? 'no').toString().toLowerCase();
 
         _isLoading = false;
       });
@@ -146,6 +161,7 @@ class _SettingsPageState extends State<SettingsPage> {
     } catch (_) {}
 
     await _authApiService.logout();
+    await AppStorage.clearSession();
 
     if (!mounted) return;
 
@@ -183,6 +199,124 @@ class _SettingsPageState extends State<SettingsPage> {
     }
 
     return null;
+  }
+
+  Widget _buildSettingsItem({
+    required IconData icon,
+    required String title,
+    String? subtitle,
+    Color iconColor = AppColors.primary,
+    VoidCallback? onTap,
+    Color textColor = AppColors.text,
+  }) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: ListTile(
+        onTap: onTap,
+        leading: Icon(icon, color: iconColor),
+        title: Text(
+          title,
+          style: TextStyle(
+            color: textColor,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        subtitle: subtitle != null ? Text(subtitle) : null,
+        trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+      ),
+    );
+  }
+
+  Widget _buildRiderStatusCard() {
+    final bool isRider = riderStatus == 'yes';
+
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: isRider
+          ? Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: const [
+          Row(
+            children: [
+              Icon(Icons.verified_user, color: AppColors.secondary),
+              SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Rider Account Already Created',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.text,
+                    fontSize: 15,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: 8),
+          Text(
+            'You have already created a rider account. If you want to share rides, please log out from the passenger profile and log in again as a rider.',
+            style: TextStyle(
+              color: AppColors.mutedText,
+              fontSize: 13,
+            ),
+          ),
+        ],
+      )
+          : InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const UniRideSelectionScreen(),
+            ),
+          );
+        },
+        child: const Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(Icons.two_wheeler, color: AppColors.primary),
+            SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Sign Up as a Rider',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.text,
+                      fontSize: 15,
+                    ),
+                  ),
+                  SizedBox(height: 4),
+                  Text(
+                    'Create your rider account to start sharing rides.',
+                    style: TextStyle(
+                      color: AppColors.mutedText,
+                      fontSize: 13,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(Icons.arrow_forward_ios, size: 16),
+          ],
+        ),
+      ),
+    );
   }
 
   @override
@@ -223,8 +357,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 await _loadUserData();
               },
               child: Padding(
-                padding:
-                const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                 child: Row(
                   children: [
                     CircleAvatar(
@@ -244,8 +377,38 @@ class _SettingsPageState extends State<SettingsPage> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(displayName),
-                          Text(displayEmail),
+                          Text(
+                            displayName,
+                            style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.text,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            displayEmail,
+                            style: const TextStyle(
+                              fontSize: 14,
+                              color: AppColors.mutedText,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+
+                          Row(
+                            children: [
+                              const Icon(Icons.star, size: 18, color: Colors.amber),
+                              const SizedBox(width: 4),
+                              Text(
+                                userRating.toStringAsFixed(1),
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.text,
+                                ),
+                              ),
+                            ],
+                          ),
                         ],
                       ),
                     ),
@@ -254,22 +417,115 @@ class _SettingsPageState extends State<SettingsPage> {
               ),
             ),
 
-            const SizedBox(height: 24),
+            const SizedBox(height: 10),
 
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: TextButton.icon(
-                  onPressed: _logout,
-                  icon: const Icon(Icons.logout, color: Colors.red),
-                  label: const Text(
-                    "Sign out",
-                    style: TextStyle(color: Colors.red),
+            _buildSettingsItem(
+              icon: Icons.person_outline,
+              title: 'Profile',
+              subtitle: 'View and update your profile',
+              onTap: () async {
+                await Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => UniRideProfilePage(
+                      userName: displayName,
+                      userRating: userRating,
+                    ),
+                  ),
+                );
+                await _loadUserData();
+              },
+            ),
+            _buildRiderStatusCard(),
+
+            _buildSettingsItem(
+              icon: Icons.place_outlined,
+              title: 'Saved Places',
+              subtitle: 'Home, Campus, Hostel locations',
+              onTap: _openSavedPlaces,
+            ),
+
+            _buildSettingsItem(
+              icon: Icons.account_balance_wallet_outlined,
+              title: 'Wallet',
+              subtitle: 'View due balance and payment info',
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const WalletPage(
+                      userRole: WalletUserRole.passenger,
+                    ),
+                  ),
+                );
+              },
+            ),
+
+            _buildSettingsItem(
+              icon: Icons.help_outline,
+              title: 'Help & Support',
+              subtitle: 'Get help or submit your issue',
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const HelpSupportPage(),
+                  ),
+                );
+              },
+            ),
+
+            _buildSettingsItem(
+              icon: Icons.report_problem_outlined,
+              title: 'Report Problem',
+              subtitle: 'Send a report to admin',
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const ReportProblemPage(),
+                  ),
+                );
+              },
+            ),
+
+            _buildSettingsItem(
+              icon: Icons.history,
+              title: 'Ride History',
+              subtitle: 'See your past rides',
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const RideHistoryPage(),
+                  ),
+                );
+              },
+            ),
+
+            const SizedBox(height: 18),
+
+            Container(
+              margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: AppColors.border),
+              ),
+              child: ListTile(
+                onTap: _logout,
+                leading: const Icon(Icons.logout, color: Colors.red),
+                title: const Text(
+                  'Sign out',
+                  style: TextStyle(
+                    color: Colors.red,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
               ),
             ),
+
+            const SizedBox(height: 20),
           ],
         ),
       ),

@@ -30,7 +30,7 @@ class _OTPVerificationPageState extends State<OTPVerificationPage> {
   final AuthApiService _authApiService = AuthApiService();
   String _signupToken = '';
 
-  int _resendSeconds = 30;
+  int _resendSeconds = 60;
   Timer? _resendTimer;
 
   @override
@@ -49,7 +49,7 @@ class _OTPVerificationPageState extends State<OTPVerificationPage> {
     _resendTimer?.cancel();
 
     setState(() {
-      _resendSeconds = 30;
+      _resendSeconds = 60;
     });
 
     _resendTimer = Timer.periodic(const Duration(seconds: 1), (timer) {

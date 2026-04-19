@@ -122,4 +122,13 @@ class AppStorage {
     await prefs.remove(userPhotoPathKey);
     await prefs.remove(userRatingKey);
   }
+
+  static Future<void> clearUserData() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(userNameKey);
+    await prefs.remove(userEmailKey);
+    await prefs.remove(userPhotoPathKey);
+    await prefs.remove(userRatingKey);
+    await prefs.remove(isLoggedInKey);
+  }
 }

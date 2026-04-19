@@ -180,13 +180,11 @@ class _PersonalInformationPageState extends State<PersonalInformationPage> {
     DateTime initialDate = DateTime(2000, 1, 1);
 
     if (dateOfBirthController.text.isNotEmpty) {
-      final parts = dateOfBirthController.text.split("-");
-      if (parts.length == 3) {
-        initialDate = DateTime(
-          int.parse(parts[0]),
-          int.parse(parts[1]),
-          int.parse(parts[2]),
-        );
+      final raw = dateOfBirthController.text.trim();
+      final safe = raw.length >= 10 ? raw.substring(0, 10) : raw;
+      final parsed = DateTime.tryParse(safe);
+      if (parsed != null) {
+        initialDate = parsed;
       }
     }
 
@@ -245,29 +243,60 @@ class _PersonalInformationPageState extends State<PersonalInformationPage> {
       if (!mounted) return;
 
       setState(() {
-        firstName = data['first_name'] ?? '';
-        lastName = data['last_name'] ?? '';
-        occupation = data['occupation'] ?? '';
-        universityEmail = data['university_email'] ?? '';
-        profileImageUrl = data['profile_picture'] ?? '';
+        firstName = (data['first_name'] ?? data['firstName'] ?? '').toString();
+        lastName = (data['last_name'] ?? data['lastName'] ?? '').toString();
+        occupation = (data['occupation'] ?? '').toString();
 
-        phoneController.text = data['phone'] ?? '';
-        secondaryPhoneController.text = data['recovery_phone'] ?? '';
-        emergencyContactController.text = data['emergency_phone'] ?? '';
-        presentAreaController.text = data['hostel_address'] ?? '';
-        permanentAddressController.text = data['home_address'] ?? '';
-        dateOfBirthController.text = data['date_of_birth']?.toString() ?? '';
+        universityEmail =
+            (data['university_email'] ?? data['universityEmail'] ?? '').toString();
 
-        selectedGender = data['gender'] != null
-            ? "${data['gender'][0].toUpperCase()}${data['gender'].substring(1).toLowerCase()}"
+        final rawProfilePicture =
+        (data['profile_picture'] ?? data['profilePicture'] ?? '').toString();
+        profileImageUrl = rawProfilePicture;
+
+        phoneController.text = (data['phone'] ?? '').toString();
+
+        secondaryPhoneController.text =
+            (data['recovery_phone'] ?? data['secondaryPhoneNumber'] ?? '')
+                .toString();
+
+        emergencyContactController.text =
+            (data['emergency_phone'] ?? data['emergencyContactNumber'] ?? '')
+                .toString();
+
+        presentAreaController.text =
+            (data['hostel_address'] ?? '').toString();
+
+        permanentAddressController.text =
+            (data['home_address'] ?? '').toString();
+
+        /// ✅ DATE FIX
+        final rawDob =
+        (data['date_of_birth'] ?? data['dateOfBirth'] ?? '').toString();
+
+        dateOfBirthController.text =
+        rawDob.isNotEmpty && rawDob.length >= 10
+            ? rawDob.substring(0, 10)
+            : rawDob;
+
+        /// ✅ GENDER FIX
+        final rawGender = (data['gender'] ?? '').toString().trim();
+        selectedGender = rawGender.isNotEmpty
+            ? "${rawGender[0].toUpperCase()}${rawGender.substring(1).toLowerCase()}"
             : null;
 
-        selectedBloodGroup = data['blood_group'];
-        bloodGroupLocked = (data['blood_group'] != null &&
-            data['blood_group'].toString().trim().isNotEmpty);
+        /// ✅ BLOOD GROUP FIX
+        selectedBloodGroup =
+        (data['blood_group'] ?? '').toString().trim().isNotEmpty
+            ? data['blood_group'].toString()
+            : null;
+
+        bloodGroupLocked = selectedBloodGroup != null &&
+            selectedBloodGroup!.trim().isNotEmpty;
       });
     } catch (e) {
       if (!mounted) return;
+
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Failed to load profile')),
       );
@@ -298,7 +327,14 @@ class _PersonalInformationPageState extends State<PersonalInformationPage> {
 
       if (_imageFile != null) {
         final imageResponse = await _authApiService.updateProfilePicture(_imageFile!);
-        profileImageUrl = imageResponse['data']?['profile_picture_url'] ?? profileImageUrl;
+        final updatedPath = (imageResponse['data']?['profilePicture'] ??
+            imageResponse['data']?['profile_picture'] ??
+            '')
+            .toString();
+
+        if (updatedPath.isNotEmpty) {
+          profileImageUrl = updatedPath;
+        }
       }
 
       if (!mounted) return;
@@ -316,6 +352,13 @@ class _PersonalInformationPageState extends State<PersonalInformationPage> {
           content: Text("Information updated successfully"),
         ),
       );
+      Navigator.pop(context, {
+        'gender': selectedGender,
+        'emergencyContactNumber': emergencyContactController.text.trim(),
+        'universityEmail': universityEmail,
+        'dateOfBirth': dateOfBirthController.text.trim(),
+        'secondaryPhoneNumber': secondaryPhoneController.text.trim(),
+      });
     } catch (e) {
       if (!mounted) return;
 
@@ -425,7 +468,7 @@ class _PersonalInformationPageState extends State<PersonalInformationPage> {
                   /// ================= FULL NAME =================
                   _buildReadOnlyField(
                     label: "Full Name",
-                    value: "$firstName $lastName",
+                    value: "$firstName $lastName".trim(),
                   ),
 
                   const SizedBox(height: 15),
@@ -580,9 +623,15 @@ class _PersonalInformationPageState extends State<PersonalInformationPage> {
 
                   /// ================= PERMANENT ADDRESS (OPTIONAL) =================
                   _buildTextField(
-                    label: "Permanent Address (Optional)",
+                    label: "Permanent Address",
                     controller: permanentAddressController,
                     enabled: isEditing,
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return 'Permanent address is required';
+                      }
+                      return null;
+                    },
                   ),
 
                   const SizedBox(height: 15),

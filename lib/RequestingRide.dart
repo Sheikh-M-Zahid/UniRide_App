@@ -1,5 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:socket_io_client/socket_io_client.dart' as IO;
+import 'services/auth_api_service.dart';
 
 class AppColors {
   static const Color primary = Color(0xFF14B8A6);
@@ -49,6 +51,11 @@ class _RequestingRidePageState extends State<RequestingRidePage>
   Timer? _messageTimer;
   int _currentMessageIndex = 0;
 
+  final AuthApiService _authApiService = AuthApiService();
+  IO.Socket? _socket;
+  String? _requestId;
+  bool _isCancelling = false;
+
   final List<String> _loadingMessages = [
     "Looking for nearby riders...",
     "Matching your route preferences...",
@@ -82,17 +89,156 @@ class _RequestingRidePageState extends State<RequestingRidePage>
             (_currentMessageIndex + 1) % _loadingMessages.length;
       });
     });
+
+    _createRideRequest();
   }
 
   @override
   void dispose() {
     _messageTimer?.cancel();
+    _socket?.dispose();
     _pulseController.dispose();
     super.dispose();
   }
 
-  void _cancelRequest() {
-    Navigator.pop(context);
+  Future<void> _cancelRequest() async {
+    if (_requestId == null || _requestId!.isEmpty) {
+      Navigator.pop(context);
+      return;
+    }
+
+    if (_isCancelling) return;
+
+    setState(() {
+      _isCancelling = true;
+    });
+
+    try {
+      await _authApiService.cancelRideRequest(
+        requestId: _requestId!,
+      );
+
+      _socket?.dispose();
+
+      if (!mounted) return;
+      Navigator.pop(context);
+    } catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            e.toString().replaceFirst('Exception: ', ''),
+          ),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isCancelling = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _createRideRequest() async {
+    try {
+      final response = await _authApiService.createRideRequestV2(
+        rideId: widget.rideId,
+        pickupAddress: widget.pickupAddress,
+        destinationAddress: widget.destinationAddress,
+        fare: widget.fare,
+        distanceKm: widget.distanceKm,
+        estimatedMinutes: widget.estimatedMinutes,
+      );
+
+      _requestId = (response['data']?['requestId'] ?? '').toString();
+
+      if (_requestId != null && _requestId!.isNotEmpty) {
+        await _connectSocket();
+      }
+    } catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            e.toString().replaceFirst('Exception: ', ''),
+          ),
+        ),
+      );
+
+      Navigator.pop(context);
+    }
+  }
+
+
+  Future<void> _connectSocket() async {
+    if (_requestId == null || _requestId!.isEmpty) return;
+
+    _socket = IO.io(
+      'https://uniride-app-rm20.onrender.com',
+      <String, dynamic>{
+        'transports': ['websocket'],
+        'autoConnect': false,
+      },
+    );
+
+    _socket!.connect();
+
+    _socket!.onConnect((_) {
+      _socket!.emit('join_request_room', {'requestId': _requestId});
+    });
+
+    _socket!.on('ride_request_status_update', (data) {
+      final status = (data['status'] ?? '').toString().toLowerCase();
+
+      if (!mounted) return;
+
+      if (status == 'accepted') {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Ride request accepted')),
+        );
+        Navigator.pop(context);
+      } else if (status == 'rejected') {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Ride request rejected')),
+        );
+        Navigator.pop(context);
+      } else if (status == 'expired') {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Ride request expired')),
+        );
+        Navigator.pop(context);
+      } else if (status == 'cancelled') {
+        Navigator.pop(context);
+      }
+    });
+
+    _socket!.on('ride_request_passenger_update', (data) {
+      final status = (data['status'] ?? '').toString().toLowerCase();
+
+      if (!mounted) return;
+
+      if (status == 'accepted') {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Ride request accepted')),
+        );
+        Navigator.pop(context);
+      } else if (status == 'rejected') {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Ride request rejected')),
+        );
+        Navigator.pop(context);
+      } else if (status == 'expired') {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Ride request expired')),
+        );
+        Navigator.pop(context);
+      } else if (status == 'cancelled') {
+        Navigator.pop(context);
+      }
+    });
   }
 
   Widget _buildTopBar() {
@@ -458,7 +604,7 @@ class _RequestingRidePageState extends State<RequestingRidePage>
                       width: double.infinity,
                       height: 54,
                       child: OutlinedButton(
-                        onPressed: _cancelRequest,
+                        onPressed: _isCancelling ? null : _cancelRequest,
                         style: OutlinedButton.styleFrom(
                           side: const BorderSide(
                             color: AppColors.primary,
@@ -469,9 +615,9 @@ class _RequestingRidePageState extends State<RequestingRidePage>
                           ),
                           backgroundColor: Colors.white,
                         ),
-                        child: const Text(
-                          "Cancel Request",
-                          style: TextStyle(
+                        child: Text(
+                          _isCancelling ? "Cancelling..." : "Cancel Request",
+                          style: const TextStyle(
                             fontSize: 15.5,
                             fontWeight: FontWeight.w700,
                             color: AppColors.primary,

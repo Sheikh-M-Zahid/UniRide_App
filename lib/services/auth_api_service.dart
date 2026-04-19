@@ -39,6 +39,13 @@ class AuthApiService {
           'user_email',
           data['data']['user']['university_email'] ?? email,
         );
+        final firstName = data['data']['user']['first_name'] ?? '';
+        final lastName = data['data']['user']['last_name'] ?? '';
+        final fullName = ('$firstName $lastName').trim();
+
+        if (fullName.isNotEmpty) {
+          await prefs.setString('user_name', fullName);
+        }
       }
 
       if (data['data'] != null && data['data']['user'] != null) {
@@ -95,7 +102,7 @@ class AuthApiService {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('token');
 
-    final url = Uri.parse('$baseUrl/user/check-role?role=$role');
+    final url = Uri.parse('$baseUrl/users/check-role?role=$role');
 
     final response = await http.get(
       url,
@@ -164,7 +171,10 @@ class AuthApiService {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('token');
 
-    final url = Uri.parse('$baseUrl/user/me/role-options');
+    final url = Uri.parse('$baseUrl/users/me/role-options');
+
+    print("ROLE OPTIONS URL => $url");
+    print("TOKEN SENT => $token");
 
     final response = await http.get(
       url,
@@ -173,12 +183,21 @@ class AuthApiService {
       },
     );
 
+    print("STATUS CODE => ${response.statusCode}");
+    print("RAW RESPONSE => ${response.body}");
+
+    final contentType = response.headers['content-type'] ?? '';
+
+    if (!contentType.contains('application/json')) {
+      throw Exception("Server returned non-JSON response");
+    }
+
     final data = jsonDecode(response.body);
 
     if (response.statusCode == 200) {
       return data;
     } else {
-      throw Exception('Failed to fetch role options');
+      throw Exception(data['message'] ?? 'Failed to fetch role options');
     }
   }
 
@@ -210,7 +229,7 @@ class AuthApiService {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('token');
 
-    final url = Uri.parse('$baseUrl/user/me/profile');
+    final url = Uri.parse('$baseUrl/users/me/profile');
 
     final response = await http.get(
       url,
@@ -243,7 +262,7 @@ class AuthApiService {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('token');
 
-    final url = Uri.parse('$baseUrl/user/me/profile');
+    final url = Uri.parse('$baseUrl/users/me/profile');
 
     final body = {
       'phone': phone,
@@ -284,7 +303,7 @@ class AuthApiService {
 
     final request = http.MultipartRequest(
       'PATCH',
-      Uri.parse('$baseUrl/user/me/profile-picture'),
+      Uri.parse('$baseUrl/profile/image'),
     );
 
     request.headers['Authorization'] = 'Bearer $token';
@@ -571,7 +590,7 @@ class AuthApiService {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('token');
 
-    final uri = Uri.parse('$baseUrl/active-riders/').replace(
+    final uri = Uri.parse('$baseUrl/rider/active-riders').replace(
       queryParameters: {
         'search': search,
         'filter': filter,
@@ -605,7 +624,7 @@ class AuthApiService {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('token');
 
-    final uri = Uri.parse('$baseUrl/earnings').replace(
+    final uri = Uri.parse('$baseUrl/rider/earnings').replace(
       queryParameters: {
         'range': range,
       },
@@ -853,7 +872,7 @@ class AuthApiService {
     String? bloodGroup,
     required String dateOfBirth,
     required String homeAddress,
-    required String hostelAddress,
+    String? hostelAddress,
     String? campusAddress,
     required String password,
   }) async {
@@ -875,7 +894,8 @@ class AuthApiService {
         'blood_group': bloodGroup,
         'date_of_birth': dateOfBirth,
         'home_address': homeAddress,
-        'hostel_address': hostelAddress,
+        if (hostelAddress != null && hostelAddress.isNotEmpty)
+          'hostel_address': hostelAddress,
         'campus_address': campusAddress,
         'password': password,
       }),
@@ -917,7 +937,7 @@ class AuthApiService {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('token');
 
-    final url = Uri.parse('$baseUrl/send-item/validate-receiver');
+    final url = Uri.parse('$baseUrl/send-items/validate-receiver');
 
     final response = await http.post(
       url,
@@ -954,7 +974,7 @@ class AuthApiService {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('token');
 
-    final url = Uri.parse('$baseUrl/send-item');
+    final url = Uri.parse('$baseUrl/send-items');
 
     final response = await http.post(
       url,
@@ -3787,6 +3807,192 @@ class AuthApiService {
       return data;
     } else {
       throw Exception(data['message'] ?? 'Failed to reverse geocode');
+    }
+  }
+
+  //ReguestingRide.dart
+  Future<Map<String, dynamic>> createRideRequestV2({
+    required String rideId,
+    required String pickupAddress,
+    required String destinationAddress,
+    required double fare,
+    required double distanceKm,
+    required int estimatedMinutes,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+
+    final url = Uri.parse('$baseUrl/ride-requests');
+
+    final response = await http.post(
+      url,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode({
+        'rideId': rideId,
+        'pickupAddress': pickupAddress,
+        'destinationAddress': destinationAddress,
+        'fare': fare,
+        'distanceKm': distanceKm,
+        'estimatedMinutes': estimatedMinutes,
+      }),
+    );
+
+    final data = jsonDecode(response.body);
+
+    if (response.statusCode == 200 || response.statusCode == 201) {
+      return data;
+    } else {
+      throw Exception(data['message'] ?? 'Failed to create ride request');
+    }
+  }
+
+  Future<Map<String, dynamic>> getRideRequestStatus({
+    required String requestId,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+
+    final url = Uri.parse('$baseUrl/ride-requests/$requestId');
+
+    final response = await http.get(
+      url,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    );
+
+    final data = jsonDecode(response.body);
+
+    if (response.statusCode == 200) {
+      return data;
+    } else {
+      throw Exception(data['message'] ?? 'Failed to load ride request status');
+    }
+  }
+
+  Future<Map<String, dynamic>> cancelRideRequest({
+    required String requestId,
+    String? cancelReason,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+
+    final url = Uri.parse('$baseUrl/ride-requests/$requestId/cancel');
+
+    final response = await http.patch(
+      url,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode({
+        'cancelReason': cancelReason,
+      }),
+    );
+
+    final data = jsonDecode(response.body);
+
+    if (response.statusCode == 200) {
+      return data;
+    } else {
+      throw Exception(data['message'] ?? 'Failed to cancel ride request');
+    }
+  }
+
+
+  Future<Map<String, dynamic>> createRideRequestRealtime({
+    required String rideId,
+    required String pickupAddress,
+    required String destinationAddress,
+    required double fare,
+    required double distanceKm,
+    required int estimatedMinutes,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+
+    final url = Uri.parse('$baseUrl/ride-requests');
+
+    final response = await http.post(
+      url,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode({
+        'rideId': rideId,
+        'pickupAddress': pickupAddress,
+        'destinationAddress': destinationAddress,
+        'fare': fare,
+        'distanceKm': distanceKm,
+        'estimatedMinutes': estimatedMinutes,
+      }),
+    );
+
+    final data = jsonDecode(response.body);
+
+    if (response.statusCode == 200 || response.statusCode == 201) {
+      return data;
+    } else {
+      throw Exception(data['message'] ?? 'Failed to create ride request');
+    }
+  }
+
+  Future<Map<String, dynamic>> getRideRequestStatusRealtime({
+    required String requestId,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+
+    final url = Uri.parse('$baseUrl/ride-requests/$requestId');
+
+    final response = await http.get(
+      url,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    );
+
+    final data = jsonDecode(response.body);
+
+    if (response.statusCode == 200) {
+      return data;
+    } else {
+      throw Exception(data['message'] ?? 'Failed to load ride request status');
+    }
+  }
+
+  Future<Map<String, dynamic>> cancelRideRequestRealtime({
+    required String requestId,
+    String? cancelReason,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+
+    final url = Uri.parse('$baseUrl/ride-requests/$requestId/cancel');
+
+    final response = await http.patch(
+      url,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode({
+        'cancelReason': cancelReason,
+      }),
+    );
+
+    final data = jsonDecode(response.body);
+
+    if (response.statusCode == 200) {
+      return data;
+    } else {
+      throw Exception(data['message'] ?? 'Failed to cancel ride request');
     }
   }
 }

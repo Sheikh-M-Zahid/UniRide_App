@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'services/auth_api_service.dart';
 
@@ -31,17 +33,35 @@ class UniRideHomePage extends StatefulWidget {
 class _UniRideHomePageState extends State<UniRideHomePage> {
   final AuthApiService _authApiService = AuthApiService();
 
+  final PageController _adPageController = PageController();
+  Timer? _adTimer;
+
+  bool _showAds = true;
+  int _currentAdIndex = 0;
+
+  final List<String> _adImages = [
+    'images/ADS/RideRequest_System.png',
+    'images/ADS/Ride_Enjoying.png',
+    'images/ADS/CoRide_System.png',
+    'images/ADS/Delivery_System.png',
+  ];
+
+  @override
+  void dispose() {
+    _adTimer?.cancel();
+    _adPageController.dispose();
+    super.dispose();
+  }
+
   int offerCount = 0;
   bool isLoadingHome = true;
-  static const String _googleApiKey = String.fromEnvironment(
-    'AIzaSyCF5mVtZ2woOu8P1Jwf-7IfzRw_QoPilCI',
-    defaultValue: '',
-  );
+  static const String _googleApiKey = 'AIzaSyCF5mVtZ2woOu8P1Jwf-7IfzRw_QoPilCI';
 
   @override
   void initState() {
     super.initState();
     _loadHomeSummary();
+    _startAdAutoSlide();
   }
 
   Future<void> _loadHomeSummary() async {
@@ -63,6 +83,35 @@ class _UniRideHomePageState extends State<UniRideHomePage> {
         isLoadingHome = false;
       });
     }
+  }
+
+  void _startAdAutoSlide() {
+    _adTimer?.cancel();
+
+    _adTimer = Timer.periodic(const Duration(seconds: 3), (timer) {
+      if (!_showAds || !_adPageController.hasClients || _adImages.isEmpty) return;
+
+      _currentAdIndex++;
+
+      if (_currentAdIndex >= _adImages.length) {
+        _currentAdIndex = 0;
+      }
+
+      _adPageController.animateToPage(
+        _currentAdIndex,
+        duration: const Duration(milliseconds: 400),
+        curve: Curves.easeInOut,
+      );
+    });
+  }
+
+  void _closeAds() {
+    _adTimer?.cancel();
+    if (!mounted) return;
+
+    setState(() {
+      _showAds = false;
+    });
   }
 
   @override
@@ -288,6 +337,18 @@ class _UniRideHomePageState extends State<UniRideHomePage> {
                   ],
                 ),
               ),
+              const SizedBox(height: 30),
+
+              if (_showAds)
+                _HomeAdsSlider(
+                  controller: _adPageController,
+                  adImages: _adImages,
+                  onPageChanged: (index) {
+                    _currentAdIndex = index;
+                    _startAdAutoSlide();
+                  },
+                  onClose: _closeAds,
+                ),
             ],
           ),
         ),
@@ -352,6 +413,85 @@ class _UniRideHomePageState extends State<UniRideHomePage> {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _HomeAdsSlider extends StatelessWidget {
+  final PageController controller;
+  final List<String> adImages;
+  final ValueChanged<int> onPageChanged;
+  final VoidCallback onClose;
+
+  const _HomeAdsSlider({
+    required this.controller,
+    required this.adImages,
+    required this.onPageChanged,
+    required this.onClose,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      children: [
+        Container(
+          height: MediaQuery.of(context).size.width * 1,
+          width: double.infinity,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: AppColors.border),
+            boxShadow: const [
+              BoxShadow(
+                color: Colors.black12,
+                blurRadius: 6,
+                offset: Offset(0, 3),
+              ),
+            ],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(18),
+            child: PageView.builder(
+              controller: controller,
+              itemCount: adImages.length,
+              onPageChanged: onPageChanged,
+              itemBuilder: (context, index) {
+                return Container(
+                  color: Colors.white,
+                  padding: const EdgeInsets.all(2),
+                  child: Image.asset(
+                    adImages[index],
+                    fit: BoxFit.contain,
+                    width: double.infinity,
+                    height: double.infinity,
+                  ),
+                );
+              },
+            ),
+          ),
+        ),
+
+        /// ❌ Close Button
+        Positioned(
+          top: 8,
+          right: 8,
+          child: GestureDetector(
+            onTap: onClose,
+            child: Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: Colors.black.withOpacity(0.6),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.close,
+                color: Colors.white,
+                size: 18,
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

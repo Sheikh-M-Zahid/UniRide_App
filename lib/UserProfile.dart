@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'services/auth_api_service.dart';
 import 'UserHome.dart';
 import 'UserSetting.dart';
 import 'UserOffer.dart';
@@ -50,7 +51,12 @@ class UniRideProfilePage extends StatefulWidget {
 class _UniRideProfilePageState extends State<UniRideProfilePage> {
   int _selectedIndex = 4;
   File? _profileImage;
+  String? _profileImageUrl;
   final ImagePicker _picker = ImagePicker();
+  final AuthApiService _authApiService = AuthApiService();
+
+  String _displayName = "User Name";
+  double _displayRating = 5.0;
 
   int _profileCompletion = 0;
 
@@ -66,11 +72,75 @@ class _UniRideProfilePageState extends State<UniRideProfilePage> {
   @override
   void initState() {
     super.initState();
-    _loadProfileCompletionData();
+    _initializeProfilePage();
   }
 
   bool _isFilled(String? value) {
     return value != null && value.trim().isNotEmpty;
+  }
+
+  Future<void> _loadBasicUserInfoFromPrefs() async {
+    final prefs = await SharedPreferences.getInstance();
+
+    final savedName = prefs.getString('user_name') ?? '';
+    final savedImagePath = prefs.getString('profile_image_path');
+
+    if (savedName.trim().isNotEmpty) {
+      _displayName = savedName.trim();
+    }
+
+    if (savedImagePath != null && savedImagePath.isNotEmpty) {
+      final file = File(savedImagePath);
+      if (file.existsSync()) {
+        _profileImage = file;
+      }
+    }
+  }
+
+  Future<void> _initializeProfilePage() async {
+    await _loadBasicUserInfoFromPrefs();
+    await _fetchProfileFromDatabase();
+    await _loadProfileCompletionData();
+  }
+
+  Future<void> _fetchProfileFromDatabase() async {
+    try {
+      final response = await _authApiService.getMyProfile();
+      final data = response['data'] ?? {};
+
+      final fullName = (data['fullName'] ?? '').toString().trim();
+      final firstName = (data['firstName'] ?? '').toString().trim();
+      final lastName = (data['lastName'] ?? '').toString().trim();
+      final combinedName = ('$firstName $lastName').trim();
+
+      if (!mounted) return;
+
+      setState(() {
+        _displayName = fullName.isNotEmpty
+            ? fullName
+            : (combinedName.isNotEmpty ? combinedName : _displayName);
+        _displayRating = double.tryParse('${data['rating'] ?? 5}') ?? 5.0;
+
+        final profilePicture = data['profilePicture']?.toString();
+        _profileImageUrl = (profilePicture != null && profilePicture.isNotEmpty)
+            ? _authApiService.getFullImageUrl(profilePicture)
+            : null;
+
+        _gender = data['gender']?.toString();
+        _emergencyContactNumber = data['emergencyContactNumber']?.toString();
+        _universityEmail = data['universityEmail']?.toString();
+        _dateOfBirth = data['dateOfBirth']?.toString();
+        _secondaryPhoneNumber = data['secondaryPhoneNumber']?.toString();
+        final completedAtRaw = data['profileCompletedAt']?.toString();
+        _profileCompletedAt =
+        (completedAtRaw != null && completedAtRaw.isNotEmpty)
+            ? DateTime.tryParse(completedAtRaw)
+            : null;
+        _profileCompletion = int.tryParse('${data['profileCompletion'] ?? 0}') ?? 0;
+      });
+    } catch (e) {
+      debugPrint('Failed to load profile from database: $e');
+    }
   }
 
   int _calculateProfileCompletion(String displayName) {
@@ -120,12 +190,6 @@ class _UniRideProfilePageState extends State<UniRideProfilePage> {
     final imagePath = prefs.getString('profile_image_path');
     final completedAtMillis = prefs.getInt('profile_completed_at');
 
-    _gender = prefs.getString('profile_gender');
-    _emergencyContactNumber = prefs.getString('profile_emergency_contact');
-    _universityEmail = prefs.getString('profile_university_email');
-    _dateOfBirth = prefs.getString('profile_dob');
-    _secondaryPhoneNumber = prefs.getString('profile_secondary_phone');
-
     if (imagePath != null && imagePath.isNotEmpty) {
       final file = File(imagePath);
       if (file.existsSync()) {
@@ -138,12 +202,9 @@ class _UniRideProfilePageState extends State<UniRideProfilePage> {
           DateTime.fromMillisecondsSinceEpoch(completedAtMillis);
     }
 
-    final String displayName =
-    (widget.userName != null && widget.userName!.trim().isNotEmpty)
-        ? widget.userName!
-        : "User Name";
-
-    _profileCompletion = _calculateProfileCompletion(displayName);
+    if (_profileCompletion == 0) {
+      _profileCompletion = _calculateProfileCompletion(_displayName);
+    }
 
     if (_profileCompletion < 100) {
       _profileCompletedAt = null;
@@ -177,12 +238,9 @@ class _UniRideProfilePageState extends State<UniRideProfilePage> {
       await prefs.remove('profile_image_path');
     }
 
-    final String displayName =
-    (widget.userName != null && widget.userName!.trim().isNotEmpty)
-        ? widget.userName!
-        : "User Name";
-
-    _profileCompletion = _calculateProfileCompletion(displayName);
+    if (_profileCompletion == 0) {
+      _profileCompletion = _calculateProfileCompletion(_displayName);
+    }
 
     if (_profileCompletion == 100) {
       _profileCompletedAt ??= DateTime.now();
@@ -329,12 +387,8 @@ class _UniRideProfilePageState extends State<UniRideProfilePage> {
 
   @override
   Widget build(BuildContext context) {
-    final String displayName =
-    (widget.userName != null && widget.userName!.trim().isNotEmpty)
-        ? widget.userName!
-        : "User Name";
-
-    final double displayRating = widget.userRating;
+    final String displayName = _displayName;
+    final double displayRating = _displayRating;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -350,8 +404,11 @@ class _UniRideProfilePageState extends State<UniRideProfilePage> {
                   CircleAvatar(
                     radius: 50,
                     backgroundColor: AppColors.inputFill,
-                    backgroundImage:
-                    _profileImage != null ? FileImage(_profileImage!) : null,
+                    backgroundImage: _profileImage != null
+                        ? FileImage(_profileImage!)
+                        : (_profileImageUrl != null
+                        ? NetworkImage(_profileImageUrl!) as ImageProvider
+                        : null),
                     child: _profileImage == null
                         ? const Icon(
                       Icons.person,

@@ -44,3 +44,7 @@ flutter:
 
   assets:
     - images/reserve.png
+    - images/ADS/RideRequest_System.png
+    - images/ADS/Ride_Enjoying.png
+    - images/ADS/CoRide_System.png
+    - images/ADS/Delivery_System.png
