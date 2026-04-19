@@ -54,7 +54,7 @@ const notificationRoutes = require('./routes/notificationRoutes');
 const mapsRoutes = require('./routes/mapsRoutes');
 const rideRequestRoutes = require('./routes/rideRequestRoutes');
 const profileRoutes = require('./routes/profileRoutes');
-const savedPlaceRoutes = require('./routes/savedPlaceRoutes');
+const savedPlaceRoutes = require('./routes/savedPlacesRoutes');
 
 const errorMiddleware = require('./middlewares/errorMiddleware');
 
