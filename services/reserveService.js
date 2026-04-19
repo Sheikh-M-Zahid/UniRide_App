@@ -275,40 +275,103 @@ const createReserve = async (payload, user = null) => {
   const cleanedNote = preferenceData.note;
   const cleanedGenderPreference = preferenceData.gender_preference;
 
-  const result = await rideDb.query(
-    `INSERT INTO rides (
-      rider_id,
-      start_location,
-      destination,
-      total_distance_km,
-      total_fare,
-      available_seats,
-      status,
-      travel_date,
-      travel_time,
-      vehicle_type,
-      gender_preference,
-      note
-    )
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-    RETURNING ride_id, rider_id, status, travel_date, travel_time`,
-    [
+  const client = await rideDb.connect();
+
+  try {
+    await client.query('BEGIN');
+
+    const insertReserveQuery = `
+      INSERT INTO reserves (
+        user_id,
+        pickup_location,
+        destination_location,
+        travel_date,
+        travel_time,
+        selected_seats,
+        gender_preference,
+        vehicle_type,
+        total_distance_km,
+        estimated_travel_minutes,
+        estimated_cost,
+        note,
+        status
+      )
+      VALUES (
+        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 'pending'
+      )
+      RETURNING
+        reserve_id,
+        user_id,
+        pickup_location,
+        destination_location,
+        travel_date,
+        travel_time,
+        selected_seats,
+        gender_preference,
+        vehicle_type,
+        total_distance_km,
+        estimated_travel_minutes,
+        estimated_cost,
+        note,
+        status,
+        created_at
+    `;
+
+    const reserveResult = await client.query(insertReserveQuery, [
       userId,
       pickup_location,
       destination_location,
-      Number(total_distance_km),
-      Number(estimated_cost),
-      seatCount,
-      'pending',
       travel_date,
       travel_time,
-      vehicle,
+      seatCount,
       cleanedGenderPreference,
+      vehicle,
+      Number(total_distance_km),
+      Number(estimated_travel_minutes),
+      Number(estimated_cost),
       cleanedNote,
-    ]
-  );
+    ]);
 
-  return result.rows[0];
+    const reserve = reserveResult.rows[0];
+
+    await client.query(
+      `
+      INSERT INTO notifications (
+        user_id,
+        title,
+        message,
+        type,
+        is_read,
+        target_role,
+        related_id
+      )
+      SELECT
+        v.user_id,
+        'New Reserve Request',
+        $1,
+        'reserve_request',
+        FALSE,
+        'rider',
+        $2
+      FROM vehicles v
+      INNER JOIN users u ON u.user_id = v.user_id
+      WHERE u.account_status = 'active'
+      GROUP BY v.user_id
+      `,
+      [
+        `${pickup_location} → ${destination_location} | ${travel_date} ${travel_time} | ৳${Number(estimated_cost)}`,
+        reserve.reserve_id,
+      ]
+    );
+
+    await client.query('COMMIT');
+    return reserve;
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
 };
 
 const getUpcomingReserve = async (userId) => {
@@ -330,31 +393,251 @@ const getUpcomingReserve = async (userId) => {
   }
 
   const result = await rideDb.query(
-    `SELECT
-        r.ride_id,
-        r.start_location,
-        r.destination,
-        r.total_fare   AS fare,
-        NULL           AS confirmed,
-        r.status       AS ride_status,
-        r.created_at
-     FROM rides r
-     WHERE r.rider_id = $1
-        AND r.status IN ('pending', 'confirmed', 'ongoing')
-     ORDER BY r.created_at DESC`,
+    `
+    SELECT
+      r.reserve_id,
+      r.pickup_location,
+      r.destination_location,
+      r.total_distance_km,
+      r.estimated_travel_minutes,
+      r.estimated_cost,
+      r.travel_date,
+      r.travel_time,
+      r.status,
+      r.created_at,
+      rr.rider_id,
+      ru.first_name AS rider_first_name,
+      ru.last_name AS rider_last_name,
+      ru.phone AS rider_phone
+    FROM reserves r
+    LEFT JOIN reserve_rider_matches rr
+      ON rr.reserve_id = r.reserve_id
+     AND rr.is_selected = TRUE
+    LEFT JOIN users ru
+      ON ru.user_id = rr.rider_id
+    WHERE r.user_id = $1
+      AND r.status IN ('pending', 'confirmed', 'ongoing')
+    ORDER BY r.created_at DESC
+    `,
     [userId]
   );
 
   return result.rows.map((row) => ({
-    ride_id: row.ride_id,
-    start_location: row.start_location,
-    destination: row.destination,
-    fare: row.fare,
-    confirmed: row.confirmed,
-    ride_status: row.ride_status,
+    reserve_id: row.reserve_id,
+    pickup_location: row.pickup_location,
+    destination_location: row.destination_location,
+    total_distance_km: Number(row.total_distance_km || 0),
+    estimated_travel_minutes: Number(row.estimated_travel_minutes || 0),
+    estimated_cost: Number(row.estimated_cost || 0),
+    travel_date: row.travel_date,
+    travel_time: row.travel_time,
+    status: row.status,
+    rider_id: row.rider_id,
+    rider_name: row.rider_first_name
+      ? `${row.rider_first_name} ${row.rider_last_name || ''}`.trim()
+      : null,
+    rider_phone: row.rider_phone || null,
     created_at: row.created_at,
-    display_text: formatDisplayText(row),
   }));
+};
+
+const cancelReserve = async (reserveId, userId) => {
+  const result = await rideDb.query(
+    `
+    UPDATE reserves
+    SET status = 'cancelled'
+    WHERE reserve_id = $1
+      AND user_id = $2
+      AND status = 'pending'
+    RETURNING reserve_id, status
+    `,
+    [reserveId, userId]
+  );
+
+  if (result.rowCount === 0) {
+    throw new Error('Only pending reserve requests can be cancelled.');
+  }
+
+  return result.rows[0];
+};
+
+const getReserveActivityList = async ({ userId, type = 'all', time = 'today' }) => {
+  let timeCondition = '';
+  const params = [userId];
+  let paramIndex = 2;
+
+  if (time === 'today') {
+    timeCondition = `AND r.created_at >= CURRENT_DATE`;
+  } else if (time === 'this_week') {
+    timeCondition = `AND r.created_at >= DATE_TRUNC('week', CURRENT_DATE)`;
+  } else if (time === 'this_month') {
+    timeCondition = `AND r.created_at >= DATE_TRUNC('month', CURRENT_DATE)`;
+  }
+
+  let typeCondition = '';
+  if (type === 'reserved') {
+    typeCondition = `AND r.status IN ('pending', 'confirmed', 'ongoing')`;
+  } else if (type === 'completed') {
+    typeCondition = `AND r.status = 'completed'`;
+  } else if (type === 'cancelled') {
+    typeCondition = `AND r.status = 'cancelled'`;
+  }
+
+  const summaryResult = await rideDb.query(
+    `
+    SELECT
+      COUNT(*)::int AS total,
+      COUNT(*) FILTER (WHERE status = 'completed')::int AS completed,
+      COUNT(*) FILTER (WHERE status = 'cancelled')::int AS cancelled,
+      0::float AS earnings
+    FROM reserves
+    WHERE user_id = $1
+    ${timeCondition}
+    `,
+    params
+  );
+
+  const listResult = await rideDb.query(
+    `
+    SELECT
+      r.reserve_id,
+      r.pickup_location,
+      r.destination_location,
+      r.total_distance_km,
+      r.estimated_travel_minutes,
+      r.estimated_cost,
+      r.travel_date,
+      r.travel_time,
+      r.status,
+      r.created_at,
+      rr.rider_id,
+      u.first_name,
+      u.last_name,
+      u.phone
+    FROM reserves r
+    LEFT JOIN reserve_rider_matches rr
+      ON rr.reserve_id = r.reserve_id
+     AND rr.is_selected = TRUE
+    LEFT JOIN users u
+      ON u.user_id = rr.rider_id
+    WHERE r.user_id = $1
+    ${timeCondition}
+    ${typeCondition}
+    ORDER BY r.created_at DESC
+    `,
+    params
+  );
+
+  return {
+    summary: summaryResult.rows[0] || {
+      total: 0,
+      completed: 0,
+      cancelled: 0,
+      earnings: 0,
+    },
+    activities: listResult.rows.map((row) => ({
+      id: row.reserve_id,
+      item_type: 'reserve',
+      title: 'Reserved Ride',
+      name: row.first_name
+        ? `${row.first_name} ${row.last_name || ''}`.trim()
+        : 'Waiting for rider',
+      phone: row.phone || 'Not assigned yet',
+      pickup: row.pickup_location,
+      destination: row.destination_location,
+      time: `${row.travel_time ?? ''}`,
+      fare: Number(row.estimated_cost || 0),
+      date: row.travel_date,
+      status: row.status,
+      totalDistanceKm: Number(row.total_distance_km || 0),
+      estimatedTravelMinutes: Number(row.estimated_travel_minutes || 0),
+      riderName: row.first_name
+        ? `${row.first_name} ${row.last_name || ''}`.trim()
+        : null,
+      riderPhone: row.phone || null,
+      canCancel: row.status === 'pending',
+    })),
+    emptyState: 'No activity found',
+  };
+};
+
+const assignRiderToReserve = async ({ reserveId, riderId }) => {
+  const client = await rideDb.connect();
+
+  try {
+    await client.query('BEGIN');
+
+    const reserveResult = await client.query(
+      `
+      SELECT reserve_id, user_id, status
+      FROM reserves
+      WHERE reserve_id = $1
+      FOR UPDATE
+      `,
+      [reserveId]
+    );
+
+    if (reserveResult.rowCount === 0) {
+      throw new Error('Reserve request not found.');
+    }
+
+    const reserve = reserveResult.rows[0];
+
+    if (reserve.status !== 'pending') {
+      throw new Error('This reserve request is no longer available.');
+    }
+
+    await client.query(
+      `
+      INSERT INTO reserve_rider_matches (
+        reserve_id,
+        rider_id,
+        is_selected,
+        accepted_at
+      )
+      VALUES ($1, $2, TRUE, CURRENT_TIMESTAMP)
+      ON CONFLICT (reserve_id, rider_id)
+      DO UPDATE SET
+        is_selected = TRUE,
+        accepted_at = CURRENT_TIMESTAMP
+      `,
+      [reserveId, riderId]
+    );
+
+    const updatedReserve = await client.query(
+      `
+      UPDATE reserves
+      SET status = 'confirmed'
+      WHERE reserve_id = $1
+      RETURNING reserve_id, user_id, status
+      `,
+      [reserveId]
+    );
+
+    await client.query(
+      `
+      INSERT INTO notifications (
+        user_id,
+        title,
+        message,
+        type,
+        is_read,
+        target_role,
+        related_id
+      )
+      VALUES ($1, 'Reserve Request Confirmed', 'A rider accepted your reserve request.', 'reserve_confirmed', FALSE, 'passenger', $2)
+      `,
+      [reserve.user_id, reserveId]
+    );
+
+    await client.query('COMMIT');
+    return updatedReserve.rows[0];
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
 };
 
 module.exports = {
@@ -363,4 +646,7 @@ module.exports = {
   validatePreferences,
   calculateReserveRide,
   getUpcomingReserve,
+  cancelReserve,
+  getReserveActivityList,
+  assignRiderToReserve,
 };
