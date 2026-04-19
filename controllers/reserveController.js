@@ -40,6 +40,24 @@ const getUpcomingReserve = asyncHandler(async (req, res) => {
   return successResponse(res, message, data);
 });
 
+const cancelReserve = asyncHandler(async (req, res) => {
+  const data = await reserveService.cancelReserve(
+    req.params.reserveId,
+    req.user.userId
+  );
+
+  return successResponse(res, 'Reserve request cancelled successfully.', data);
+});
+
+const assignRiderToReserve = asyncHandler(async (req, res) => {
+  const data = await reserveService.assignRiderToReserve({
+    reserveId: req.params.reserveId,
+    riderId: req.user.userId,
+  });
+
+  return successResponse(res, 'Reserve request accepted successfully.', data);
+});
+
 // Calculate reserve ride fare
 const calculateReserveRide = asyncHandler(async (req, res) => {
   const data = await reserveService.calculateReserveRide(req.body);
@@ -53,4 +71,6 @@ module.exports = {
   validatePreferences,
   getUpcomingReserve,
   calculateReserveRide,
+  cancelReserve,
+  assignRiderToReserve,
 };
