@@ -24,20 +24,20 @@ const getSavedPlaces = async (userId) => {
   }
 
   return {
-    home: user.home_address || '',
-    campus: user.campus_address || '',
-    hall: user.hostel_address || '',
-  };
+  home_address: user.home_address || '',
+  campus_address: user.campus_address || '',
+  hostel_address: user.hostel_address || '',
+};
 };
 
 const updateSavedPlaces = async (userId, payload) => {
-  const { home, campus, hall } = payload;
+  const { homeAddress, campusAddress, hostelAddress } = payload;
 
   if (
-    home === undefined ||
-    campus === undefined ||
-    hall === undefined
-  ) {
+  homeAddress === undefined ||
+  campusAddress === undefined ||
+  hostelAddress === undefined
+) {
     throw new Error('Home, campus, and hall are required.');
   }
 
@@ -65,9 +65,9 @@ const updateSavedPlaces = async (userId, payload) => {
          hostel_address = $3
      WHERE user_id = $4`,
     [
-      String(home).trim(),
-      String(campus).trim(),
-      String(hall).trim(),
+      String(homeAddress).trim(),
+      String(campusAddress).trim(),
+      String(hostelAddress).trim(),
       userId,
     ]
   );
