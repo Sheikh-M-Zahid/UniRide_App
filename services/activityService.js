@@ -1,4 +1,5 @@
 const rideDb = require('../config/rideDb');
+const reserveService = require('./reserveService');
 
 // ==============================
 // GET MY ACTIVITY
@@ -41,45 +42,46 @@ const getActivityDashboard = async ({
 }) => {
   const offset = (page - 1) * limit;
 
-  let whereClause = `WHERE r.rider_id = $1`;
-  const values = [userId];
-  let index = 2;
+  let rideWhereClause = `WHERE r.rider_id = $1`;
+  const rideValues = [userId];
+  let rideIndex = 2;
 
-  // Filter by type
   if (type !== 'all') {
     if (type === 'reserved') {
-      whereClause += ` AND r.status = $${index}`;
-      values.push('assigned');
-      index++;
+      rideWhereClause += ` AND r.status = $${rideIndex}`;
+      rideValues.push('assigned');
+      rideIndex++;
     } else if (type === 'completed' || type === 'cancelled') {
-      whereClause += ` AND r.status = $${index}`;
-      values.push(type);
-      index++;
+      rideWhereClause += ` AND r.status = $${rideIndex}`;
+      rideValues.push(type);
+      rideIndex++;
+    } else if (type === 'send_item') {
+      rideWhereClause += ` AND 1 = 0`;
     }
   }
 
-  // Filter by time
   if (time === 'today') {
-    whereClause += ` AND DATE(r.created_at) = CURRENT_DATE`;
-  } else if (time === 'week') {
-    whereClause += ` AND r.created_at >= NOW() - INTERVAL '7 days'`;
-  } else if (time === 'month') {
-    whereClause += ` AND r.created_at >= NOW() - INTERVAL '30 days'`;
+    rideWhereClause += ` AND DATE(r.created_at) = CURRENT_DATE`;
+  } else if (time === 'this_week') {
+    rideWhereClause += ` AND r.created_at >= DATE_TRUNC('week', CURRENT_DATE)`;
+  } else if (time === 'this_month') {
+    rideWhereClause += ` AND r.created_at >= DATE_TRUNC('month', CURRENT_DATE)`;
   }
 
-  const summaryQuery = `
+  const rideSummaryQuery = `
     SELECT
       COUNT(*)::int AS total,
       COUNT(*) FILTER (WHERE r.status = 'completed')::int AS completed,
       COUNT(*) FILTER (WHERE r.status = 'cancelled')::int AS cancelled,
       COALESCE(SUM(CASE WHEN r.status = 'completed' THEN r.total_fare ELSE 0 END), 0) AS earnings
     FROM rides r
-    ${whereClause}
+    ${rideWhereClause}
   `;
 
-  const listQuery = `
+  const rideListQuery = `
     SELECT
-      r.ride_id,
+      r.ride_id AS id,
+      'ride' AS item_type,
       'Ride Activity' AS title,
       '' AS name,
       '' AS phone,
@@ -91,28 +93,71 @@ const getActivityDashboard = async ({
       CASE
         WHEN r.status = 'assigned' THEN 'reserved'
         ELSE r.status
-      END AS status
+      END AS status,
+      r.created_at,
+      NULL::float AS total_distance_km,
+      NULL::int AS estimated_travel_minutes,
+      NULL::text AS rider_name,
+      NULL::text AS rider_phone,
+      FALSE AS can_cancel
     FROM rides r
-    ${whereClause}
+    ${rideWhereClause}
     ORDER BY r.created_at DESC
-    LIMIT $${index} OFFSET $${index + 1}
   `;
 
-  const summaryResult = await rideDb.query(summaryQuery, values);
-  const activitiesResult = await rideDb.query(listQuery, [...values, limit, offset]);
+  const rideSummaryResult = await rideDb.query(rideSummaryQuery, rideValues);
+  const rideActivitiesResult = await rideDb.query(rideListQuery, rideValues);
 
-  const summaryRow = summaryResult.rows[0] || {};
+  const reserveData = await reserveService.getReserveActivityList({
+    userId,
+    type,
+    time,
+  });
+
+  const rideSummaryRow = rideSummaryResult.rows[0] || {};
+  const reserveSummary = reserveData.summary || {};
+
+  const mergedActivities = [
+    ...(rideActivitiesResult.rows || []).map((row) => ({
+      id: row.id,
+      item_type: row.item_type,
+      title: row.title,
+      name: row.name,
+      phone: row.phone,
+      pickup: row.pickup,
+      destination: row.destination,
+      time: row.time,
+      fare: Number(row.fare || 0),
+      date: row.date,
+      status: row.status,
+      created_at: row.created_at,
+      totalDistanceKm: row.total_distance_km,
+      estimatedTravelMinutes: row.estimated_travel_minutes,
+      riderName: row.rider_name,
+      riderPhone: row.rider_phone,
+      canCancel: row.can_cancel === true,
+    })),
+    ...((reserveData.activities || []).map((row) => ({
+      ...row,
+      created_at: row.created_at,
+    }))),
+  ];
+
+  mergedActivities.sort((a, b) => {
+    return new Date(b.created_at) - new Date(a.created_at);
+  });
+
+  const paginatedActivities = mergedActivities.slice(offset, offset + limit);
 
   return {
     summary: {
-      total: Number(summaryRow.total || 0),
-      completed: Number(summaryRow.completed || 0),
-      cancelled: Number(summaryRow.cancelled || 0),
-      earnings: Number(summaryRow.earnings || 0),
+      total: Number(rideSummaryRow.total || 0) + Number(reserveSummary.total || 0),
+      completed: Number(rideSummaryRow.completed || 0) + Number(reserveSummary.completed || 0),
+      cancelled: Number(rideSummaryRow.cancelled || 0) + Number(reserveSummary.cancelled || 0),
+      earnings: Number(rideSummaryRow.earnings || 0) + Number(reserveSummary.earnings || 0),
     },
-    activities: activitiesResult.rows,
-    emptyState:
-      activitiesResult.rows.length === 0 ? 'No activity found' : null,
+    activities: paginatedActivities,
+    emptyState: paginatedActivities.length === 0 ? 'No activity found' : null,
   };
 };
 
