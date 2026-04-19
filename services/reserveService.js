@@ -37,7 +37,7 @@ const formatDisplayText = ({
   const from = start_location || 'Unknown';
   const to = destination || 'Unknown';
   const fareText = fare ? `BDT ${fare}` : 'BDT 0';
-  const status = ride_status || 'active';
+    const status = ride_status || 'pending';
 
   return `${from} → ${to} | Fare: ${fareText} | ${status}`;
 };
@@ -299,7 +299,7 @@ const createReserve = async (payload, user = null) => {
       Number(total_distance_km),
       Number(estimated_cost),
       seatCount,
-      'reserve',
+      'pending',
       travel_date,
       travel_time,
       vehicle,
@@ -340,7 +340,7 @@ const getUpcomingReserve = async (userId) => {
         r.created_at
      FROM rides r
      WHERE r.rider_id = $1
-       AND r.status = 'reserve'
+        AND r.status IN ('pending', 'confirmed', 'ongoing')
      ORDER BY r.created_at DESC`,
     [userId]
   );
