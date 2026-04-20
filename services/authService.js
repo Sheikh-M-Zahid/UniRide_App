@@ -6,6 +6,7 @@ const { hashPassword, comparePassword } = require('../utils/password');
 const { isValidUniversityEmail } = require('../utils/validators');
 const { savePasswordRecoveryOtp } = require('./otpService');
 const { sendPasswordRecoveryOtpEmail } = require('./mailService');
+const { verifyResetToken, generateResetToken } = require('./resetTokenService');
 
 const normalizeEmail = (email) => email.trim().toLowerCase();
 
@@ -335,11 +336,7 @@ const findAccount = async (email) => {
   };
 };
 
-
-const rideDb = require('../config/rideDb');
-const { isValidUniversityEmail } = require('../utils/validators');
 const { createOtp, verifyOtp } = require('./otpService');
-const { sendPasswordRecoveryOtpEmail } = require('./mailService');
 const { generateResetToken } = require('./resetTokenService');
 
 const normalize = (email) => email.trim().toLowerCase();
@@ -401,7 +398,6 @@ const resendRecoveryOtp = async (email) => {
 
 const { verifyResetToken } = require('./resetTokenService');
 const { hashPassword } = require('../utils/password');
-const rideDb = require('../config/rideDb');
 
 const resetPasswordWithToken = async (
   resetToken,
