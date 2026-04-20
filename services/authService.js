@@ -337,7 +337,7 @@ const findAccount = async (email) => {
 };
 
 const { createOtp, verifyOtp: verifyOtpFromService } = require('./otpService');
-const { generateResetToken } = require('./resetTokenService');
+const { generateResetToken: generateResetTokenUtil } = require('./resetTokenService');
 
 const normalize = (email) => email.trim().toLowerCase();
 
@@ -364,7 +364,7 @@ const verifyRecoveryOtp = async (email, otp) => {
 
   await verifyOtpFromService(normalized, otp);
 
-  const resetToken = generateResetToken(normalized);
+  const resetToken = generateResetTokenUtil(normalized);
 
   return {
     email: normalized,
