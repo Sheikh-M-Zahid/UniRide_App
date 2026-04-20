@@ -3,11 +3,13 @@ const router = express.Router();
 const vehicleController = require('../controllers/vehicleController');
 const authMiddleware = require('../middlewares/authMiddleware');
 const { validateRequiredFields } = require('../middlewares/validateMiddleware');
+const { vehicleUpload } = require('../middlewares/uploadMiddleware');
 
 router.post(
   '/',
   authMiddleware,
-  validateRequiredFields(['vehicle_type', 'company', 'model', 'year', 'number_plate']),
+  vehicleUpload,  // ✅ এটা add করো
+  validateRequiredFields([...]),
   vehicleController.addVehicle
 );
 
