@@ -80,4 +80,6 @@ module.exports = {
   checkEwuAllowedUser,
   checkAdminStatus,
   findAccount,
+  verifyRecoveryOtp,   // <--- এই লাইনটি যোগ করতে হবে
+  resendRecoveryOtp    // <--- এই লাইনটি যোগ করতে হবে
 };
