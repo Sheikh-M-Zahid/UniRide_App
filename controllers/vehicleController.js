@@ -3,7 +3,7 @@ const { successResponse } = require('../utils/apiResponse');
 const vehicleService = require('../services/vehicleService');
 
 const addVehicle = asyncHandler(async (req, res) => {
-  const data = await vehicleService.addVehicle(req.user.userId, req.body);
+  const data = await vehicleService.addVehicle(req.user.userId, req.body, req.files);
   return successResponse(res, 'Vehicle added successfully.', data, 201);
 });
 
