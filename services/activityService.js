@@ -44,27 +44,24 @@ const getActivityDashboard = async ({
 
   let rideWhereClause = `WHERE rr.passenger_id = $1`;
   const rideValues = [userId];
-  let rideIndex = 2;
-
     if (type !== 'all') {
-      if (type === 'reserved') {
-        rideWhereClause += ` AND rr.status = 'accepted'`;
-      } else if (type === 'completed') {
-        rideWhereClause += ` AND rr.status = 'accepted' AND r.status = 'completed'`;
-      } else if (type === 'cancelled') {
-        rideWhereClause += ` AND rr.status = 'cancelled'`;
-      } else if (type === 'send_item') {
-        rideWhereClause += ` AND 1 = 0`;
-      }
+    if (type === 'reserved') {
+      rideWhereClause += ` AND rr.status = 'accepted'`;
+    } else if (type === 'completed') {
+      rideWhereClause += ` AND rr.status = 'accepted' AND r.status = 'completed'`;
+    } else if (type === 'cancelled') {
+      rideWhereClause += ` AND rr.status = 'cancelled'`;
+    } else if (type === 'send_item') {
+      rideWhereClause += ` AND 1 = 0`;
     }
+  }
 
-    if (time === 'today') {
-      rideWhereClause += ` AND DATE(rr.created_at) = CURRENT_DATE`;
-    } else if (time === 'this_week') {
-      rideWhereClause += ` AND rr.created_at >= DATE_TRUNC('week', CURRENT_DATE)`;
-    } else if (time === 'this_month') {
-      rideWhereClause += ` AND rr.created_at >= DATE_TRUNC('month', CURRENT_DATE)`;
-    }
+  if (time === 'today') {
+    rideWhereClause += ` AND DATE(rr.created_at) = CURRENT_DATE`;
+  } else if (time === 'this_week') {
+    rideWhereClause += ` AND rr.created_at >= DATE_TRUNC('week', CURRENT_DATE)`;
+  } else if (time === 'this_month') {
+    rideWhereClause += ` AND rr.created_at >= DATE_TRUNC('month', CURRENT_DATE)`;
   }
 
   if (time === 'today') {
