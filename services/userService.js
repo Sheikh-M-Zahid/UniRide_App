@@ -3,9 +3,9 @@ const rideDb = require('../config/rideDb');
 const getProfile = async (userId) => {
   const result = await rideDb.query(
     `SELECT user_id, university_email, first_name, last_name, phone, recovery_phone,
-        gender, blood_group, home_address, hostel_address, campus_address,
+        emergency_phone, gender, blood_group, date_of_birth, home_address, hostel_address, campus_address,
         activity_status, profile_picture, wallet_bkash, account_status,
-        due_balance, rating, rating_count, rating_sum, created_at
+        due_balance, rating, rating_count, rating_sum, created_at, selected_mode AS occupation
      FROM users
      WHERE user_id = $1`, // এখানে কমা (,) মিসিং ছিল
     [userId]
