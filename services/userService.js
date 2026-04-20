@@ -7,7 +7,7 @@ const getProfile = async (userId) => {
         activity_status, profile_picture, wallet_bkash, account_status,
         due_balance, rating, rating_count, rating_sum, created_at
      FROM users
-     WHERE user_id = $1`
+     WHERE user_id = $1`, // এখানে কমা (,) মিসিং ছিল
     [userId]
   );
 
@@ -59,8 +59,8 @@ const updateProfile = async (userId, payload) => {
      RETURNING user_id, university_email, first_name, last_name, phone,
           recovery_phone, gender, blood_group, home_address, hostel_address,
           campus_address, activity_status, profile_picture, wallet_bkash,
-          account_status, due_balance, rating, rating_count, rating_sum, created_at
-    values
+          account_status, due_balance, rating, rating_count, rating_sum, created_at`, // এখানে backtick মিসিং ছিল
+    values // এখানে values এর আগে কমা ছিল না
   );
 
   return result.rows[0];
@@ -107,7 +107,7 @@ const getRoleOptions = async (userId) => {
   const userResult = await rideDb.query(
     `SELECT user_id, university_email, account_status, activity_status
      FROM users
-     WHERE user_id = $1`
+     WHERE user_id = $1`, // কমা মিসিং ছিল
     [userId]
   );
 
