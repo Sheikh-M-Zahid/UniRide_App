@@ -336,7 +336,7 @@ const findAccount = async (email) => {
   };
 };
 
-const { createOtp, verifyOtp } = require('./otpService');
+const { createOtp, verifyOtp: verifyOtpFromService } = require('./otpService');
 const { generateResetToken } = require('./resetTokenService');
 
 const normalize = (email) => email.trim().toLowerCase();
@@ -362,7 +362,7 @@ const verifyRecoveryOtp = async (email, otp) => {
     throw new Error('No account found with this university email.');
   }
 
-  await verifyOtp(normalized, otp);
+  await verifyOtpFromService(normalized, otp);
 
   const resetToken = generateResetToken(normalized);
 
