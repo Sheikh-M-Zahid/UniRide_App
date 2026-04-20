@@ -3,11 +3,11 @@ const rideDb = require('../config/rideDb');
 const getProfile = async (userId) => {
   const result = await rideDb.query(
     `SELECT user_id, university_email, first_name, last_name, phone, recovery_phone,
-            gender, blood_group, home_address, hostel_address, campus_address,
-            activity_status, profile_picture, wallet_bkash, account_status,
-            due_balance, rating, rating_count, rating_sum, created_at, rider
+        gender, blood_group, home_address, hostel_address, campus_address,
+        activity_status, profile_picture, wallet_bkash, account_status,
+        due_balance, rating, rating_count, rating_sum, created_at
      FROM users
-     WHERE user_id = $1`,
+     WHERE user_id = $1`
     [userId]
   );
 
@@ -57,9 +57,9 @@ const updateProfile = async (userId, payload) => {
      SET ${updates.join(', ')}
      WHERE user_id = $${count}
      RETURNING user_id, university_email, first_name, last_name, phone,
-               recovery_phone, gender, blood_group, home_address, hostel_address,
-               campus_address, activity_status, profile_picture, wallet_bkash,
-               account_status, due_balance, rating, rating_count, rating_sum, created_at, rider`,
+          recovery_phone, gender, blood_group, home_address, hostel_address,
+          campus_address, activity_status, profile_picture, wallet_bkash,
+          account_status, due_balance, rating, rating_count, rating_sum, created_at
     values
   );
 
@@ -105,9 +105,9 @@ const getWalletInfo = async (userId) => {
 
 const getRoleOptions = async (userId) => {
   const userResult = await rideDb.query(
-    `SELECT user_id, university_email, account_status, activity_status, rider
+    `SELECT user_id, university_email, account_status, activity_status
      FROM users
-     WHERE user_id = $1`,
+     WHERE user_id = $1`
     [userId]
   );
 
@@ -125,13 +125,13 @@ const getRoleOptions = async (userId) => {
   );
 
   const vehicleCount = vehicleCountResult.rows[0].vehicle_count;
-  const riderFlag = user.rider ? String(user.rider).toLowerCase() : 'no';
+  const riderFlag = vehicleCount > 0 ? 'yes' : 'no';
 
   const isAccountActive =
     user.account_status &&
     String(user.account_status).toLowerCase() === 'active';
 
-  const riderAllowed = riderFlag === 'yes' || vehicleCount > 0;
+  const riderAllowed = vehicleCount > 0;
   const passengerAllowed = isAccountActive;
 
   let riderReason = null;
