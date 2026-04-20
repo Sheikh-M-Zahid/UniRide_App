@@ -44,5 +44,4 @@ android/app/release
 
 # Node.js
 node_modules/
-.env
 npm-debug.log*
