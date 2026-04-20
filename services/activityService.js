@@ -65,12 +65,6 @@ const getActivityDashboard = async ({
     } else if (time === 'this_month') {
       rideWhereClause += ` AND rr.created_at >= DATE_TRUNC('month', CURRENT_DATE)`;
     }
-      rideWhereClause += ` AND r.status = $${rideIndex}`;
-      rideValues.push(type);
-      rideIndex++;
-    } else if (type === 'send_item') {
-      rideWhereClause += ` AND 1 = 0`;
-    }
   }
 
   if (time === 'today') {
