@@ -46,17 +46,18 @@ const getActivityDashboard = async ({
   const rideValues = [userId];
   let rideIndex = 2;
 
-  if (type !== 'all') {
-    if (type === 'reserved') {
-      rideWhereClause += ` AND rr.status = 'accepted'`; 
+    if (type !== 'all') {
+      if (type === 'reserved') {
+        rideWhereClause += ` AND rr.status = 'accepted'`;
       } else if (type === 'completed') {
         rideWhereClause += ` AND rr.status = 'accepted' AND r.status = 'completed'`;
       } else if (type === 'cancelled') {
         rideWhereClause += ` AND rr.status = 'cancelled'`;
+      } else if (type === 'send_item') {
+        rideWhereClause += ` AND 1 = 0`;
       }
     }
 
-    // টাইম ফিল্টারগুলো r. এর জায়গায় rr. করুন
     if (time === 'today') {
       rideWhereClause += ` AND DATE(rr.created_at) = CURRENT_DATE`;
     } else if (time === 'this_week') {
