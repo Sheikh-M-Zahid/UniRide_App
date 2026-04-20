@@ -81,13 +81,13 @@ const createSendItemRequest = async (userId, payload) => {
       sender_name,
       sender_phone,
       pickup_location,
-      destination_location,
+      drop_location,
       rider_id,
       rider_phone,
       delivery_fee,
       status
     )
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'Pending')
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'pending')
     RETURNING *`,
     [
       finalReceiverId,
