@@ -197,6 +197,67 @@ const listJoinedRides = async (passengerId) => {
   return result.rows;
 };
 
+
+// ==========================================
+// নতুন যোগ করা অংশ এখান থেকে শুরু
+// ==========================================
+
+const searchRides = async (payload) => {
+  const { pickup_lat, pickup_lng, destination_lat, destination_lng } = payload;
+
+  const apiKey = process.env.GOOGLE_MAPS_API_KEY; 
+  const url = `https://maps.googleapis.com/maps/api/distancematrix/json?destinations=${destination_lat},${destination_lng}&origins=${pickup_lat},${pickup_lng}&key=${apiKey}`;
+
+  let distance_km = 0;
+  let estimated_time = 0; 
+
+  try {
+    const mapResponse = await fetch(url);
+    const mapData = await mapResponse.json();
+
+    if (mapData.status === 'OK' && mapData.rows[0].elements[0].status === 'OK') {
+      const element = mapData.rows[0].elements[0];
+      distance_km = element.distance.value / 1000;
+      estimated_time = Math.ceil(element.duration.value / 60);
+    } else {
+      console.warn('Google Maps API Warning: Could not calculate precise route.');
+    }
+  } catch (error) {
+    console.error("Maps API Fetch Error:", error);
+    throw new Error('Failed to fetch dynamic distance from map.');
+  }
+
+  // আপনার পছন্দমতো রেট পরিবর্তন করে নিতে পারেন
+  const base_fare = 40; 
+  const per_km_rate = 7; 
+  const per_minute_rate = 2; 
+  
+  const estimated_fare = Math.ceil(base_fare + (distance_km * per_km_rate) + (estimated_time * per_minute_rate));
+
+  const result = await rideDb.query(
+    `SELECT r.*, 
+            u.first_name, u.last_name, u.university_email, u.phone, u.rating,
+            v.vehicle_type, v.company, v.model, v.number_plate, v.total_seats
+     FROM rides r
+     JOIN users u ON r.rider_id = u.user_id
+     LEFT JOIN vehicles v ON r.vehicle_id = v.vehicle_id
+     WHERE r.status = 'Active'
+     ORDER BY r.created_at DESC`
+  );
+
+  return {
+    distance_km: parseFloat(distance_km.toFixed(2)),
+    estimated_time: estimated_time,
+    estimated_fare: estimated_fare,
+    availableRides: result.rows
+  };
+};
+
+// ==========================================
+// নতুন যোগ করা অংশ এখানে শেষ
+// ==========================================
+
+
 module.exports = {
   createRide,
   listActiveRides,
@@ -206,4 +267,5 @@ module.exports = {
   changeRideStatus,
   listMyCreatedRides,
   listJoinedRides,
+  searchRides, // <-- এটি নতুন যোগ করা হয়েছে
 };
