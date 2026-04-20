@@ -4,11 +4,12 @@ const generateOtp = require('../utils/generateOtp');
 const { generateToken } = require('../utils/jwt');
 const { hashPassword, comparePassword } = require('../utils/password');
 const { isValidUniversityEmail } = require('../utils/validators');
-const { savePasswordRecoveryOtp } = require('./otpService');
+const { savePasswordRecoveryOtp, createOtp, verifyOtp: verifyOtpFromService } = require('./otpService');
 const { sendPasswordRecoveryOtpEmail } = require('./mailService');
 const { verifyResetToken, generateResetToken } = require('./resetTokenService');
 
 const normalizeEmail = (email) => email.trim().toLowerCase();
+const normalize = (email) => email.trim().toLowerCase();
 
 const checkEwuAllowedUser = async (email) => {
   const normalized = normalizeEmail(email);
@@ -336,11 +337,6 @@ const findAccount = async (email) => {
   };
 };
 
-const { createOtp, verifyOtp: verifyOtpFromService } = require('./otpService');
-const { generateResetToken: generateResetTokenUtil } = require('./resetTokenService');
-
-const normalize = (email) => email.trim().toLowerCase();
-
 /* VERIFY OTP */
 const verifyRecoveryOtp = async (email, otp) => {
   const normalized = normalize(email);
@@ -364,7 +360,7 @@ const verifyRecoveryOtp = async (email, otp) => {
 
   await verifyOtpFromService(normalized, otp);
 
-  const resetToken = generateResetTokenUtil(normalized);
+  const resetToken = generateResetToken(normalized);
 
   return {
     email: normalized,
@@ -396,15 +392,11 @@ const resendRecoveryOtp = async (email) => {
   return true;
 };
 
-const { verifyResetToken } = require('./resetTokenService');
-const { hashPassword } = require('../utils/password');
-
 const resetPasswordWithToken = async (
   resetToken,
   newPassword,
   confirmPassword
 ) => {
-  // 1. Validation
   if (!resetToken) {
     throw new Error('Invalid or expired reset session. Please verify OTP again.');
   }
@@ -421,7 +413,6 @@ const resetPasswordWithToken = async (
     throw new Error('Passwords do not match.');
   }
 
-  // 2. Verify reset token
   let decoded;
   try {
     decoded = verifyResetToken(resetToken);
@@ -429,14 +420,12 @@ const resetPasswordWithToken = async (
     throw new Error('Invalid or expired reset session. Please verify OTP again.');
   }
 
-  // 3. Check token purpose
   if (decoded.purpose !== 'password_reset') {
     throw new Error('Invalid reset token.');
   }
 
   const email = decoded.email;
 
-  // 4. Check user exists
   const userResult = await rideDb.query(
     `SELECT user_id FROM users WHERE university_email = $1`,
     [email]
@@ -446,10 +435,8 @@ const resetPasswordWithToken = async (
     throw new Error('User account not found.');
   }
 
-  // 5. Hash new password
   const password_hash = await hashPassword(newPassword);
 
-  // 6. Update password
   await rideDb.query(
     `UPDATE users
      SET password_hash = $1
@@ -459,7 +446,6 @@ const resetPasswordWithToken = async (
 
   return true;
 };
-
 
 module.exports = {
   sendOtp,
