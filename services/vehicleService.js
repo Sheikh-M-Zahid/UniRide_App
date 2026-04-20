@@ -1,6 +1,6 @@
 const rideDb = require('../config/rideDb');
 
-const addVehicle = async (userId, payload) => {
+const addVehicle = async (userId, payload, files) => {
   const {
     vehicle_type,
     company,
@@ -10,13 +10,25 @@ const addVehicle = async (userId, payload) => {
     total_seats,
   } = payload;
 
+  const varsity_id_photo = files?.varsity_id_photo?.[0]?.filename ?? null;
+  const driver_profile_photo = files?.driver_profile_photo?.[0]?.filename ?? null;
+  const driving_license_photo = files?.driving_license_photo?.[0]?.filename ?? null;
+  const vehicle_registration_photo = files?.vehicle_registration_photo?.[0]?.filename ?? null;
+  const tax_token_photo = files?.tax_token_photo?.[0]?.filename ?? null;
+
   const result = await rideDb.query(
     `INSERT INTO vehicles (
-      user_id, vehicle_type, company, model, year, number_plate, total_seats
+      user_id, vehicle_type, company, model, year, number_plate, total_seats,
+      varsity_id_photo, driver_profile_photo, driving_license_photo,
+      vehicle_registration_photo, tax_token_photo
     )
-    VALUES ($1, $2, $3, $4, $5, $6, $7)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
     RETURNING *`,
-    [userId, vehicle_type, company, model, year, number_plate, total_seats]
+    [
+      userId, vehicle_type, company, model, year, number_plate, total_seats,
+      varsity_id_photo, driver_profile_photo, driving_license_photo,
+      vehicle_registration_photo, tax_token_photo,
+    ]
   );
 
   return result.rows[0];
