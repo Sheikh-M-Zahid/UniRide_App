@@ -42,16 +42,28 @@ const getActivityDashboard = async ({
 }) => {
   const offset = (page - 1) * limit;
 
-  let rideWhereClause = `WHERE r.rider_id = $1`;
+  let rideWhereClause = `WHERE rr.passenger_id = $1`;
   const rideValues = [userId];
   let rideIndex = 2;
 
   if (type !== 'all') {
     if (type === 'reserved') {
-      rideWhereClause += ` AND r.status = $${rideIndex}`;
-      rideValues.push('assigned');
-      rideIndex++;
-    } else if (type === 'completed' || type === 'cancelled') {
+      rideWhereClause += ` AND rr.status = 'accepted'`; 
+      } else if (type === 'completed') {
+        rideWhereClause += ` AND rr.status = 'accepted' AND r.status = 'completed'`;
+      } else if (type === 'cancelled') {
+        rideWhereClause += ` AND rr.status = 'cancelled'`;
+      }
+    }
+
+    // টাইম ফিল্টারগুলো r. এর জায়গায় rr. করুন
+    if (time === 'today') {
+      rideWhereClause += ` AND DATE(rr.created_at) = CURRENT_DATE`;
+    } else if (time === 'this_week') {
+      rideWhereClause += ` AND rr.created_at >= DATE_TRUNC('week', CURRENT_DATE)`;
+    } else if (time === 'this_month') {
+      rideWhereClause += ` AND rr.created_at >= DATE_TRUNC('month', CURRENT_DATE)`;
+    }
       rideWhereClause += ` AND r.status = $${rideIndex}`;
       rideValues.push(type);
       rideIndex++;
@@ -72,41 +84,55 @@ const getActivityDashboard = async ({
     SELECT
       COUNT(*)::int AS total,
       COUNT(*) FILTER (WHERE r.status = 'completed')::int AS completed,
-      COUNT(*) FILTER (WHERE r.status = 'cancelled')::int AS cancelled,
-      COALESCE(SUM(CASE WHEN r.status = 'completed' THEN r.total_fare ELSE 0 END), 0) AS earnings
-    FROM rides r
+      COUNT(*) FILTER (WHERE rr.status = 'cancelled')::int AS cancelled,
+      COALESCE(SUM(CASE WHEN r.status = 'completed' THEN rr.estimated_fare ELSE 0 END), 0) AS earnings
+    FROM ride_requests rr
+    LEFT JOIN rides r ON rr.ride_id = r.ride_id
     ${rideWhereClause}
   `;
 
   const rideListQuery = `
     SELECT
-      r.ride_id AS id,
+      rr.request_id AS id,
       'ride' AS item_type,
       'Ride Activity' AS title,
-      '' AS name,
-      '' AS phone,
-      r.start_location AS pickup,
-      r.destination,
-      COALESCE(r.travel_time, '') AS time,
-      COALESCE(r.total_fare, 0) AS fare,
-      TO_CHAR(r.created_at, 'DD Mon YYYY') AS date,
-      CASE
-        WHEN r.status = 'assigned' THEN 'reserved'
-        ELSE r.status
-      END AS status,
-      r.created_at,
-      NULL::float AS total_distance_km,
-      NULL::int AS estimated_travel_minutes,
-      NULL::text AS rider_name,
-      NULL::text AS rider_phone,
-      FALSE AS can_cancel
-    FROM rides r
+      u.first_name || ' ' || u.last_name AS name,
+      u.phone AS phone,
+      rr.pickup_location AS pickup,
+      rr.destination,
+      COALESCE(rr.estimated_minutes::text, '0') AS time,
+      COALESCE(rr.estimated_fare, 0) AS fare,
+      TO_CHAR(rr.created_at, 'DD Mon YYYY') AS date,
+      rr.status,
+      rr.created_at,
+      rr.distance_km AS total_distance_km,
+      rr.estimated_minutes AS estimated_travel_minutes,
+      u.first_name || ' ' || u.last_name AS rider_name,
+      u.phone AS rider_phone,
+      (rr.status = 'pending') AS can_cancel
+    FROM ride_requests rr
+    LEFT JOIN rides r ON rr.ride_id = r.ride_id
+    LEFT JOIN users u ON rr.rider_id = u.user_id
     ${rideWhereClause}
-    ORDER BY r.created_at DESC
+    ORDER BY rr.created_at DESC
   `;
 
   const rideSummaryResult = await rideDb.query(rideSummaryQuery, rideValues);
   const rideActivitiesResult = await rideDb.query(rideListQuery, rideValues);
+
+  const sendItemResult = await rideDb.query(
+    `SELECT 
+      s_id AS id, 'send_item' AS item_type, 'Parcel Delivery' AS title,
+      receiver_name AS name, receiver_phone AS phone, pickup_location AS pickup,
+      drop_location AS destination, estimated_minutes::text AS time,
+      delivery_fee AS fare, TO_CHAR(created_at, 'DD Mon YYYY') AS date,
+      status, created_at
+     FROM send_items 
+     WHERE (receiver_id = $1 OR rider_id = $1)
+     ${time === 'today' ? "AND created_at >= CURRENT_DATE" : ""}
+     ORDER BY created_at DESC`,
+    [userId]
+  );
 
   const reserveData = await reserveService.getReserveActivityList({
     userId,
@@ -118,6 +144,7 @@ const getActivityDashboard = async ({
   const reserveSummary = reserveData.summary || {};
 
   const mergedActivities = [
+    // ১. সাধারণ রাইড এর ডাটা (Ride Requests)
     ...(rideActivitiesResult.rows || []).map((row) => ({
       id: row.id,
       item_type: row.item_type,
@@ -137,6 +164,25 @@ const getActivityDashboard = async ({
       riderPhone: row.rider_phone,
       canCancel: row.can_cancel === true,
     })),
+
+    // ২. পার্সেল ডেলিভারি ডাটা (Send Items)
+    ...(sendItemResult.rows || []).map((row) => ({
+      id: row.id,
+      item_type: 'send_item',
+      title: row.title,
+      name: row.name, // Receiver Name
+      phone: row.phone, // Receiver Phone
+      pickup: row.pickup,
+      destination: row.destination,
+      time: row.time,
+      fare: Number(row.fare || 0),
+      date: row.date,
+      status: row.status,
+      created_at: row.created_at,
+      canCancel: false,
+    })),
+
+    // ৩. রিজার্ভ রাইড ডাটা (Reserves)
     ...((reserveData.activities || []).map((row) => ({
       ...row,
       created_at: row.created_at,
