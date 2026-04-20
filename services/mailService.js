@@ -1,74 +1,51 @@
 const nodemailer = require('nodemailer');
+require('dotenv').config();
 
-/* =========================
-   MAIL TRANSPORTER
-========================= */
 const transporter = nodemailer.createTransport({
-  service: 'gmail',
+  host: process.env.MAIL_HOST,
+  port: Number(process.env.MAIL_PORT),
+  secure: false,
   auth: {
     user: process.env.MAIL_USER,
     pass: process.env.MAIL_PASS,
   },
 });
 
-/* =========================
-   PASSWORD RECOVERY OTP
-========================= */
-const sendPasswordRecoveryOtpEmail = async (toEmail, otpCode) => {
+
+const sendMail = async ({ to, subject, text, html }) => {
   const mailOptions = {
-    from: `"UniRide Support" <${process.env.MAIL_USER}>`,
-    to: toEmail,
-    subject: 'UniRide Password Recovery OTP',
-    html: `
-      <div style="font-family: Arial, sans-serif; line-height: 1.6;">
-        <h2>🔐 UniRide Password Recovery</h2>
-        <p>Your OTP code is:</p>
-        <h1 style="letter-spacing: 6px; color:#14B8A6;">${otpCode}</h1>
-        <p>This OTP will expire in 10 minutes.</p>
-        <p>If you did not request this, please ignore this email.</p>
-      </div>
-    `,
+    from: process.env.MAIL_FROM || process.env.MAIL_USER,
+    to,
+    subject,
+    text,
+    html,
   };
 
-  await transporter.sendMail(mailOptions);
+  return transporter.sendMail(mailOptions);
 };
 
-/* =========================
-   SIGNUP OTP
-========================= */
-const sendSignupOtpEmail = async (toEmail, otpCode) => {
-  const mailOptions = {
-    from: `"UniRide" <${process.env.MAIL_USER}>`,
-    to: toEmail,
-    subject: 'UniRide Signup Verification OTP',
-    html: `
-      <div style="font-family: Arial, sans-serif; line-height: 1.6;">
-        <h2>🚀 Welcome to UniRide</h2>
-        <p>Your signup verification OTP is:</p>
-        <h1 style="letter-spacing: 6px; color:#14B8A6;">${otpCode}</h1>
-        <p>This OTP will expire in 5 minutes.</p>
-        <p>Please do not share this code with anyone.</p>
-      </div>
-    `,
-  };
-
-  await transporter.sendMail(mailOptions);
-};
-
-/* =========================
-   OPTIONAL TEST FUNCTION
-========================= */
-const testEmail = async (toEmail) => {
+const sendPasswordRecoveryOtpEmail = async (email, otp) => {
   await transporter.sendMail({
-    from: `"UniRide Test" <${process.env.MAIL_USER}>`,
-    to: toEmail,
-    subject: 'Test Email',
-    text: 'Your email service is working correctly 🚀',
+    from: process.env.MAIL_FROM,
+    to: email,
+    subject: 'UniRide Password Recovery OTP',
+    text: `Your password recovery OTP is ${otp}`,
   });
 };
 
 module.exports = {
   sendPasswordRecoveryOtpEmail,
-  sendSignupOtpEmail,
-  testEmail,
+};
+
+  return sendMail({
+    to: email,
+    subject,
+    text,
+    html,
+  });
+};
+
+module.exports = {
+  sendMail,
+  sendPasswordRecoveryOtpEmail,
 };

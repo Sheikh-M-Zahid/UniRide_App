@@ -4,35 +4,13 @@ const generateOtp = require('../utils/generateOtp');
 const { generateToken } = require('../utils/jwt');
 const { hashPassword, comparePassword } = require('../utils/password');
 const { isValidUniversityEmail } = require('../utils/validators');
-const {
-  savePasswordRecoveryOtp,
-  createOtp,
-  verifyOtp: verifyOtpFromService,
-} = require('./otpService');
-const {
-  sendPasswordRecoveryOtpEmail,
-  sendSignupOtpEmail,
-} = require('./mailService');
-const {
-  generateResetToken,
-  verifyResetToken,
-} = require('./resetTokenService');
-const {
-  generateSignupToken,
-  verifySignupToken,
-} = require('./signupTokenService');
+const { savePasswordRecoveryOtp } = require('./otpService');
+const { sendPasswordRecoveryOtpEmail } = require('./mailService');
 
-const normalizeEmail = (email) => String(email || '').trim().toLowerCase();
+const normalizeEmail = (email) => email.trim().toLowerCase();
 
-/* =========================
-   COMMON HELPERS
-========================= */
 const checkEwuAllowedUser = async (email) => {
   const normalized = normalizeEmail(email);
-
-  if (!normalized) {
-    throw new Error('Email is required.');
-  }
 
   if (!isValidUniversityEmail(normalized)) {
     return { allowed: false, reason: 'Invalid university email domain.' };
@@ -78,8 +56,7 @@ const checkAdminStatus = async (email, userId = null) => {
     const roleResult = await rideDb.query(
       `SELECT role
        FROM user_roles
-       WHERE user_id = $1 AND role = 'admin'
-       LIMIT 1`,
+       WHERE user_id = $1 AND role = 'admin'`,
       [userId]
     );
 
@@ -95,386 +72,50 @@ const checkAdminStatus = async (email, userId = null) => {
   return { isAdmin: false };
 };
 
-const createAndStoreOtp = async (email, duration = '5 minutes') => {
-  const otpCode = generateOtp();
+const sendOtp = async (email) => {
+  const allowed = await checkEwuAllowedUser(email);
+  if (!allowed.allowed) {
+    throw new Error(allowed.reason);
+  }
 
-  await rideDb.query(`DELETE FROM otp_verifications WHERE email = $1`, [email]);
+  const otpCode = generateOtp();
 
   await rideDb.query(
     `INSERT INTO otp_verifications (email, otp_code, expires_at)
-     VALUES ($1, $2, CURRENT_TIMESTAMP + INTERVAL '${duration}')`,
-    [email, otpCode]
-  );
-
-  return otpCode;
-};
-
-/* =========================
-   SIGNUP EMAIL VERIFY FLOW
-========================= */
-const sendSignupOtp = async (emailInput) => {
-  const email = normalizeEmail(emailInput);
-
-  if (!email) {
-    throw new Error('Email is required.');
-  }
-
-  if (!isValidUniversityEmail(email)) {
-    throw new Error('Enter a valid university email (@std.ewubd.edu or @ewubd.edu).');
-  }
-
-  const allowed = await checkEwuAllowedUser(email);
-  if (!allowed.allowed) {
-    throw new Error(allowed.reason);
-  }
-
-  const existingUser = await rideDb.query(
-    `SELECT user_id
-     FROM users
-     WHERE university_email = $1
-     LIMIT 1`,
-    [email]
-  );
-
-  if (existingUser.rowCount > 0) {
-    throw new Error('This account already exists. Please log in instead.');
-  }
-
-  const otpCode = await createAndStoreOtp(email, '5 minutes');
-
-  if (typeof sendSignupOtpEmail === 'function') {
-    await sendSignupOtpEmail(email, otpCode);
-  }
-
-  return { email };
-};
-
-const verifySignupOtp = async (emailInput, otpInput) => {
-  const email = normalizeEmail(emailInput);
-  const otp = String(otpInput || '').trim();
-
-  if (!email || !otp) {
-    throw new Error('Email and OTP are required.');
-  }
-
-  if (!/^\d{6}$/.test(otp)) {
-    throw new Error('OTP must be 6 digits.');
-  }
-
-  const result = await rideDb.query(
-    `SELECT otp_id, otp_code, expires_at
-     FROM otp_verifications
-     WHERE email = $1
-     ORDER BY expires_at DESC
-     LIMIT 1`,
-    [email]
-  );
-
-  if (result.rowCount === 0) {
-    throw new Error('OTP not found. Please request a new code.');
-  }
-
-  const record = result.rows[0];
-
-  if (new Date(record.expires_at) < new Date()) {
-    throw new Error('OTP has expired. Please resend the code.');
-  }
-
-  if (String(record.otp_code) !== otp) {
-    throw new Error('The code you entered is incorrect.');
-  }
-
-  await rideDb.query(`DELETE FROM otp_verifications WHERE email = $1`, [email]);
-
-  return {
-    email,
-    verified: true,
-    signupToken: generateSignupToken(email),
-  };
-};
-
-const resendSignupOtp = async (emailInput) => {
-  const email = normalizeEmail(emailInput);
-
-  if (!email) {
-    throw new Error('Email is required.');
-  }
-
-  if (!isValidUniversityEmail(email)) {
-    throw new Error('Enter a valid university email (@std.ewubd.edu or @ewubd.edu).');
-  }
-
-  const allowed = await checkEwuAllowedUser(email);
-  if (!allowed.allowed) {
-    throw new Error(allowed.reason);
-  }
-
-  const existingUser = await rideDb.query(
-    `SELECT user_id
-     FROM users
-     WHERE university_email = $1
-     LIMIT 1`,
-    [email]
-  );
-
-  if (existingUser.rowCount > 0) {
-    throw new Error('Account already exists. Please login.');
-  }
-
-  const otpCode = await createAndStoreOtp(email, '5 minutes');
-
-  if (typeof sendSignupOtpEmail === 'function') {
-    await sendSignupOtpEmail(email, otpCode);
-  }
-
-  return {
-    email,
-    resent: true,
-  };
-};
-
-const googleSignupCheck = async (emailInput) => {
-  const email = normalizeEmail(emailInput);
-
-  if (!email) {
-    throw new Error('Email is required.');
-  }
-
-  if (!isValidUniversityEmail(email)) {
-    throw new Error('Enter a valid university email (@std.ewubd.edu or @ewubd.edu).');
-  }
-
-  const allowed = await checkEwuAllowedUser(email);
-  if (!allowed.allowed) {
-    throw new Error(allowed.reason);
-  }
-
-  const existingUser = await rideDb.query(
-    `SELECT user_id
-     FROM users
-     WHERE university_email = $1
-     LIMIT 1`,
-    [email]
+     VALUES ($1, $2, CURRENT_TIMESTAMP + INTERVAL '10 minutes')`,
+    [normalizeEmail(email), otpCode]
   );
 
   return {
-    email,
-    approved: true,
-    accountExists: existingUser.rowCount > 0,
+    email: normalizeEmail(email),
+    otpCode,
+    note: 'For production, send this OTP by email/SMS. Returning in response for now.',
   };
 };
 
-const register = async (payload) => {
-  const {
-    signupToken,
-    first_name,
-    last_name,
-    phone,
-    recovery_phone,
-    emergency_phone,
-    gender,
-    blood_group,
-    date_of_birth,
-    home_address,
-    hostel_address,
-    campus_address,
-    password,
-  } = payload;
-
-  if (
-    !signupToken ||
-    !first_name ||
-    !last_name ||
-    !phone ||
-    !gender ||
-    !date_of_birth ||
-    !password
-  ) {
-    throw new Error('Required fields are missing.');
-  }
-
-  if (String(password).trim().length < 6) {
-    throw new Error('Password must be at least 6 characters.');
-  }
-
-  const normalizedGender = String(gender).trim().toLowerCase();
-  if (!['male', 'female'].includes(normalizedGender)) {
-    throw new Error('Gender must be male or female.');
-  }
-
-  let decoded;
-  try {
-    decoded = verifySignupToken(signupToken);
-  } catch (error) {
-    throw new Error('Invalid or expired signup session. Please verify OTP again.');
-  }
-
-  if (decoded.purpose !== 'signup_verification') {
-    throw new Error('Invalid signup session.');
-  }
-
-  const email = normalizeEmail(decoded.email);
-
-  const allowed = await checkEwuAllowedUser(email);
-  if (!allowed.allowed) {
-    throw new Error(allowed.reason);
-  }
-
-  const existingUser = await rideDb.query(
-    `SELECT user_id
-     FROM users
-     WHERE university_email = $1
-     LIMIT 1`,
-    [email]
-  );
-
-  if (existingUser.rowCount > 0) {
-    throw new Error('Account already exists.');
-  }
-
-  const password_hash = await hashPassword(String(password).trim());
-  const client = await rideDb.connect();
-
-  try {
-    await client.query('BEGIN');
-
-    const userInsert = await client.query(
-      `INSERT INTO users (
-        university_email,
-        password_hash,
-        first_name,
-        last_name,
-        phone,
-        recovery_phone,
-        emergency_phone,
-        gender,
-        blood_group,
-        date_of_birth,
-        home_address,
-        hostel_address,
-        campus_address,
-        account_status,
-        activity_status
-      )
-      VALUES (
-        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
-        $11, $12, $13, 'active', 'active'
-      )
-      RETURNING
-        user_id,
-        university_email,
-        first_name,
-        last_name,
-        phone,
-        account_status,
-        activity_status,
-        created_at`,
-      [
-        email,
-        password_hash,
-        String(first_name).trim(),
-        String(last_name).trim(),
-        String(phone).trim(),
-        recovery_phone ? String(recovery_phone).trim() : null,
-        emergency_phone ? String(emergency_phone).trim() : null,
-        normalizedGender,
-        blood_group ? String(blood_group).trim() : null,
-        date_of_birth,
-        String(home_address).trim(),
-        hostel_address ? String(hostel_address).trim() : null,
-        campus_address ? String(campus_address).trim() : null,
-      ]
-    );
-
-    const user = userInsert.rows[0];
-
-    await client.query(
-      `INSERT INTO user_roles (user_id, role)
-       VALUES ($1, 'user')`,
-      [user.user_id]
-    );
-
-    await client.query(
-      `DELETE FROM otp_verifications
-       WHERE email = $1`,
-      [email]
-    );
-
-    await client.query('COMMIT');
-
-    const adminCheck = await checkAdminStatus(email, user.user_id);
-
-    const token = generateToken({
-      userId: user.user_id,
-      email: user.university_email,
-      isAdmin: adminCheck.isAdmin,
-    });
-
-    return {
-      user,
-      token,
-      isAdmin: adminCheck.isAdmin,
-    };
-    
-  } catch (error) {
-    await client.query('ROLLBACK');
-    throw error;
-  } finally {
-    client.release();
-  }
-};
-
-/* =========================
-   BASIC OTP / AUTH
-========================= */
-const sendOtp = async (emailInput) => {
-  const email = normalizeEmail(emailInput);
-
-  const allowed = await checkEwuAllowedUser(email);
-  if (!allowed.allowed) {
-    throw new Error(allowed.reason);
-  }
-
-  await createAndStoreOtp(email, '10 minutes');
-
-  return {
-    email,
-    message: 'OTP sent successfully.',
-  };
-};
-
-const verifyOtp = async (emailInput, otpCode) => {
-  const email = normalizeEmail(emailInput);
-  const otp = String(otpCode || '').trim();
-
+const verifyOtp = async (email, otpCode) => {
   const result = await rideDb.query(
     `SELECT otp_id, email, otp_code, expires_at
      FROM otp_verifications
      WHERE email = $1 AND otp_code = $2
      ORDER BY expires_at DESC
      LIMIT 1`,
-    [email, otp]
+    [normalizeEmail(email), otpCode]
   );
 
   if (result.rowCount === 0) {
     throw new Error('Invalid OTP.');
   }
 
-  const otpRow = result.rows[0];
+  const otp = result.rows[0];
 
-  if (new Date(otpRow.expires_at) < new Date()) {
+  if (new Date(otp.expires_at) < new Date()) {
     throw new Error('OTP expired.');
   }
 
-  await rideDb.query(
-    `DELETE FROM otp_verifications WHERE otp_id = $1`,
-    [otpRow.otp_id]
-  );
+  await rideDb.query(`DELETE FROM otp_verifications WHERE otp_id = $1`, [otp.otp_id]);
 
-  return {
-    verified: true,
-    email: otpRow.email,
-  };
+  return { verified: true, email: otp.email };
 };
 
 const signup = async ({
@@ -525,7 +166,6 @@ const signup = async ({
   );
 
   const adminCheck = await checkAdminStatus(normalizedEmail, user.user_id);
-
   const token = generateToken({
     userId: user.user_id,
     email: user.university_email,
@@ -539,19 +179,19 @@ const signup = async ({
   };
 };
 
-const login = async (emailInput, password) => {
-  const email = normalizeEmail(emailInput);
+const login = async (email, password) => {
+  const normalizedEmail = normalizeEmail(email);
 
-  const allowed = await checkEwuAllowedUser(email);
+  const allowed = await checkEwuAllowedUser(normalizedEmail);
   if (!allowed.allowed) {
     throw new Error(allowed.reason);
   }
 
-    const result = await rideDb.query(
-    `SELECT user_id, university_email, password_hash, first_name, last_name, phone, account_status, selected_mode
+  const result = await rideDb.query(
+    `SELECT user_id, university_email, password_hash, first_name, last_name, phone, account_status
      FROM users
      WHERE university_email = $1`,
-    [email]
+    [normalizedEmail]
   );
 
   if (result.rowCount === 0) {
@@ -560,10 +200,7 @@ const login = async (emailInput, password) => {
 
   const user = result.rows[0];
 
-  if (
-    user.account_status &&
-    String(user.account_status).toLowerCase() === 'suspended'
-  ) {
+  if (user.account_status === 'Suspended') {
     throw new Error('Your account is suspended.');
   }
 
@@ -573,7 +210,7 @@ const login = async (emailInput, password) => {
     throw new Error('Invalid email or password.');
   }
 
-  const adminCheck = await checkAdminStatus(email, user.user_id);
+  const adminCheck = await checkAdminStatus(normalizedEmail, user.user_id);
 
   const token = generateToken({
     userId: user.user_id,
@@ -581,29 +218,9 @@ const login = async (emailInput, password) => {
     isAdmin: adminCheck.isAdmin,
   });
 
-    const vehicleCountResult = await rideDb.query(
-    `
-    SELECT COUNT(*)::int AS vehicle_count
-    FROM vehicles
-    WHERE user_id = $1
-    `,
-    [user.user_id]
-  );
-
-  const vehicleCount = vehicleCountResult.rows[0]?.vehicle_count || 0;
-  const selectedMode = user.selected_mode || 'passenger';
-
-  let nextScreen = 'passenger_home';
-
-  if (selectedMode === 'rider') {
-    nextScreen = vehicleCount > 0 ? 'rider_dashboard' : 'rider_onboarding';
-  }
-
   return {
     token,
     isAdmin: adminCheck.isAdmin,
-    nextScreen,
-    selectedMode,
     user: {
       user_id: user.user_id,
       university_email: user.university_email,
@@ -611,24 +228,23 @@ const login = async (emailInput, password) => {
       last_name: user.last_name,
       phone: user.phone,
       account_status: user.account_status,
-      selected_mode: selectedMode,
     },
   };
 };
 
-const googleLogin = async (emailInput) => {
-  const email = normalizeEmail(emailInput);
+const googleLogin = async (email) => {
+  const normalizedEmail = normalizeEmail(email);
 
-  const allowed = await checkEwuAllowedUser(email);
+  const allowed = await checkEwuAllowedUser(normalizedEmail);
   if (!allowed.allowed) {
     throw new Error(allowed.reason);
   }
 
   let userResult = await rideDb.query(
-    `SELECT user_id, university_email, first_name, last_name, phone, account_status, selected_mode
+    `SELECT user_id, university_email, first_name, last_name, phone, account_status
      FROM users
      WHERE university_email = $1`,
-    [email]
+    [normalizedEmail]
   );
 
   if (userResult.rowCount === 0) {
@@ -638,7 +254,7 @@ const googleLogin = async (emailInput) => {
       `INSERT INTO users (university_email, password_hash)
        VALUES ($1, $2)
        RETURNING user_id, university_email, first_name, last_name, phone, account_status`,
-      [email, randomTempPassword]
+      [normalizedEmail, randomTempPassword]
     );
 
     await rideDb.query(
@@ -650,14 +266,11 @@ const googleLogin = async (emailInput) => {
 
   const user = userResult.rows[0];
 
-  if (
-    user.account_status &&
-    String(user.account_status).toLowerCase() === 'suspended'
-  ) {
+  if (user.account_status === 'Suspended') {
     throw new Error('Your account is suspended.');
   }
 
-  const adminCheck = await checkAdminStatus(email, user.user_id);
+  const adminCheck = await checkAdminStatus(normalizedEmail, user.user_id);
 
   const token = generateToken({
     userId: user.user_id,
@@ -665,39 +278,15 @@ const googleLogin = async (emailInput) => {
     isAdmin: adminCheck.isAdmin,
   });
 
-    const vehicleCountResult = await rideDb.query(
-    `
-    SELECT COUNT(*)::int AS vehicle_count
-    FROM vehicles
-    WHERE user_id = $1
-    `,
-    [user.user_id]
-  );
-
-  const vehicleCount = vehicleCountResult.rows[0]?.vehicle_count || 0;
-  const selectedMode = user.selected_mode || 'passenger';
-
-  let nextScreen = 'passenger_home';
-
-  if (selectedMode === 'rider') {
-    nextScreen = vehicleCount > 0 ? 'rider_dashboard' : 'rider_onboarding';
-  }
-
   return {
     token,
     isAdmin: adminCheck.isAdmin,
-    nextScreen,
-    selectedMode,
     user,
   };
 };
 
-/* =========================
-   PASSWORD RESET FLOW
-========================= */
 const resetPassword = async (email, otpCode, newPassword) => {
   await verifyOtp(email, otpCode);
-
   const password_hash = await hashPassword(newPassword);
 
   const result = await rideDb.query(
@@ -716,11 +305,11 @@ const resetPassword = async (email, otpCode, newPassword) => {
 };
 
 const findAccount = async (email) => {
-  const normalizedEmail = normalizeEmail(email);
-
-  if (!normalizedEmail) {
+  if (!email || !String(email).trim()) {
     throw new Error('Please enter your university email.');
   }
+
+  const normalizedEmail = normalizeEmail(email);
 
   if (!isValidUniversityEmail(normalizedEmail)) {
     throw new Error('Enter a valid university email (@std.ewubd.edu or @ewubd.edu).');
@@ -738,6 +327,7 @@ const findAccount = async (email) => {
   }
 
   const otpRecord = await savePasswordRecoveryOtp(normalizedEmail);
+
   await sendPasswordRecoveryOtpEmail(normalizedEmail, otpRecord.otp_code);
 
   return {
@@ -745,14 +335,24 @@ const findAccount = async (email) => {
   };
 };
 
+
+const rideDb = require('../config/rideDb');
+const { isValidUniversityEmail } = require('../utils/validators');
+const { createOtp, verifyOtp } = require('./otpService');
+const { sendPasswordRecoveryOtpEmail } = require('./mailService');
+const { generateResetToken } = require('./resetTokenService');
+
+const normalize = (email) => email.trim().toLowerCase();
+
+/* VERIFY OTP */
 const verifyRecoveryOtp = async (email, otp) => {
-  const normalized = normalizeEmail(email);
+  const normalized = normalize(email);
 
   if (!isValidUniversityEmail(normalized)) {
     throw new Error('Enter a valid university email (@std.ewubd.edu or @ewubd.edu).');
   }
 
-  if (!/^\d{6}$/.test(String(otp || '').trim())) {
+  if (!/^\d{6}$/.test(otp)) {
     throw new Error('OTP must be 6 digits.');
   }
 
@@ -765,7 +365,7 @@ const verifyRecoveryOtp = async (email, otp) => {
     throw new Error('No account found with this university email.');
   }
 
-  await verifyOtpFromService(normalized, String(otp).trim());
+  await verifyOtp(normalized, otp);
 
   const resetToken = generateResetToken(normalized);
 
@@ -775,8 +375,9 @@ const verifyRecoveryOtp = async (email, otp) => {
   };
 };
 
+/* RESEND OTP */
 const resendRecoveryOtp = async (email) => {
-  const normalized = normalizeEmail(email);
+  const normalized = normalize(email);
 
   if (!isValidUniversityEmail(normalized)) {
     throw new Error('Enter a valid university email (@std.ewubd.edu or @ewubd.edu).');
@@ -792,12 +393,22 @@ const resendRecoveryOtp = async (email) => {
   }
 
   const { otp } = await createOtp(normalized);
+
   await sendPasswordRecoveryOtpEmail(normalized, otp);
 
   return true;
 };
 
-const resetPasswordWithToken = async (resetToken, newPassword, confirmPassword) => {
+const { verifyResetToken } = require('./resetTokenService');
+const { hashPassword } = require('../utils/password');
+const rideDb = require('../config/rideDb');
+
+const resetPasswordWithToken = async (
+  resetToken,
+  newPassword,
+  confirmPassword
+) => {
+  // 1. Validation
   if (!resetToken) {
     throw new Error('Invalid or expired reset session. Please verify OTP again.');
   }
@@ -814,6 +425,7 @@ const resetPasswordWithToken = async (resetToken, newPassword, confirmPassword) 
     throw new Error('Passwords do not match.');
   }
 
+  // 2. Verify reset token
   let decoded;
   try {
     decoded = verifyResetToken(resetToken);
@@ -821,12 +433,14 @@ const resetPasswordWithToken = async (resetToken, newPassword, confirmPassword) 
     throw new Error('Invalid or expired reset session. Please verify OTP again.');
   }
 
+  // 3. Check token purpose
   if (decoded.purpose !== 'password_reset') {
     throw new Error('Invalid reset token.');
   }
 
   const email = decoded.email;
 
+  // 4. Check user exists
   const userResult = await rideDb.query(
     `SELECT user_id FROM users WHERE university_email = $1`,
     [email]
@@ -836,8 +450,10 @@ const resetPasswordWithToken = async (resetToken, newPassword, confirmPassword) 
     throw new Error('User account not found.');
   }
 
+  // 5. Hash new password
   const password_hash = await hashPassword(newPassword);
 
+  // 6. Update password
   await rideDb.query(
     `UPDATE users
      SET password_hash = $1
@@ -848,12 +464,8 @@ const resetPasswordWithToken = async (resetToken, newPassword, confirmPassword) 
   return true;
 };
 
+
 module.exports = {
-  sendSignupOtp,
-  verifySignupOtp,
-  resendSignupOtp,
-  googleSignupCheck,
-  register,
   sendOtp,
   verifyOtp,
   signup,

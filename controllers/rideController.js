@@ -1,100 +1,58 @@
-const { successResponse, errorResponse } = require('../utils/apiResponse');
+const asyncHandler = require('../utils/asyncHandler');
+const { successResponse } = require('../utils/apiResponse');
 const rideService = require('../services/rideService');
 
-const createRide = async (req, res) => {
-  try {
-    const data = await rideService.createRide(req.user.userId, req.body);
-    return successResponse(res, 'Ride created successfully.', data, 201);
-  } catch (error) {
-    return errorResponse(res, error.message || 'Failed to create ride.', 400);
-  }
-};
+const createRide = asyncHandler(async (req, res) => {
+  const data = await rideService.createRide(req.user.userId, req.body);
+  return successResponse(res, 'Ride created successfully.', data, 201);
+});
 
-const listActiveRides = async (req, res) => {
-  try {
-    const data = await rideService.listActiveRides();
-    return successResponse(res, 'Active rides fetched successfully.', data);
-  } catch (error) {
-    return errorResponse(res, error.message || 'Failed to fetch rides.', 500);
-  }
-};
+const listActiveRides = asyncHandler(async (req, res) => {
+  const data = await rideService.listActiveRides();
+  return successResponse(res, 'Active rides fetched successfully.', data);
+});
 
-const getRideDetails = async (req, res) => {
-  try {
-    const data = await rideService.getRideDetails(req.params.rideId);
-    return successResponse(res, 'Ride details fetched successfully.', data);
-  } catch (error) {
-    return errorResponse(res, error.message || 'Failed to fetch ride details.', 404);
-  }
-};
+const getRideDetails = asyncHandler(async (req, res) => {
+  const data = await rideService.getRideDetails(req.params.rideId);
+  return successResponse(res, 'Ride details fetched successfully.', data);
+});
 
-const joinRide = async (req, res) => {
-  try {
-    const { fare } = req.body;
-    const data = await rideService.joinRide(
-      req.params.rideId,
-      req.user.userId,
-      fare
-    );
-    return successResponse(res, 'Ride joined successfully.', data, 201);
-  } catch (error) {
-    return errorResponse(res, error.message || 'Failed to join ride.', 400);
-  }
-};
+const joinRide = asyncHandler(async (req, res) => {
+  const data = await rideService.joinRide(
+    req.params.rideId,
+    req.user.userId,
+    req.body.fare
+  );
+  return successResponse(res, 'Ride joined successfully.', data, 201);
+});
 
-const confirmParticipant = async (req, res) => {
-  try {
-    const data = await rideService.confirmParticipant(
-      req.params.rideId,
-      req.user.userId,
-      req.params.participantId
-    );
-    return successResponse(res, 'Participant confirmed successfully.', data);
-  } catch (error) {
-    return errorResponse(res, error.message || 'Failed to confirm participant.', 400);
-  }
-};
+const confirmParticipant = asyncHandler(async (req, res) => {
+  const data = await rideService.confirmParticipant(
+    req.params.rideId,
+    req.user.userId,
+    req.params.participantId
+  );
+  return successResponse(res, 'Participant confirmed successfully.', data);
+});
 
-const changeRideStatus = async (req, res) => {
-  try {
-    const { status } = req.body;
-    const data = await rideService.changeRideStatus(
-      req.params.rideId,
-      req.user.userId,
-      status
-    );
-    return successResponse(res, 'Ride status updated successfully.', data);
-  } catch (error) {
-    return errorResponse(res, error.message || 'Failed to update ride status.', 400);
-  }
-};
+const changeRideStatus = asyncHandler(async (req, res) => {
+  const data = await rideService.changeRideStatus(
+    req.params.rideId,
+    req.user.userId,
+    req.body.status
+  );
+  return successResponse(res, 'Ride status changed successfully.', data);
+});
 
-const listMyCreatedRides = async (req, res) => {
-  try {
-    const data = await rideService.listMyCreatedRides(req.user.userId);
-    return successResponse(res, 'Created rides fetched successfully.', data);
-  } catch (error) {
-    return errorResponse(res, error.message || 'Failed to fetch created rides.', 500);
-  }
-};
+const listMyCreatedRides = asyncHandler(async (req, res) => {
+  const data = await rideService.listMyCreatedRides(req.user.userId);
+  return successResponse(res, 'Created rides fetched successfully.', data);
+});
 
-const listJoinedRides = async (req, res) => {
-  try {
-    const data = await rideService.listJoinedRides(req.user.userId);
-    return successResponse(res, 'Joined rides fetched successfully.', data);
-  } catch (error) {
-    return errorResponse(res, error.message || 'Failed to fetch joined rides.', 500);
-  }
-};
-
-const searchRides = async (req, res) => {
-  try {
-    const data = await rideService.searchRides(req.body);
-    return successResponse(res, 'Ride search completed successfully.', data);
-  } catch (error) {
-    return errorResponse(res, error.message || 'Failed to search rides.', 400);
-  }
-};
+const listJoinedRides = asyncHandler(async (req, res) => {
+  const data = await rideService.listJoinedRides(req.user.userId);
+  return successResponse(res, 'Joined rides fetched successfully.', data);
+});
 
 module.exports = {
   createRide,
@@ -105,5 +63,4 @@ module.exports = {
   changeRideStatus,
   listMyCreatedRides,
   listJoinedRides,
-  searchRides,
 };
