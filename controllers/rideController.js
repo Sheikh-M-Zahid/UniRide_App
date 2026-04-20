@@ -54,6 +54,14 @@ const listJoinedRides = asyncHandler(async (req, res) => {
   return successResponse(res, 'Joined rides fetched successfully.', data);
 });
 
+// ==========================================
+// নতুন যোগ করা ফাংশনটি ঠিক module.exports এর ওপরে থাকতে হবে
+// ==========================================
+const searchRides = asyncHandler(async (req, res) => {
+  const data = await rideService.searchRides(req.body);
+  return successResponse(res, 'Rides searched successfully.', data);
+});
+
 module.exports = {
   createRide,
   listActiveRides,
@@ -63,10 +71,5 @@ module.exports = {
   changeRideStatus,
   listMyCreatedRides,
   listJoinedRides,
-  searchRides,
+  searchRides, // <-- এখানে এক্সপোর্ট করা হলো
 };
-
-const searchRides = asyncHandler(async (req, res) => {
-  const data = await rideService.searchRides(req.body);
-  return successResponse(res, 'Rides searched successfully.', data);
-});
