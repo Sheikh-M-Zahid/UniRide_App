@@ -17,7 +17,7 @@ const buildProfileImageUrl = (req, storedPath) => {
 const getDashboardSummary = async ({ adminId, req }) => {
   const adminPromise = rideDb.query(
     `
-     SELECT
+    SELECT
       u.user_id,
       TRIM(CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.last_name, ''))) AS name,
       u.university_email AS email,
@@ -37,42 +37,57 @@ const getDashboardSummary = async ({ adminId, req }) => {
     SELECT
       (SELECT COUNT(*)::int FROM rides) AS total_ride,
       (SELECT COUNT(*)::int FROM users) AS total_user,
+
       (SELECT COUNT(*)::int FROM users WHERE account_status = 'active') AS active_users,
-      (SELECT COUNT(*)::int FROM users WHERE account_status <> 'active' OR account_status IS NULL) AS inactive_users,
+
       (
         SELECT COUNT(*)::int
-        FROM rider_availability
-        WHERE is_active = true
+        FROM users
+        WHERE account_status IS NULL OR account_status <> 'active'
+      ) AS inactive_users,
+
+      (
+        SELECT COUNT(DISTINCT ra.rider_id)::int
+        FROM rider_availability ra
+        INNER JOIN vehicles v
+          ON v.user_id = ra.rider_id
+        WHERE ra.is_active = true
+          AND v.verified = true
       ) AS active_riders,
+
       (
-        SELECT COUNT(*)::int
-        FROM users u
-        WHERE EXISTS (
-          SELECT 1
-          FROM vehicles v
-          WHERE v.user_id = u.user_id
-        )
+        SELECT COUNT(DISTINCT v.user_id)::int
+        FROM vehicles v
+        WHERE v.verified = true
       ) - (
-        SELECT COUNT(*)::int
-        FROM rider_availability
-        WHERE is_active = true
+        SELECT COUNT(DISTINCT ra.rider_id)::int
+        FROM rider_availability ra
+        INNER JOIN vehicles v
+          ON v.user_id = ra.rider_id
+        WHERE ra.is_active = true
+          AND v.verified = true
       ) AS inactive_riders,
+
       (
         SELECT COUNT(*)::int
         FROM transactions
         WHERE status = 'pending'
-      ) AS pending_payment_requests
+      ) AS pending_payment_requests,
+
+      (
+        SELECT COUNT(*)::int
+        FROM reports
+        WHERE status = 'unsolved'
+          AND COALESCE(is_spam, false) = false
+      ) AS pending_reports
     `
   );
 
-  const occupationStatsPromise = ewuAdminDb.query(
+  const registeredUsersPromise = rideDb.query(
     `
-    SELECT
-      COUNT(*) FILTER (WHERE occupation = 'student')::int AS student,
-      COUNT(*) FILTER (WHERE occupation = 'faculty')::int AS faculty,
-      COUNT(*) FILTER (WHERE occupation = 'staff')::int AS staff
-    FROM ewu_users
-    WHERE status = TRUE
+    SELECT university_email
+    FROM users
+    WHERE university_email IS NOT NULL
     `
   );
 
@@ -102,10 +117,10 @@ const getDashboardSummary = async ({ adminId, req }) => {
     `
   );
 
-  const [adminRes, rideStatsRes, occupationStatsRes, monthlyRideRes] = await Promise.all([
+  const [adminRes, rideStatsRes, registeredUsersRes, monthlyRideRes] = await Promise.all([
     adminPromise,
     rideStatsPromise,
-    occupationStatsPromise,
+    registeredUsersPromise,
     monthlyRidePromise,
   ]);
 
@@ -113,9 +128,35 @@ const getDashboardSummary = async ({ adminId, req }) => {
     throw new Error('Admin user not found or admin role is missing.');
   }
 
+  const registeredEmails = registeredUsersRes.rows
+    .map((row) => row.university_email)
+    .filter(Boolean);
+
+  let occupationRow = {
+    student: 0,
+    faculty: 0,
+    staff: 0,
+  };
+
+  if (registeredEmails.length > 0) {
+    const occupationStatsRes = await ewuAdminDb.query(
+      `
+      SELECT
+        COUNT(*) FILTER (WHERE occupation = 'student')::int AS student,
+        COUNT(*) FILTER (WHERE occupation = 'faculty')::int AS faculty,
+        COUNT(*) FILTER (WHERE occupation = 'staff')::int AS staff
+      FROM ewu_users
+      WHERE status = TRUE
+        AND university_email = ANY($1::text[])
+      `,
+      [registeredEmails]
+    );
+
+    occupationRow = occupationStatsRes.rows[0] || occupationRow;
+  }
+
   const adminRow = adminRes.rows[0];
   const statsRow = rideStatsRes.rows[0];
-  const occupationRow = occupationStatsRes.rows[0];
 
   const activeRiders = Math.max(Number(statsRow.active_riders || 0), 0);
   const inactiveRiders = Math.max(Number(statsRow.inactive_riders || 0), 0);
@@ -153,6 +194,7 @@ const getDashboardSummary = async ({ adminId, req }) => {
     },
     last5MonthsRide,
     pendingPaymentRequests: Number(statsRow.pending_payment_requests || 0),
+    pendingReports: Number(statsRow.pending_reports || 0),
   };
 };
 
