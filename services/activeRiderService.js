@@ -29,38 +29,32 @@ const getActiveRiders = async ({
   limit = 20,
 }) => {
   const safeFilter = ALLOWED_FILTERS.includes(filter) ? filter : 'all_active';
-  const safeLimit =
-    Number.isFinite(limit) && limit > 0 ? Math.min(limit, 100) : 20;
+  const safeLimit = Number.isFinite(limit) && limit > 0 ? Math.min(limit, 100) : 20;
   const safePage = Number.isFinite(page) && page > 0 ? page : 1;
   const offset = (safePage - 1) * safeLimit;
 
   const params = [];
   let whereClause = `
-    WHERE ar.active_ride_id IS NOT NULL
+    WHERE u.account_status = 'active'
+      AND ar.active_ride_id IS NOT NULL
   `;
 
   if (search.trim()) {
     params.push(`%${search.trim()}%`);
     whereClause += `
       AND (
-        COALESCE(ar.rider_name, '') ILIKE $${params.length}
-        OR COALESCE(ar.active_location, '') ILIKE $${params.length}
+        ar.rider_name ILIKE $${params.length}
         OR COALESCE(ar.phone, '') ILIKE $${params.length}
       )
     `;
   }
 
-  if (location.trim()) {
-    params.push(`%${location.trim()}%`);
-    whereClause += `
-      AND COALESCE(ar.active_location, '') ILIKE $${params.length}
-    `;
-  }
+  // live_locations টেবিলে address কলাম নেই, তাই location filter skip করা হয়েছে
 
   const baseCTE = `
     WITH active_rides AS (
       SELECT DISTINCT ON (r.rider_id)
-        r.ride_id AS active_ride_id,
+        r.id AS active_ride_id,
         r.rider_id,
         r.created_at AS active_since,
         r.start_location,
@@ -75,8 +69,8 @@ const getActiveRiders = async ({
         ll.user_id,
         ll.latitude,
         ll.longitude,
-        ll.address,
-        ll.location_name,
+        NULL::text AS address,
+        NULL::text AS location_name,
         ll.updated_at
       FROM live_locations ll
       ORDER BY ll.user_id, ll.updated_at DESC
@@ -92,16 +86,13 @@ const getActiveRiders = async ({
     today_earnings AS (
       SELECT
         t.user_id,
-        COALESCE(
-          SUM(
-            CASE
-              WHEN t.transaction_type IN ('ride_income', 'earning', 'rider_credit')
-              THEN t.amount
-              ELSE 0
-            END
-          ),
-          0
-        )::numeric(10,2) AS earning
+        COALESCE(SUM(
+          CASE
+            WHEN t.transaction_type IN ('ride_income', 'earning', 'rider_credit')
+            THEN t.amount
+            ELSE 0
+          END
+        ), 0)::numeric(10,2) AS earning
       FROM transactions t
       WHERE DATE(t.created_at) = CURRENT_DATE
       GROUP BY t.user_id
@@ -126,7 +117,7 @@ const getActiveRiders = async ({
         u.user_id,
         TRIM(COALESCE(u.first_name, '') || ' ' || COALESCE(u.last_name, '')) AS rider_name,
         u.phone,
-        COALESCE(ll.address, ll.location_name, 'Location unavailable') AS active_location,
+        COALESCE(ll.latitude::text, 'Location unavailable') AS active_location,
         ar.active_since,
         COALESCE(rv.vehicle_name, 'Vehicle unavailable') AS vehicle,
         COALESCE(trc.today_ride, 0) AS today_ride,
@@ -144,7 +135,6 @@ const getActiveRiders = async ({
         ON te.user_id = u.user_id
       LEFT JOIN rider_vehicle rv
         ON rv.user_id = u.user_id
-      WHERE u.account_status = 'active'
     )
   `;
 
@@ -204,7 +194,7 @@ const getActiveRiders = async ({
     today_active_riders: 0,
   };
 
-  const totalRows = Number(countResult.rows[0]?.total_rows || 0);
+  const totalRows = countResult.rows[0]?.total_rows || 0;
 
   const riders = listResult.rows.map((row) => ({
     user_id: row.user_id,
@@ -220,7 +210,7 @@ const getActiveRiders = async ({
   return {
     stats: {
       totalActiveRiders: Number(statsRow.total_active_riders || 0),
-      avgActiveTime: Number(statsRow.avg_active_minutes || 0),
+      avgActiveTime: Number(statsRow.avg_active_minutes || 0), // minutes
       todayActiveRiders: Number(statsRow.today_active_riders || 0),
     },
     filters: {
@@ -229,8 +219,8 @@ const getActiveRiders = async ({
       location,
       page: safePage,
       limit: safeLimit,
-      totalRows,
-      totalPages: Math.ceil(totalRows / safeLimit),
+      totalRows: Number(totalRows),
+      totalPages: Math.ceil(Number(totalRows) / safeLimit),
     },
     riders,
   };
