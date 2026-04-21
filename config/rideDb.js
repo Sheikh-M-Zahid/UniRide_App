@@ -1,15 +1,11 @@
 const { Pool } = require('pg');
 require('dotenv').config();
 
-const isNeon = !!process.env.DATABASE_URL;
-
 const rideDb = new Pool(
-  isNeon
+  process.env.DATABASE_RIDE_URL
     ? {
-        connectionString: process.env.DATABASE_URL,
-        ssl: {
-          rejectUnauthorized: false,
-        },
+        connectionString: process.env.DATABASE_RIDE_URL,
+        ssl: { rejectUnauthorized: false },
       }
     : {
         host: process.env.DB_RIDE_HOST,
@@ -25,7 +21,7 @@ rideDb.on('connect', () => {
 });
 
 rideDb.on('error', (err) => {
-  console.error('DB error:', err.message);
+  console.error('DB error (rideDb):', err.message);
 });
 
 module.exports = rideDb;
