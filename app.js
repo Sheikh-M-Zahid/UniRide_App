@@ -41,6 +41,7 @@ const adminPaymentApprovalRoutes = require('./routes/adminPaymentApprovalRoutes'
 const adminProfileRoutes = require('./routes/adminProfileRoutes');
 const adminReportsRoutes = require('./routes/adminReportsRoutes');
 const adminPassengerRoutes = require('./routes/adminPassengerRoutes');
+const adminRiderRoutes = require('./routes/adminRiderRoutes');
 const adminRiderSharingHistoryRoutes = require('./routes/adminRiderSharingHistoryRoutes');
 const adminSharingCaringHistoryRoutes = require('./routes/adminSharingCaringHistoryRoutes');
 const adminTopLocationRoutes = require('./routes/adminTopLocationRoutes');
@@ -113,6 +114,7 @@ app.use('/api/admin/payment-approvals', adminPaymentApprovalRoutes);
 app.use('/api/admin/profile', adminProfileRoutes);
 app.use('/api/admin/reports', adminReportsRoutes);
 app.use('/api/admin/passengers', adminPassengerRoutes);
+app.use('/api/admin/riders', adminRiderRoutes);
 app.use('/api/admin/rider-sharing-history', adminRiderSharingHistoryRoutes);
 app.use('/api/admin/sharing-caring-history', adminSharingCaringHistoryRoutes);
 app.use('/api/admin/top-locations', adminTopLocationRoutes);
