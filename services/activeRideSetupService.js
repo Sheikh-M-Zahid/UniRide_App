@@ -6,6 +6,8 @@ const { notifyUsersForRide } = require('./rideAlertMatcherService');
 const DEFAULT_BIKE_RATE = 20;
 const DEFAULT_CAR_RATE = 35;
 
+const BLOCKING_RIDE_STATUSES = ['active', 'assigned', 'accepted', 'ongoing'];
+
 const isValidNumber = (value) =>
   typeof value === 'number' && !Number.isNaN(value);
 
@@ -36,6 +38,117 @@ const getPerKmRate = async (vehicleType) => {
   return String(vehicleType || '').trim().toLowerCase() === 'bike'
     ? DEFAULT_BIKE_RATE
     : DEFAULT_CAR_RATE;
+};
+
+const getCurrentActiveRide = async (userId) => {
+  const result = await rideDb.query(
+    `
+    SELECT
+      r.ride_id,
+      r.start_location,
+      r.destination,
+      r.total_fare,
+      r.travel_date,
+      r.travel_time,
+      r.status,
+      r.vehicle_type,
+      v.model,
+      v.number_plate
+    FROM rides r
+    LEFT JOIN vehicles v
+      ON v.vehicle_id = r.vehicle_id
+    WHERE r.rider_id = $1
+      AND r.status = ANY($2::text[])
+    ORDER BY r.created_at DESC
+    LIMIT 1
+    `,
+    [userId, BLOCKING_RIDE_STATUSES]
+  );
+
+  if (!result.rows.length) {
+    return {
+      hasActiveRide: false,
+      activeRide: null,
+    };
+  }
+
+  const row = result.rows[0];
+
+  return {
+    hasActiveRide: true,
+    activeRide: {
+      rideId: row.ride_id,
+      pickup: row.start_location || 'Pickup unavailable',
+      destination: row.destination || 'Destination unavailable',
+      fare: Number(row.total_fare || 0),
+      travelDate: row.travel_date,
+      travelTime: row.travel_time,
+      status: row.status,
+      vehicleType: normalizeVehicleTypeLabel(row.vehicle_type),
+      vehicleModel: row.model || '',
+      vehicleNumber: row.number_plate || '',
+    },
+  };
+};
+
+const cancelCurrentRide = async ({ userId }) => {
+  const client = await rideDb.connect();
+
+  try {
+    await client.query('BEGIN');
+
+    const rideRes = await client.query(
+      `
+      SELECT ride_id
+      FROM rides
+      WHERE rider_id = $1
+        AND status = ANY($2::text[])
+      ORDER BY created_at DESC
+      LIMIT 1
+      FOR UPDATE
+      `,
+      [userId, BLOCKING_RIDE_STATUSES]
+    );
+
+    if (!rideRes.rows.length) {
+      throw new Error('No active ride found to cancel.');
+    }
+
+    const rideId = rideRes.rows[0].ride_id;
+
+    await client.query(
+      `
+      UPDATE rides
+      SET status = 'cancelled'
+      WHERE ride_id = $1
+      `,
+      [rideId]
+    );
+
+    await client.query(
+      `
+      UPDATE rider_availability
+      SET
+        is_active = FALSE,
+        updated_at = CURRENT_TIMESTAMP
+      WHERE rider_id = $1
+      `,
+      [userId]
+    );
+
+    await client.query('COMMIT');
+
+    return {
+      cancelled: true,
+      rideId,
+      status: 'cancelled',
+    };
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
 };
 
 const getActiveRideSetupData = async (userId) => {
@@ -103,6 +216,26 @@ const activateRide = async ({ userId, body }) => {
     travelDate = null,
     travelTime = null,
   } = body;
+
+  const existingRideRes = await rideDb.query(
+    `
+    SELECT ride_id, status, start_location, destination
+    FROM rides
+    WHERE rider_id = $1
+      AND status = ANY($2::text[])
+    ORDER BY created_at DESC
+    LIMIT 1
+    `,
+    [userId, BLOCKING_RIDE_STATUSES]
+  );
+
+  if (existingRideRes.rows.length) {
+    const existingRide = existingRideRes.rows[0];
+
+    throw new Error(
+      `You already have an active ride from ${existingRide.start_location || 'your current location'} to ${existingRide.destination || 'your destination'}. Cancel or complete it first.`
+    );
+  }
 
   if (
     !vehicleId ||
@@ -221,7 +354,7 @@ const activateRide = async ({ userId, body }) => {
         note
       )
       VALUES (
-        $1,$2,$3,$4,$5,$6,$7,$8,'assigned',$9,$10,$11,$12,$13
+        $1,$2,$3,$4,$5,$6,$7,$8,'active',$9,$10,$11,$12,$13
       )
       RETURNING *`,
       [
@@ -357,7 +490,9 @@ const updateCurrentLocation = async ({ userId, body }) => {
 };
 
 module.exports = {
+  getCurrentActiveRide,
   getActiveRideSetupData,
   activateRide,
+  cancelCurrentRide,
   updateCurrentLocation,
 };
