@@ -15,14 +15,18 @@ const buildProfileImageUrl = (req, storedPath) => {
 };
 
 const getDashboardSummary = async ({ adminId, req }) => {
-  const adminPromise = ewuAdminDb.query(
+  const adminPromise = rideDb.query(
     `
-    SELECT
-      id,
-      name,
-      email
-    FROM admins
-    WHERE id = $1
+     SELECT
+      u.user_id,
+      TRIM(CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.last_name, ''))) AS name,
+      u.university_email AS email,
+      u.profile_picture
+    FROM users u
+    INNER JOIN user_roles ur
+      ON ur.user_id = u.user_id
+    WHERE u.user_id = $1
+      AND ur.role = 'admin'
     LIMIT 1
     `,
     [adminId]
@@ -106,7 +110,7 @@ const getDashboardSummary = async ({ adminId, req }) => {
   ]);
 
   if (!adminRes.rows.length) {
-    throw new Error('Admin not found.');
+    throw new Error('Admin user not found or admin role is missing.');
   }
 
   const adminRow = adminRes.rows[0];
@@ -128,9 +132,9 @@ const getDashboardSummary = async ({ adminId, req }) => {
 
   return {
     admin: {
-      name: adminRow.name,
-      email: adminRow.email,
-      profileImage: buildProfileImageUrl(req, adminRow.profile_image || ''),
+      name: adminRow.name && adminRow.name.trim() ? adminRow.name.trim() : 'Admin',
+      email: adminRow.email || '',
+      profileImage: buildProfileImageUrl(req, adminRow.profile_picture || ''),
     },
     stats: {
       totalRide: Number(statsRow.total_ride || 0),
