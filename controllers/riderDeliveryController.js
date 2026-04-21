@@ -1,65 +1,117 @@
 const { successResponse, errorResponse } = require('../utils/apiResponse');
 const service = require('../services/riderDeliveryService');
 
+// =========================
+// GET DELIVERY DASHBOARD
+// =========================
 const getDashboard = async (req, res) => {
   try {
-    const riderId = req.user.userId;
+    const riderId = req.user?.userId;
+
+    if (!riderId) {
+      return errorResponse(res, 'Unauthorized: Rider ID missing', 401);
+    }
+
     const data = await service.getDashboard({ riderId });
 
-    return successResponse(res, 'Delivery dashboard fetched successfully.', data);
+    return successResponse(
+      res,
+      'Delivery dashboard fetched successfully.',
+      data
+    );
   } catch (err) {
-    return errorResponse(res, err.message, 500);
+    console.error('getDashboard error:', err);
+    return errorResponse(res, err.message || 'Failed to fetch dashboard', 500);
   }
 };
 
+// =========================
+// ACCEPT DELIVERY REQUEST
+// =========================
 const acceptRequest = async (req, res) => {
   try {
-    const riderId = req.user.userId;
+    const riderId = req.user?.userId;
+    const requestId = req.params?.id;
     const io = req.app.get('io');
+
+    if (!riderId || !requestId) {
+      return errorResponse(res, 'Invalid request data', 400);
+    }
 
     const data = await service.acceptRequest({
       riderId,
-      requestId: req.params.id,
+      requestId,
       io,
     });
 
-    return successResponse(res, 'Delivery request accepted successfully.', data);
+    return successResponse(
+      res,
+      'Delivery request accepted successfully.',
+      data
+    );
   } catch (err) {
-    return errorResponse(res, err.message, 400);
+    console.error('acceptRequest error:', err);
+    return errorResponse(res, err.message || 'Failed to accept request', 400);
   }
 };
 
+// =========================
+// REJECT DELIVERY REQUEST
+// =========================
 const rejectRequest = async (req, res) => {
   try {
-    const riderId = req.user.userId;
+    const riderId = req.user?.userId;
+    const requestId = req.params?.id;
     const io = req.app.get('io');
+
+    if (!riderId || !requestId) {
+      return errorResponse(res, 'Invalid request data', 400);
+    }
 
     const data = await service.rejectRequest({
       riderId,
-      requestId: req.params.id,
+      requestId,
       io,
     });
 
-    return successResponse(res, 'Delivery request rejected successfully.', data);
+    return successResponse(
+      res,
+      'Delivery request rejected successfully.',
+      data
+    );
   } catch (err) {
-    return errorResponse(res, err.message, 400);
+    console.error('rejectRequest error:', err);
+    return errorResponse(res, err.message || 'Failed to reject request', 400);
   }
 };
 
+// =========================
+// MARK DELIVERY AS DELIVERED
+// =========================
 const markDelivered = async (req, res) => {
   try {
-    const riderId = req.user.userId;
+    const riderId = req.user?.userId;
+    const deliveryId = req.params?.id;
     const io = req.app.get('io');
+
+    if (!riderId || !deliveryId) {
+      return errorResponse(res, 'Invalid request data', 400);
+    }
 
     const data = await service.markDelivered({
       riderId,
-      id: req.params.id,
+      id: deliveryId,
       io,
     });
 
-    return successResponse(res, 'Delivery marked as delivered successfully.', data);
+    return successResponse(
+      res,
+      'Delivery marked as delivered successfully.',
+      data
+    );
   } catch (err) {
-    return errorResponse(res, err.message, 400);
+    console.error('markDelivered error:', err);
+    return errorResponse(res, err.message || 'Failed to mark delivered', 400);
   }
 };
 
