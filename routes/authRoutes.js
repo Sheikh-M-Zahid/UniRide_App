@@ -18,6 +18,50 @@ router.post(
   authController.resetPassword
 );
 router.post('/check-ewu-user', validateRequiredFields(['email']), authController.checkEwuAllowedUser);
+router.post(
+  '/send-signup-otp',
+  validateRequiredFields(['email']),
+  authController.sendSignupOtp
+);
+
+router.post(
+  '/verify-signup-otp',
+  validateRequiredFields(['email', 'otp']),
+  authController.verifySignupOtp
+);
+
+router.post(
+  '/resend-signup-otp',
+  validateRequiredFields(['email']),
+  authController.resendSignupOtp
+);
+
+router.post(
+  '/google-signup-check',
+  validateRequiredFields(['email']),
+  authController.googleSignupCheck
+);
+
+router.post(
+  '/register',
+  validateRequiredFields([
+    'signupToken',
+    'first_name',
+    'last_name',
+    'phone',
+    'gender',
+    'date_of_birth',
+    'home_address',
+    'password'
+  ]),
+  authController.register
+);
+
+router.post(
+  '/reset-password-with-token',
+  validateRequiredFields(['resetToken', 'newPassword', 'confirmPassword']),
+  authController.resetPassword
+);
 router.post('/check-admin', validateRequiredFields(['email']), authController.checkAdminStatus);
 router.post('/find-account', validateRequiredFields(['email']), authController.findAccount);
 
@@ -33,7 +77,7 @@ router.post(
   authController.resendRecoveryOtp
 );
 router.post(
-  '/reset-password',
+  '/reset-password-with-token',
   validateRequiredFields(['resetToken', 'newPassword', 'confirmPassword']),
   authController.resetPassword
 );
