@@ -10,7 +10,7 @@ const ALLOWED_FILTERS = [
 const buildOrderBy = (filter) => {
   switch (filter) {
     case 'location_wise':
-      return `ORDER BY COALESCE(active_location, 'Unknown') ASC, rider_name ASC`;
+      return `ORDER BY rider_name ASC`;
     case 'longest_active':
       return `ORDER BY active_since ASC NULLS LAST`;
     case 'recently_activated':
@@ -34,32 +34,24 @@ const getActiveRiders = async ({
   const offset = (safePage - 1) * safeLimit;
 
   const params = [];
-  let whereClause = `
-    WHERE u.account_status = 'active'
-      AND ar.active_ride_id IS NOT NULL
-  `;
+  let whereClause = `WHERE 1=1`;
 
   if (search.trim()) {
     params.push(`%${search.trim()}%`);
     whereClause += `
       AND (
-        ar.rider_name ILIKE $${params.length}
-        OR COALESCE(ar.phone, '') ILIKE $${params.length}
+        rd.rider_name ILIKE $${params.length}
+        OR COALESCE(rd.phone, '') ILIKE $${params.length}
       )
     `;
   }
 
-  // live_locations টেবিলে address কলাম নেই, তাই location filter skip করা হয়েছে
-
   const baseCTE = `
     WITH active_rides AS (
       SELECT DISTINCT ON (r.rider_id)
-        r.id AS active_ride_id,
+        r.ride_id AS active_ride_id,
         r.rider_id,
-        r.created_at AS active_since,
-        r.start_location,
-        r.destination,
-        r.status
+        r.created_at AS active_since
       FROM rides r
       WHERE r.status = 'active'
       ORDER BY r.rider_id, r.created_at ASC
@@ -69,8 +61,6 @@ const getActiveRiders = async ({
         ll.user_id,
         ll.latitude,
         ll.longitude,
-        NULL::text AS address,
-        NULL::text AS location_name,
         ll.updated_at
       FROM live_locations ll
       ORDER BY ll.user_id, ll.updated_at DESC
@@ -88,13 +78,14 @@ const getActiveRiders = async ({
         t.user_id,
         COALESCE(SUM(
           CASE
-            WHEN t.transaction_type IN ('ride_income', 'earning', 'rider_credit')
+            WHEN t.type IN ('ride_income', 'earning', 'rider_credit')
             THEN t.amount
             ELSE 0
           END
         ), 0)::numeric(10,2) AS earning
       FROM transactions t
       WHERE DATE(t.created_at) = CURRENT_DATE
+        AND t.status = 'completed'
       GROUP BY t.user_id
     ),
     rider_vehicle AS (
@@ -112,29 +103,28 @@ const getActiveRiders = async ({
       FROM vehicles v
       ORDER BY v.user_id, v.created_at DESC NULLS LAST
     ),
-    rider_data AS (
+    rd AS (
       SELECT
         u.user_id,
         TRIM(COALESCE(u.first_name, '') || ' ' || COALESCE(u.last_name, '')) AS rider_name,
         u.phone,
-        COALESCE(ll.latitude::text, 'Location unavailable') AS active_location,
+        CASE
+          WHEN ll.latitude IS NOT NULL AND ll.longitude IS NOT NULL
+          THEN ROUND(ll.latitude::numeric, 4)::text || ', ' || ROUND(ll.longitude::numeric, 4)::text
+          ELSE 'Location unavailable'
+        END AS active_location,
         ar.active_since,
         COALESCE(rv.vehicle_name, 'Vehicle unavailable') AS vehicle,
         COALESCE(trc.today_ride, 0) AS today_ride,
         COALESCE(te.earning, 0) AS earning,
-        ar.active_ride_id,
-        ll.updated_at AS location_updated_at
+        ar.active_ride_id
       FROM users u
-      INNER JOIN active_rides ar
-        ON ar.rider_id = u.user_id
-      LEFT JOIN latest_locations ll
-        ON ll.user_id = u.user_id
-      LEFT JOIN today_ride_counts trc
-        ON trc.rider_id = u.user_id
-      LEFT JOIN today_earnings te
-        ON te.user_id = u.user_id
-      LEFT JOIN rider_vehicle rv
-        ON rv.user_id = u.user_id
+      INNER JOIN active_rides ar ON ar.rider_id = u.user_id
+      LEFT JOIN latest_locations ll ON ll.user_id = u.user_id
+      LEFT JOIN today_ride_counts trc ON trc.rider_id = u.user_id
+      LEFT JOIN today_earnings te ON te.user_id = u.user_id
+      LEFT JOIN rider_vehicle rv ON rv.user_id = u.user_id
+      WHERE u.account_status = 'active'
     )
   `;
 
@@ -147,7 +137,7 @@ const getActiveRiders = async ({
         0
       ) AS avg_active_minutes,
       COUNT(*) FILTER (WHERE DATE(active_since) = CURRENT_DATE)::int AS today_active_riders
-    FROM rider_data ar
+    FROM rd
     ${whereClause};
   `;
 
@@ -168,7 +158,7 @@ const getActiveRiders = async ({
       vehicle,
       today_ride,
       earning
-    FROM rider_data ar
+    FROM rd
     ${whereClause}
     ${orderByClause}
     LIMIT $${listParams.length - 1}
@@ -178,7 +168,7 @@ const getActiveRiders = async ({
   const countQuery = `
     ${baseCTE}
     SELECT COUNT(*)::int AS total_rows
-    FROM rider_data ar
+    FROM rd
     ${whereClause};
   `;
 
@@ -210,7 +200,7 @@ const getActiveRiders = async ({
   return {
     stats: {
       totalActiveRiders: Number(statsRow.total_active_riders || 0),
-      avgActiveTime: Number(statsRow.avg_active_minutes || 0), // minutes
+      avgActiveTime: Number(statsRow.avg_active_minutes || 0),
       todayActiveRiders: Number(statsRow.today_active_riders || 0),
     },
     filters: {
