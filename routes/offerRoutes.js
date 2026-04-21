@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 
-const offersController = require('../controllers/offersController');
+const offersController = require('../controllers/offerController');
 const { validateRequiredFields } = require('../middlewares/validateMiddleware');
 
 // Get active offers
@@ -15,6 +15,21 @@ router.post(
   '/apply',
   validateRequiredFields(['promo_code']),
   offersController.applyOffer
+);
+
+// Create offer (ADMIN)
+router.post(
+  '/',
+  validateRequiredFields([
+    'offer_name',
+    'offer_type',
+    'reward_percentage',
+    'eligible_user',
+    'start_date',
+    'end_date',
+    'promo_code'
+  ]),
+  offersController.createOffer
 );
 
 module.exports = router;
