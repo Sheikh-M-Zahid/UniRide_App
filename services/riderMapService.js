@@ -1,4 +1,5 @@
 const rideDb = require('../config/rideDb');
+const riderActiveRideService = require('../riderActiveRideService');
 
 const getMapDashboard = async ({ riderId }) => {
   // 1. rider location
@@ -121,19 +122,17 @@ const updateLocation = async ({ riderId, body, io }) => {
 };
 
 const acceptRequest = async ({ riderId, requestId, io }) => {
-  // reuse your existing accept logic here if needed
-  await rideDb.query(
-    `UPDATE ride_requests
-     SET status = 'accepted'
-     WHERE request_id = $1`,
-    [requestId]
-  );
+  const data = await riderActiveRideService.acceptRideRequest({
+    riderId,
+    requestId,
+    io,
+  });
 
   if (io) {
     io.emit('ride-request:removed', { requestId });
   }
 
-  return { requestId };
+  return data;
 };
 
 const startNavigation = async ({ riderId, rideId }) => {
