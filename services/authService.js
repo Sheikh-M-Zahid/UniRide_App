@@ -570,7 +570,7 @@ const resetPasswordWithToken = async (
     throw new Error('Invalid or expired reset session. Please verify OTP again.');
   }
 
-  if (decoded.purpose !== 'password_reset') {
+  if (decoded.purpose !== 'signup_verification') {
     throw new Error('Invalid reset token.');
   }
 
