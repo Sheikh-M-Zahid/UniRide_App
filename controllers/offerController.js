@@ -61,8 +61,20 @@ const createOffer = asyncHandler(async (req, res) => {
     conditions,
   });
 
-  return successResponse(res, 'Offer created successfully.', data);
-});
+     if (
+       !offer_name ||
+       !offer_type ||
+       reward_percentage === undefined ||
+       !eligible_user ||
+       !start_date ||
+       !end_date ||
+       !promo_code
+     ) {
+       return errorResponse(res, 'All required offer fields must be provided.', 400);
+     }
+
+     return successResponse(res, 'Offer created successfully.', data);
+   });
 
 /* =========================
    GET ACTIVE OFFER COUNT
