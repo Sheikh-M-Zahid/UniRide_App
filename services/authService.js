@@ -594,4 +594,6 @@ module.exports = {
   verifyRecoveryOtp,
   resendRecoveryOtp,
   resetPasswordWithToken,
+  googleSignupCheck,
+  registerWithSignupToken,
 };
