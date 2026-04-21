@@ -22,7 +22,9 @@ const earningsSocket = require('./sockets/earningsSocket');
 const riderMapSocket = require('./sockets/riderMapSocket');
 
 const rideAvailabilitySocket = require('./sockets/rideAvailabilitySocket');
+const adminVehicleSocket = require('./sockets/adminVehicleSocket');
 const { setRideAvailabilityIo } = require('./utils/rideAvailabilityEmitter');
+const { setAdminVehicleIo } = require('./utils/adminVehicleEmitter');
 
 const { setNotificationIo } = require('./utils/notificationEmitter');
 
