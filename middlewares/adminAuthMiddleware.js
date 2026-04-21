@@ -10,22 +10,24 @@ const adminAuthMiddleware = (req, res, next) => {
     }
 
     const token = authHeader.split(' ')[1];
-
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
     if (!decoded) {
       return errorResponse(res, 'Invalid admin token.', 401);
     }
 
-    if (!decoded.isAdmin && !decoded.role) {
+    const isAdminUser =
+      decoded.isAdmin === true || decoded.role === 'admin';
+
+    if (!isAdminUser) {
       return errorResponse(res, 'Unauthorized admin access.', 403);
     }
 
     req.admin = {
-      id: decoded.id || decoded.adminId,
-      email: decoded.email,
-      role: decoded.role || null,
-      isAdmin: decoded.isAdmin || false,
+      id: decoded.userId || decoded.user_id || decoded.id || decoded.adminId,
+      email: decoded.email || decoded.university_email || '',
+      role: decoded.role || 'admin',
+      isAdmin: true,
     };
 
     next();
