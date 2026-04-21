@@ -8,6 +8,8 @@ const {
   validateReceiverEmailInput,
 } = require('../utils/sendItemHelpers');
 
+const { isRouteMatch } = require('../utils/routeMatcher');
+
 const {
   notifySendItemCreated,
   notifySendItemAccepted,
@@ -67,6 +69,10 @@ const createSendItemRequest = async (userId, payload) => {
     sender_phone,
     pickup_location,
     destination_location,
+    pickup_lat,
+    pickup_lng,
+    destination_lat,
+    destination_lng,
     delivery_fee,
   } = payload;
 
@@ -77,7 +83,11 @@ const createSendItemRequest = async (userId, payload) => {
     !sender_name ||
     !sender_phone ||
     !pickup_location ||
-    !destination_location
+    !destination_location ||
+    pickup_lat == null ||
+    pickup_lng == null ||
+    destination_lat == null ||
+    destination_lng == null
   ) {
     throw new Error('Required fields are missing.');
   }
@@ -102,12 +112,20 @@ const createSendItemRequest = async (userId, payload) => {
       sender_phone,
       pickup_location,
       drop_location,
+      pickup_lat,
+      pickup_lng,
+      destination_lat,
+      destination_lng,
       rider_id,
       rider_phone,
       delivery_fee,
       status
     )
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NULL, NULL, $10, 'pending')
+    VALUES (
+      $1, $2, $3, $4, $5, $6, $7, $8, $9,
+      $10, $11, $12, $13,
+      NULL, NULL, $14, 'pending'
+    )
     RETURNING *`,
     [
       userId,
@@ -119,6 +137,10 @@ const createSendItemRequest = async (userId, payload) => {
       sender_phone,
       pickup_location,
       destination_location,
+      Number(pickup_lat),
+      Number(pickup_lng),
+      Number(destination_lat),
+      Number(destination_lng),
       finalDeliveryFee,
     ]
   );
@@ -130,7 +152,39 @@ const createSendItemRequest = async (userId, payload) => {
   return createdItem;
 };
 
-const getAvailableSendItemRequests = async () => {
+const getAvailableSendItemRequests = async (riderId) => {
+  const activeRideRes = await rideDb.query(
+    `SELECT
+        ride_id,
+        pickup_latitude,
+        pickup_longitude,
+        destination_latitude,
+        destination_longitude,
+        start_latitude,
+        start_longitude
+     FROM rides
+     WHERE rider_id = $1
+       AND status IN ('active', 'assigned', 'ongoing')
+     ORDER BY created_at DESC
+     LIMIT 1`,
+    [riderId]
+  );
+
+  if (activeRideRes.rowCount === 0) {
+    return [];
+  }
+
+  const ride = activeRideRes.rows[0];
+
+  const riderStartLat = Number(
+    ride.start_latitude ?? ride.pickup_latitude ?? 0
+  );
+  const riderStartLng = Number(
+    ride.start_longitude ?? ride.pickup_longitude ?? 0
+  );
+  const riderDestLat = Number(ride.destination_latitude ?? 0);
+  const riderDestLng = Number(ride.destination_longitude ?? 0);
+
   const result = await rideDb.query(
     `SELECT
         s_id,
@@ -143,6 +197,10 @@ const getAvailableSendItemRequests = async () => {
         sender_phone,
         pickup_location,
         drop_location,
+        pickup_lat,
+        pickup_lng,
+        destination_lat,
+        destination_lng,
         rider_id,
         rider_phone,
         delivery_fee,
@@ -154,7 +212,18 @@ const getAvailableSendItemRequests = async () => {
      ORDER BY created_at DESC`
   );
 
-  return result.rows;
+  return result.rows.filter((item) =>
+    isRouteMatch({
+      riderStartLat,
+      riderStartLng,
+      riderDestLat,
+      riderDestLng,
+      reqPickupLat: Number(item.pickup_lat),
+      reqPickupLng: Number(item.pickup_lng),
+      reqDestLat: Number(item.destination_lat),
+      reqDestLng: Number(item.destination_lng),
+    })
+  );
 };
 
 const getMySentItems = async (userId) => {
