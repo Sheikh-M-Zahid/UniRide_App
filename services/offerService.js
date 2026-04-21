@@ -1,5 +1,5 @@
 const rideDb = require('../config/rideDb');
-const { createBulkNotifications } = require('../notificationService');
+const { createBulkNotifications } = require('./notificationService');
 
 const getActiveOffers = async () => {
   const result = await rideDb.query(
