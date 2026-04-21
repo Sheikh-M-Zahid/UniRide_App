@@ -70,6 +70,32 @@ const resetPassword = asyncHandler(async (req, res) => {
   return successResponse(res, 'Password reset successfully.');
 });
 
+const sendSignupOtp = asyncHandler(async (req, res) => {
+  const data = await authService.sendOtp(req.body.email);
+  return successResponse(res, 'Signup OTP sent successfully.', data);
+});
+
+const verifySignupOtp = asyncHandler(async (req, res) => {
+  const otpCode = req.body.otp || req.body.otp_code;
+  const data = await authService.verifyOtp(req.body.email, otpCode);
+  return successResponse(res, 'Signup OTP verified successfully.', data);
+});
+
+const resendSignupOtp = asyncHandler(async (req, res) => {
+  const data = await authService.sendOtp(req.body.email);
+  return successResponse(res, 'Signup OTP resent successfully.', data);
+});
+
+const googleSignupCheck = asyncHandler(async (req, res) => {
+  const data = await authService.googleSignupCheck(req.body.email);
+  return successResponse(res, 'Google signup check completed.', data);
+});
+
+const register = asyncHandler(async (req, res) => {
+  const data = await authService.registerWithSignupToken(req.body);
+  return successResponse(res, 'Registration successful.', data, 201);
+});
+
 module.exports = {
   sendOtp,
   verifyOtp,
@@ -81,5 +107,10 @@ module.exports = {
   checkAdminStatus,
   findAccount,
   verifyRecoveryOtp,   // <--- এই লাইনটি যোগ করতে হবে
-  resendRecoveryOtp    // <--- এই লাইনটি যোগ করতে হবে
+  resendRecoveryOtp,    // <--- এই লাইনটি যোগ করতে হবে
+  sendSignupOtp,
+  verifySignupOtp,
+  resendSignupOtp,
+  googleSignupCheck,
+  register,
 };
