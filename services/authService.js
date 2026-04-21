@@ -5,7 +5,10 @@ const { generateToken } = require('../utils/jwt');
 const { hashPassword, comparePassword } = require('../utils/password');
 const { isValidUniversityEmail } = require('../utils/validators');
 const { savePasswordRecoveryOtp, createOtp, verifyOtp: verifyOtpFromService } = require('./otpService');
-const { sendPasswordRecoveryOtpEmail } = require('./mailService');
+const {
+  sendPasswordRecoveryOtpEmail,
+  sendSignupOtpEmail,
+} = require('./mailService');
 const { verifyResetToken, generateResetToken } = require('./resetTokenService');
 
 const normalizeEmail = (email) => email.trim().toLowerCase();
@@ -75,7 +78,9 @@ const checkAdminStatus = async (email, userId = null) => {
 };
 
 const sendOtp = async (email) => {
-  const allowed = await checkEwuAllowedUser(email);
+  const normalizedEmail = normalizeEmail(email);
+
+  const allowed = await checkEwuAllowedUser(normalizedEmail);
   if (!allowed.allowed) {
     throw new Error(allowed.reason);
   }
@@ -84,25 +89,27 @@ const sendOtp = async (email) => {
 
   await rideDb.query(
     `INSERT INTO otp_verifications (email, otp_code, expires_at)
-     VALUES ($1, $2, CURRENT_TIMESTAMP + INTERVAL '10 minutes')`,
-    [normalizeEmail(email), otpCode]
+     VALUES ($1, $2, CURRENT_TIMESTAMP + INTERVAL '1 minutes')`,
+    [normalizedEmail, otpCode]
   );
 
+  await sendSignupOtpEmail(normalizedEmail, otpCode);
+
   return {
-    email: normalizeEmail(email),
-    otpCode,
-    note: 'For production, send this OTP by email/SMS. Returning in response for now.',
+    email: normalizedEmail,
   };
 };
 
 const verifyOtp = async (email, otpCode) => {
+  const normalizedEmail = normalizeEmail(email);
+
   const result = await rideDb.query(
     `SELECT otp_id, email, otp_code, expires_at
      FROM otp_verifications
      WHERE email = $1 AND otp_code = $2
      ORDER BY expires_at DESC
      LIMIT 1`,
-    [normalizeEmail(email), otpCode]
+    [normalizedEmail, otpCode]
   );
 
   if (result.rowCount === 0) {
@@ -115,9 +122,18 @@ const verifyOtp = async (email, otpCode) => {
     throw new Error('OTP expired.');
   }
 
-  await rideDb.query(`DELETE FROM otp_verifications WHERE otp_id = $1`, [otp.otp_id]);
+  await rideDb.query(
+    `DELETE FROM otp_verifications WHERE otp_id = $1`,
+    [otp.otp_id]
+  );
 
-  return { verified: true, email: otp.email };
+  const signupToken = generateResetToken(normalizedEmail, 'signup_verification');
+
+  return {
+    verified: true,
+    email: otp.email,
+    signupToken,
+  };
 };
 
 const signup = async ({
