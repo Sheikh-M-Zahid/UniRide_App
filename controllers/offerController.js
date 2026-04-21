@@ -2,7 +2,9 @@ const asyncHandler = require('../utils/asyncHandler');
 const { successResponse, errorResponse } = require('../utils/apiResponse');
 const offerService = require('../services/offerService');
 
-// Get all active offers
+/* =========================
+   GET ACTIVE OFFERS
+========================= */
 const getActiveOffers = asyncHandler(async (req, res) => {
   const data = await offerService.getActiveOffers();
 
@@ -14,7 +16,9 @@ const getActiveOffers = asyncHandler(async (req, res) => {
   return successResponse(res, message, data);
 });
 
-// Apply / validate promo code
+/* =========================
+   APPLY PROMO CODE
+========================= */
 const applyOffer = asyncHandler(async (req, res) => {
   const { promo_code } = req.body;
 
@@ -31,34 +35,39 @@ const applyOffer = asyncHandler(async (req, res) => {
   }
 });
 
-// Get active offers count
-const getActiveOffersCount = asyncHandler(async (req, res) => {
-  // Create offer (ADMIN)
-  const createOffer = asyncHandler(async (req, res) => {
-    const {
-      offer_name,
-      offer_type,
-      reward_percentage,
-      eligible_user,
-      start_date,
-      end_date,
-      promo_code,
-      conditions,
-    } = req.body;
+/* =========================
+   CREATE OFFER (ADMIN)
+========================= */
+const createOffer = asyncHandler(async (req, res) => {
+  const {
+    offer_name,
+    offer_type,
+    reward_percentage,
+    eligible_user,
+    start_date,
+    end_date,
+    promo_code,
+    conditions,
+  } = req.body;
 
-    const data = await offerService.createOffer({
-      offer_name,
-      offer_type,
-      reward_percentage,
-      eligible_user,
-      start_date,
-      end_date,
-      promo_code,
-      conditions,
-    });
-
-    return successResponse(res, 'Offer created successfully.', data);
+  const data = await offerService.createOffer({
+    offer_name,
+    offer_type,
+    reward_percentage,
+    eligible_user,
+    start_date,
+    end_date,
+    promo_code,
+    conditions,
   });
+
+  return successResponse(res, 'Offer created successfully.', data);
+});
+
+/* =========================
+   GET ACTIVE OFFER COUNT
+========================= */
+const getActiveOffersCount = asyncHandler(async (req, res) => {
   const count = await offerService.getActiveOffersCount();
 
   return successResponse(
@@ -68,9 +77,12 @@ const getActiveOffersCount = asyncHandler(async (req, res) => {
   );
 });
 
+/* =========================
+   EXPORTS
+========================= */
 module.exports = {
   getActiveOffers,
   applyOffer,
-  getActiveOffersCount,
   createOffer,
+  getActiveOffersCount,
 };
