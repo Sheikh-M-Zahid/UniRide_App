@@ -176,19 +176,8 @@ const getDashboard = async ({ riderId }) => {
   const earningsRes = await rideDb.query(
     `
     SELECT
-      SUM(
-        CASE
-          WHEN DATE(delivered_at) = CURRENT_DATE THEN delivery_fee
-          ELSE 0
-        END
-      ) AS today,
-      SUM(
-        CASE
-          WHEN DATE(delivered_at) >= date_trunc('week', CURRENT_DATE)
-          THEN delivery_fee
-          ELSE 0
-        END
-      ) AS week
+      SUM(CASE WHEN DATE(delivered_at) = CURRENT_DATE THEN delivery_fee ELSE 0 END) AS today,
+      SUM(CASE WHEN DATE(delivered_at) >= date_trunc('week', CURRENT_DATE) THEN delivery_fee ELSE 0 END) AS week
     FROM send_items
     WHERE rider_id = $1
       AND status = 'delivered'
@@ -268,7 +257,9 @@ const acceptRequest = async ({ riderId, requestId, io }) => {
 
   if (io) {
     io.emit('delivery:removed', { requestId: String(requestId) });
-    io.to(`rider:${riderId}`).emit('delivery:accepted', mapped);
+
+    // ✅ FIX
+    io.to(`rider_${riderId}`).emit('delivery:accepted', mapped);
 
     if (delivery.sender_id) {
       io.to(`user_${delivery.sender_id}`).emit('delivery:status-changed', {
@@ -312,7 +303,10 @@ const rejectRequest = async ({ riderId, requestId, io }) => {
   rejectedSet.add(String(requestId));
 
   if (io) {
-    io.to(`rider:${riderId}`).emit('delivery:reject-ui', { requestId: String(requestId) });
+    // ✅ FIX
+    io.to(`rider_${riderId}`).emit('delivery:reject-ui', {
+      requestId: String(requestId),
+    });
   }
 
   return { requestId: String(requestId), hiddenForRider: true };
@@ -346,7 +340,8 @@ const markDelivered = async ({ riderId, id, io }) => {
   await sendDeliveryDeliveredNotifications({ delivery, rider });
 
   if (io) {
-    io.to(`rider:${riderId}`).emit('delivery:updated', {
+    // ✅ FIX
+    io.to(`rider_${riderId}`).emit('delivery:updated', {
       deliveryId: id,
       status: 'delivered',
     });
@@ -354,19 +349,8 @@ const markDelivered = async ({ riderId, id, io }) => {
     const earningsRes = await rideDb.query(
       `
       SELECT
-        SUM(
-          CASE
-            WHEN DATE(delivered_at) = CURRENT_DATE THEN delivery_fee
-            ELSE 0
-          END
-        ) AS today,
-        SUM(
-          CASE
-            WHEN DATE(delivered_at) >= date_trunc('week', CURRENT_DATE)
-            THEN delivery_fee
-            ELSE 0
-          END
-        ) AS week
+        SUM(CASE WHEN DATE(delivered_at) = CURRENT_DATE THEN delivery_fee ELSE 0 END) AS today,
+        SUM(CASE WHEN DATE(delivered_at) >= date_trunc('week', CURRENT_DATE) THEN delivery_fee ELSE 0 END) AS week
       FROM send_items
       WHERE rider_id = $1
         AND status = 'delivered'
@@ -374,7 +358,7 @@ const markDelivered = async ({ riderId, id, io }) => {
       [riderId]
     );
 
-    io.to(`rider:${riderId}`).emit('delivery:earnings-updated', {
+    io.to(`rider_${riderId}`).emit('delivery:earnings-updated', {
       todayDeliveryEarnings: Number(earningsRes.rows[0].today || 0),
       weekDeliveryEarnings: Number(earningsRes.rows[0].week || 0),
     });
