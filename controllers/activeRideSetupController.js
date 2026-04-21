@@ -1,6 +1,25 @@
 const { successResponse, errorResponse } = require('../utils/apiResponse');
 const service = require('../services/activeRideSetupService');
 
+const getCurrentActiveRide = async (req, res) => {
+  try {
+    const data = await service.getCurrentActiveRide(req.user.userId);
+
+    return successResponse(
+      res,
+      'Current active ride fetched successfully.',
+      data
+    );
+  } catch (error) {
+    console.error('getCurrentActiveRide error:', error);
+    return errorResponse(
+      res,
+      error.message || 'Failed to fetch current active ride.',
+      500
+    );
+  }
+};
+
 const getActiveRideSetupData = async (req, res) => {
   try {
     const data = await service.getActiveRideSetupData(req.user.userId);
@@ -65,8 +84,31 @@ const updateCurrentLocation = async (req, res) => {
   }
 };
 
+const cancelCurrentRide = async (req, res) => {
+  try {
+    const data = await service.cancelCurrentRide({
+      userId: req.user.userId,
+    });
+
+    return successResponse(
+      res,
+      'Current active ride cancelled successfully.',
+      data
+    );
+  } catch (error) {
+    console.error('cancelCurrentRide error:', error);
+    return errorResponse(
+      res,
+      error.message || 'Failed to cancel current active ride.',
+      400
+    );
+  }
+};
+
 module.exports = {
+  getCurrentActiveRide,
   getActiveRideSetupData,
   activateRide,
+  cancelCurrentRide,
   updateCurrentLocation,
 };
