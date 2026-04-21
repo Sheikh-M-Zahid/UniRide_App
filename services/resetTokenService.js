@@ -1,10 +1,10 @@
 const jwt = require('jsonwebtoken');
 
-const generateResetToken = (email) => {
+const generateResetToken = (email, purpose = 'password_reset') => {
   return jwt.sign(
     {
       email,
-      purpose: 'password_reset',
+      purpose,
     },
     process.env.RESET_TOKEN_SECRET,
     {
