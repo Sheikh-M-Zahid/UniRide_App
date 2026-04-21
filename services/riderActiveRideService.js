@@ -45,7 +45,7 @@ const updateAvailability = async ({ riderId, body, io }) => {
   };
 
   if (io) {
-    io.to(`rider:${riderId}`).emit('rider:availability:updated', data);
+    io.to(`rider_${riderId}`).emit('rider:availability:updated', data);
   }
 
   return data;
@@ -244,9 +244,9 @@ const acceptRideRequest = async ({ riderId, requestId, io }) => {
     const dashboard = await getDashboard({ riderId });
 
     if (io) {
-      io.to(`rider:${riderId}`).emit('ride-request:accepted', dashboard.confirmedRide);
-      io.to(`rider:${riderId}`).emit('active-ride:updated', dashboard);
-      io.to(`user:${request.passenger_id}`).emit('ride-request:accepted', {
+      io.to(`rider_${riderId}`).emit('ride-request:accepted', dashboard.confirmedRide);
+      io.to(`rider_${riderId}`).emit('active-ride:updated', dashboard);
+      io.to(`user_${request.passenger_id}`).emit('ride-request:accepted', {
         requestId,
         confirmedRideId: ride.ride_id,
         status: 'accepted',
@@ -283,9 +283,9 @@ const rejectRideRequest = async ({ riderId, requestId, io }) => {
   const dashboard = await getDashboard({ riderId });
 
   if (io) {
-    io.to(`rider:${riderId}`).emit('ride-request:rejected', { requestId });
-    io.to(`rider:${riderId}`).emit('active-ride:updated', dashboard);
-    io.to(`user:${request.passenger_id}`).emit('ride-request:rejected', { requestId });
+    io.to(`rider_${riderId}`).emit('ride-request:rejected', { requestId });
+    io.to(`rider_${riderId}`).emit('active-ride:updated', dashboard);
+    io.to(`user_${request.passenger_id}`).emit('ride-request:rejected', { requestId });
   }
 
   return dashboard;
@@ -386,7 +386,7 @@ const cancelConfirmedRide = async ({ riderId, requestId, io }) => {
     const dashboard = await getDashboard({ riderId });
 
     if (io) {
-      io.to(`rider:${riderId}`).emit('confirmed-ride:cancelled', {
+      io.to(`rider_${riderId}`).emit('confirmed-ride:cancelled', {
         requestId,
         confirmedRideId: request.ride_id,
         fineAmount: fineResult.fineAmount,
@@ -394,16 +394,16 @@ const cancelConfirmedRide = async ({ riderId, requestId, io }) => {
         dueBalance: updatedDueBalance,
       });
 
-      io.to(`rider:${riderId}`).emit('active-ride:updated', dashboard);
+      io.to(`rider_${riderId}`).emit('active-ride:updated', dashboard);
 
       if (fineResult.fineAmount > 0) {
-        io.to(`rider:${riderId}`).emit('rider:due-balance:updated', {
+        io.to(`rider_${riderId}`).emit('rider:due-balance:updated', {
           fineAmount: fineResult.fineAmount,
           dueBalance: updatedDueBalance,
         });
       }
 
-      io.to(`user:${request.passenger_id}`).emit('confirmed-ride:cancelled', {
+      io.to(`user_${request.passenger_id}`).emit('confirmed-ride:cancelled', {
         requestId,
         confirmedRideId: request.ride_id,
         cancelledBy: riderId,
