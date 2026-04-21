@@ -16,7 +16,9 @@ const initSocket = (server) => {
   // JWT auth for socket connection
   io.use((socket, next) => {
     try {
-      const token = socket.handshake.auth?.token;
+      const token =
+        socket.handshake.auth?.token ||
+        socket.handshake.headers?.authorization?.replace('Bearer ', '');
 
       if (!token) {
         return next(new Error('Unauthorized: No token'));
@@ -45,6 +47,8 @@ const initSocket = (server) => {
 
     // user personal room
     socket.join(`user_${userId}`);
+    socket.join(`rider_${userId}`);
+    socket.join(`user:${userId}`);
 
     /* =========================
        REQUEST / RIDE ROOMS
