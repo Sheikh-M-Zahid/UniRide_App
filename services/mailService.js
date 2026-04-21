@@ -11,7 +11,6 @@ const transporter = nodemailer.createTransport({
   },
 });
 
-
 const sendMail = async ({ to, subject, text, html }) => {
   const mailOptions = {
     from: process.env.MAIL_FROM || process.env.MAIL_USER,
@@ -25,23 +24,18 @@ const sendMail = async ({ to, subject, text, html }) => {
 };
 
 const sendPasswordRecoveryOtpEmail = async (email, otp) => {
-  await transporter.sendMail({
-    from: process.env.MAIL_FROM,
+  return sendMail({
     to: email,
     subject: 'UniRide Password Recovery OTP',
     text: `Your password recovery OTP is ${otp}`,
-  });
-};
-
-module.exports = {
-  sendPasswordRecoveryOtpEmail,
-};
-
-  return sendMail({
-    to: email,
-    subject,
-    text,
-    html,
+    html: `
+      <div style="font-family: Arial, sans-serif; line-height: 1.6;">
+        <h2>UniRide Password Recovery</h2>
+        <p>Your password recovery OTP is:</p>
+        <h1 style="letter-spacing: 4px;">${otp}</h1>
+        <p>This OTP will expire soon.</p>
+      </div>
+    `,
   });
 };
 

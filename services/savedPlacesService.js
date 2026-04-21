@@ -59,18 +59,18 @@ const updateSavedPlaces = async (userId, payload) => {
   }
 
   await rideDb.query(
-    `UPDATE users
-     SET home_address = $1,
-         campus_address = $2,
-         hostel_address = $3
-     WHERE user_id = $4`,
-    [
-      String(homeAddress).trim(),
-      String(campusAddress).trim(),
-      String(hostelAddress).trim(),
-      userId,
-    ]
-  );
+  `UPDATE users
+   SET home_address = $1,
+       campus_address = $2,
+       hostel_address = $3
+   WHERE user_id = $4`,
+  [
+    homeAddress ? String(homeAddress).trim() : null,
+    campusAddress ? String(campusAddress).trim() : null,
+    hostelAddress ? String(hostelAddress).trim() : null,
+    userId,
+  ]
+);
 
   return true;
 };

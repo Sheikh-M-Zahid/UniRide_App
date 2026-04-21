@@ -6,27 +6,15 @@ const reserveService = require('./reserveService');
 // ==============================
 const getMyActivity = async (userId, sort = 'new') => {
   let order = 'DESC';
-
-  if (sort === 'old') {
-    order = 'ASC';
-  }
+  if (sort === 'old') { order = 'ASC'; }
 
   const result = await rideDb.query(
-    `
-    SELECT 
-      r.ride_id,
-      r.start_location,
-      r.destination,
-      r.total_fare,
-      r.status,
-      r.created_at
-    FROM rides r
-    WHERE r.rider_id = $1
-    ORDER BY r.created_at ${order}
-    `,
+    `SELECT r.ride_id, r.start_location, r.destination, r.total_fare, r.status, r.created_at
+     FROM rides r
+     WHERE r.rider_id = $1
+     ORDER BY r.created_at ${order}`,
     [userId]
   );
-
   return result.rows;
 };
 
@@ -42,9 +30,12 @@ const getActivityDashboard = async ({
 }) => {
   const offset = (page - 1) * limit;
 
+  // ১. রাইড রিকোয়েস্টের জন্য ফিল্টার (প্যাসেঞ্জার হিসেবে)
   let rideWhereClause = `WHERE rr.passenger_id = $1`;
   const rideValues = [userId];
-    if (type !== 'all') {
+
+  // টাইপ ফিল্টার লজিক
+  if (type !== 'all') {
     if (type === 'reserved') {
       rideWhereClause += ` AND rr.status = 'accepted'`;
     } else if (type === 'completed') {
@@ -52,10 +43,11 @@ const getActivityDashboard = async ({
     } else if (type === 'cancelled') {
       rideWhereClause += ` AND rr.status = 'cancelled'`;
     } else if (type === 'send_item') {
-      rideWhereClause += ` AND 1 = 0`;
+      rideWhereClause += ` AND 1 = 0`; // রাইড কোয়েরিতে পার্সেল আসবে না
     }
   }
 
+  // টাইম ফিল্টার লজিক
   if (time === 'today') {
     rideWhereClause += ` AND DATE(rr.created_at) = CURRENT_DATE`;
   } else if (time === 'this_week') {
@@ -64,14 +56,7 @@ const getActivityDashboard = async ({
     rideWhereClause += ` AND rr.created_at >= DATE_TRUNC('month', CURRENT_DATE)`;
   }
 
-  if (time === 'today') {
-    rideWhereClause += ` AND DATE(r.created_at) = CURRENT_DATE`;
-  } else if (time === 'this_week') {
-    rideWhereClause += ` AND r.created_at >= DATE_TRUNC('week', CURRENT_DATE)`;
-  } else if (time === 'this_month') {
-    rideWhereClause += ` AND r.created_at >= DATE_TRUNC('month', CURRENT_DATE)`;
-  }
-
+  // ২. সামারি কোয়েরি (Alias 'r' এবং 'rr' সঠিকভাবে জয়েন করা হয়েছে)
   const rideSummaryQuery = `
     SELECT
       COUNT(*)::int AS total,
@@ -83,6 +68,7 @@ const getActivityDashboard = async ({
     ${rideWhereClause}
   `;
 
+  // ৩. রাইড লিস্ট কোয়েরি
   const rideListQuery = `
     SELECT
       rr.request_id AS id,
@@ -112,6 +98,7 @@ const getActivityDashboard = async ({
   const rideSummaryResult = await rideDb.query(rideSummaryQuery, rideValues);
   const rideActivitiesResult = await rideDb.query(rideListQuery, rideValues);
 
+  // ৪. সেন্ড আইটেম ডেটা (আপনার ডাটাবেজ কলাম s_id এবং drop_location অনুযায়ী)
   const sendItemResult = await rideDb.query(
     `SELECT 
       s_id AS id, 'send_item' AS item_type, 'Parcel Delivery' AS title,
@@ -126,6 +113,7 @@ const getActivityDashboard = async ({
     [userId]
   );
 
+  // ৫. রিজার্ভেশন ডেটা
   const reserveData = await reserveService.getReserveActivityList({
     userId,
     type,
@@ -135,61 +123,30 @@ const getActivityDashboard = async ({
   const rideSummaryRow = rideSummaryResult.rows[0] || {};
   const reserveSummary = reserveData.summary || {};
 
+  // ৬. সকল ডেটা মার্জ করা
   const mergedActivities = [
-    // ১. সাধারণ রাইড এর ডাটা (Ride Requests)
     ...(rideActivitiesResult.rows || []).map((row) => ({
-      id: row.id,
-      item_type: row.item_type,
-      title: row.title,
-      name: row.name,
-      phone: row.phone,
-      pickup: row.pickup,
-      destination: row.destination,
-      time: row.time,
+      ...row,
       fare: Number(row.fare || 0),
-      date: row.date,
-      status: row.status,
-      created_at: row.created_at,
-      totalDistanceKm: row.total_distance_km,
-      estimatedTravelMinutes: row.estimated_travel_minutes,
-      riderName: row.rider_name,
-      riderPhone: row.rider_phone,
       canCancel: row.can_cancel === true,
     })),
-
-    // ২. পার্সেল ডেলিভারি ডাটা (Send Items)
     ...(sendItemResult.rows || []).map((row) => ({
-      id: row.id,
-      item_type: 'send_item',
-      title: row.title,
-      name: row.name, // Receiver Name
-      phone: row.phone, // Receiver Phone
-      pickup: row.pickup,
-      destination: row.destination,
-      time: row.time,
+      ...row,
       fare: Number(row.fare || 0),
-      date: row.date,
-      status: row.status,
-      created_at: row.created_at,
       canCancel: false,
     })),
-
-    // ৩. রিজার্ভ রাইড ডাটা (Reserves)
     ...((reserveData.activities || []).map((row) => ({
       ...row,
       created_at: row.created_at,
     }))),
   ];
 
-  mergedActivities.sort((a, b) => {
-    return new Date(b.created_at) - new Date(a.created_at);
-  });
-
+  mergedActivities.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
   const paginatedActivities = mergedActivities.slice(offset, offset + limit);
 
   return {
     summary: {
-      total: Number(rideSummaryRow.total || 0) + Number(reserveSummary.total || 0),
+      total: Number(rideSummaryRow.total || 0) + Number(reserveSummary.total || 0) + (sendItemResult.rows?.length || 0),
       completed: Number(rideSummaryRow.completed || 0) + Number(reserveSummary.completed || 0),
       cancelled: Number(rideSummaryRow.cancelled || 0) + Number(reserveSummary.cancelled || 0),
       earnings: Number(rideSummaryRow.earnings || 0) + Number(reserveSummary.earnings || 0),
