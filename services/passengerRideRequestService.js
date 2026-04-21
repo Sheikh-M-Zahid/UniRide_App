@@ -126,6 +126,7 @@ const createRideRequest = async ({ passengerId, body, io }) => {
 
   // 7. Frontend exact RideRequestModel payload
   const requestPayload = {
+    requestId: request.request_id,
     passengerName: `${passenger.first_name || ''} ${passenger.last_name || ''}`.trim(),
     phoneNumber: passenger.phone || '',
     currentLocation: request.pickup_location,
@@ -157,7 +158,8 @@ const createRideRequest = async ({ passengerId, body, io }) => {
 
   // 10. Real-time emit to rider
   if (io) {
-    io.to(`rider:${riderId}`).emit('ride-request:new', payload);
+    io.to(`rider_${riderId}`).emit('ride-request:new', payload);
+    io.to(`rider_${riderId}`).emit('new_ride_request', requestPayload);
   }
 
   return payload;
