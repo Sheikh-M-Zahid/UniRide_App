@@ -28,7 +28,8 @@ const { setAdminVehicleIo } = require('./utils/adminVehicleEmitter');
 
 const { setNotificationIo } = require('./utils/notificationEmitter');
 const attachNotificationSocket = require('./sockets/notificationSocket');
-
+const coRideSocket = require('./sockets/coRideSocket');
+const { setCoRideIo } = require('./utils/coRideEmitter');
 
 
 const PORT = process.env.PORT || 5000;
@@ -49,6 +50,8 @@ setRideAvailabilityIo(io);
 setAdminVehicleIo(io);
 setNotificationIo(io);
 attachNotificationSocket(io);
+coRideSocket(io);
+setCoRideIo(io);
 
 io.on('connection', (socket) => {
   activeRiderSocket(socket);
