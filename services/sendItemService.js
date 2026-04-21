@@ -8,6 +8,14 @@ const {
   validateReceiverEmailInput,
 } = require('../utils/sendItemHelpers');
 
+const {
+  notifySendItemCreated,
+  notifySendItemAccepted,
+  notifySendItemPickedUp,
+  notifySendItemDelivered,
+  notifySendItemCancelled,
+} = require('./sendItemNotificationService');
+
 const getUserBasicInfo = async (userId) => {
   const result = await rideDb.query(
     `SELECT user_id, first_name, last_name, university_email, phone
@@ -115,19 +123,30 @@ const createSendItemRequest = async (userId, payload) => {
     ]
   );
 
-  return result.rows[0];
+  const createdItem = result.rows[0];
+
+  await notifySendItemCreated(createdItem);
+
+  return createdItem;
 };
 
 const getAvailableSendItemRequests = async () => {
   const result = await rideDb.query(
     `SELECT
         s_id,
+        sender_id,
+        receiver_id,
+        receiver_email,
         item_type,
         item_weight,
+        sender_name,
+        sender_phone,
         pickup_location,
         drop_location,
+        rider_id,
+        rider_phone,
         delivery_fee,
-        status,
+        LOWER(status) AS status,
         created_at
      FROM send_items
      WHERE LOWER(status) = 'pending'
@@ -142,6 +161,7 @@ const getMySentItems = async (userId) => {
   const result = await rideDb.query(
     `SELECT
         s.s_id,
+        s.sender_id,
         s.receiver_id,
         s.receiver_email,
         s.item_type,
@@ -298,6 +318,7 @@ const acceptItemRequest = async (sId, riderId) => {
   }
 
   const rider = await getUserBasicInfo(riderId);
+  const riderName = `${rider.first_name || ''} ${rider.last_name || ''}`.trim();
 
   const updated = await rideDb.query(
     `UPDATE send_items
@@ -309,7 +330,12 @@ const acceptItemRequest = async (sId, riderId) => {
     [riderId, rider.phone || null, sId]
   );
 
-  const acceptedItem = updated.rows[0];
+  const acceptedItem = {
+    ...updated.rows[0],
+    rider_name: riderName || 'Rider',
+  };
+
+  await notifySendItemAccepted(acceptedItem);
 
   return {
     s_id: acceptedItem.s_id,
@@ -355,6 +381,8 @@ const pickupItemRequest = async (sId, riderId) => {
 
   const pickedItem = updated.rows[0];
 
+  await notifySendItemPickedUp(pickedItem);
+
   return {
     s_id: pickedItem.s_id,
     status: 'picked_up',
@@ -395,7 +423,11 @@ const deliverItemRequest = async (sId, riderId) => {
     [sId, riderId]
   );
 
-  return updated.rows[0];
+  const deliveredItem = updated.rows[0];
+
+  await notifySendItemDelivered(deliveredItem);
+
+  return deliveredItem;
 };
 
 const cancelItemRequest = async (sId, userId) => {
@@ -431,7 +463,11 @@ const cancelItemRequest = async (sId, userId) => {
     [sId]
   );
 
-  return updated.rows[0];
+  const cancelledItem = updated.rows[0];
+
+  await notifySendItemCancelled(cancelledItem, userId);
+
+  return cancelledItem;
 };
 
 module.exports = {
