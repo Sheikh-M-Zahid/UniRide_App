@@ -1,8 +1,5 @@
 const rideDb = require('../config/rideDb');
 
-/* =========================
-   REQUIRED FILES
-========================= */
 const requiredFiles = [
   'varsity_id_photo',
   'driver_profile_photo',
@@ -20,33 +17,61 @@ const validateFiles = (files) => {
 };
 
 const getFilePath = (files, field) => {
-  return files[field][0].path;
+  return files[field][0].path.replace(/\\/g, '/');
 };
 
-/* =========================
-   MAIN FUNCTION
-========================= */
 const registerCar = async ({ userId, body, files }) => {
-  const { company, model, year, number_plate } = body;
+  const { company, model, year, number_plate, total_seats } = body;
 
-  /* FIELD VALIDATION */
   if (!company || !model || !year || !number_plate) {
     throw new Error('All fields are required.');
   }
 
+  if (Number.isNaN(Number(year))) {
+    throw new Error('Year must be a valid number.');
+  }
+
+  const seats = Number(total_seats || 4);
+  if (Number.isNaN(seats) || seats < 1 || seats > 4) {
+    throw new Error('Total seats must be between 1 and 4.');
+  }
+
   validateFiles(files);
 
-  /* DUPLICATE NUMBER PLATE CHECK */
-  const duplicate = await rideDb.query(
-    `SELECT 1 FROM vehicles WHERE number_plate = $1`,
+  const existingApprovedOrPending = await rideDb.query(
+    `
+    SELECT vehicle_id, verification_status, verified
+    FROM vehicles
+    WHERE user_id = $1
+      AND vehicle_type = 'car'
+      AND verification_status IN ('pending', 'approved')
+    ORDER BY created_at DESC
+    LIMIT 1
+    `,
+    [userId]
+  );
+
+  if (existingApprovedOrPending.rows.length > 0) {
+    const row = existingApprovedOrPending.rows[0];
+
+    if (row.verification_status === 'pending') {
+      throw new Error('You already have a pending car verification request.');
+    }
+
+    if (row.verification_status === 'approved' && row.verified === true) {
+      throw new Error('Your car is already approved.');
+    }
+  }
+
+  const duplicatePlate = await rideDb.query(
+    `SELECT 1 FROM vehicles WHERE LOWER(number_plate) = LOWER($1)`,
     [number_plate]
   );
 
-  if (duplicate.rows.length) {
+  if (duplicatePlate.rows.length) {
     throw new Error('This number plate is already registered.');
   }
 
-  /* INSERT INTO DB */
   const result = await rideDb.query(
     `
     INSERT INTO vehicles (
@@ -56,26 +81,29 @@ const registerCar = async ({ userId, body, files }) => {
       model,
       year,
       number_plate,
+      total_seats,
       varsity_id_photo,
       driver_profile_photo,
       driving_license_photo,
       vehicle_registration_photo,
       tax_token_photo,
-      verified
+      verified,
+      verification_status
     )
     VALUES (
-      $1, 'car', $2, $3, $4, $5,
-      $6, $7, $8, $9, $10,
-      false
+      $1, 'car', $2, $3, $4, $5, $6,
+      $7, $8, $9, $10, $11,
+      false, 'pending'
     )
-    RETURNING *
+    RETURNING vehicle_id, vehicle_type, company, model, year, number_plate, total_seats, verification_status, verified, created_at
     `,
     [
       userId,
-      company,
-      model,
-      year,
-      number_plate,
+      company.trim(),
+      model.trim(),
+      Number(year),
+      number_plate.trim(),
+      seats,
       getFilePath(files, 'varsity_id_photo'),
       getFilePath(files, 'driver_profile_photo'),
       getFilePath(files, 'driving_license_photo'),
@@ -85,7 +113,8 @@ const registerCar = async ({ userId, body, files }) => {
   );
 
   return {
-    vehicleId: result.rows[0].vehicle_id,
+    vehicle: result.rows[0],
+    riderEligibility: false,
     status: 'pending_verification',
   };
 };

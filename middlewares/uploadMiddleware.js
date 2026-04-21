@@ -27,11 +27,17 @@ const fileFilter = (req, file, cb) => {
 };
 
 const profileStorage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, profileDir);
-  },
+  destination: (req, file, cb) => cb(null, profileDir),
   filename: (req, file, cb) => {
     const uniqueName = `profile-${Date.now()}-${Math.round(Math.random() * 1e9)}${path.extname(file.originalname)}`;
+    cb(null, uniqueName);
+  },
+});
+
+const vehicleStorage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, vehicleDir),
+  filename: (req, file, cb) => {
+    const uniqueName = `vehicle-${Date.now()}-${Math.round(Math.random() * 1e9)}${path.extname(file.originalname)}`;
     cb(null, uniqueName);
   },
 });
@@ -41,16 +47,6 @@ const uploadProfilePicture = multer({
   fileFilter,
   limits: {
     fileSize: 5 * 1024 * 1024,
-  },
-});
-
-const vehicleStorage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, vehicleDir);
-  },
-  filename: (req, file, cb) => {
-    const uniqueName = `vehicle-${Date.now()}-${Math.round(Math.random() * 1e9)}${path.extname(file.originalname)}`;
-    cb(null, uniqueName);
   },
 });
 
