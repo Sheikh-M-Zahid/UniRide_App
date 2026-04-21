@@ -1,4 +1,5 @@
 const rideDb = require('../config/rideDb');
+const { createBulkNotifications } = require('../notificationService');
 
 const getActiveOffers = async () => {
   const result = await rideDb.query(
@@ -77,6 +78,14 @@ const createOffer = async (payload) => {
     conditions,
   } = payload;
 
+  const normalizedEligibleUser = String(eligible_user || '')
+    .trim()
+    .toLowerCase();
+
+  const normalizedPromoCode = String(promo_code || '')
+    .trim()
+    .toUpperCase();
+
   const result = await rideDb.query(
     `INSERT INTO offers (
       offer_name,
@@ -88,7 +97,7 @@ const createOffer = async (payload) => {
       promo_code,
       conditions
     )
-    VALUES ($1, $2, $3, $4, $5, $6, UPPER($7), $8)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
     RETURNING
       offer_id,
       offer_name,
@@ -104,15 +113,70 @@ const createOffer = async (payload) => {
       offer_name,
       offer_type,
       reward_percentage,
-      eligible_user,
+      normalizedEligibleUser,
       start_date,
       end_date,
-      promo_code,
+      normalizedPromoCode,
       conditions,
     ]
   );
 
-  return result.rows[0];
+  const createdOffer = result.rows[0];
+
+  let usersQuery = '';
+  let usersParams = [];
+
+  if (normalizedEligibleUser === 'both') {
+    usersQuery = `
+      SELECT user_id, selected_mode
+      FROM users
+      WHERE account_status = 'active'
+        AND selected_mode IN ('passenger', 'rider')
+    `;
+  } else if (normalizedEligibleUser === 'passenger') {
+    usersQuery = `
+      SELECT user_id, selected_mode
+      FROM users
+      WHERE account_status = 'active'
+        AND selected_mode = 'passenger'
+    `;
+  } else if (normalizedEligibleUser === 'rider') {
+    usersQuery = `
+      SELECT user_id, selected_mode
+      FROM users
+      WHERE account_status = 'active'
+        AND selected_mode = 'rider'
+    `;
+  }
+
+  if (usersQuery) {
+    const usersResult = await rideDb.query(usersQuery, usersParams);
+
+    if (usersResult.rows.length > 0) {
+      const notifications = usersResult.rows.map((user) => ({
+        userId: user.user_id,
+        title: `New Offer: ${createdOffer.offer_name}`,
+        message:
+          `Offer Name: ${createdOffer.offer_name}\n` +
+          `Promo Code: ${createdOffer.promo_code}\n` +
+          `Discount: ${createdOffer.reward_percentage}%\n` +
+          `Valid From: ${createdOffer.start_date}\n` +
+          `Valid Until: ${createdOffer.end_date}\n` +
+          `Condition: ${createdOffer.conditions || 'N/A'}\n` +
+          `Note: This offer can be used only once.`,
+        type: 'offer',
+        isImportant: true,
+        targetRole: normalizedEligibleUser === 'both'
+          ? (user.selected_mode || 'general')
+          : normalizedEligibleUser,
+        relatedId: createdOffer.offer_id,
+      }));
+
+      await createBulkNotifications(notifications);
+    }
+  }
+
+  return createdOffer;
 };
 
 const listOffers = async () => {
