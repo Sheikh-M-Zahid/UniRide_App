@@ -2,6 +2,9 @@ const rideDb = require('../config/rideDb');
 const { safeDistanceKm, calculateETA } = require('../utils/geo');
 const { emitRideAvailable } = require('../utils/rideAvailabilityEmitter');
 const { notifyUsersForRide } = require('./rideAlertMatcherService');
+const {
+  autoCompleteRideIfReachedDestination,
+} = require('./activeRideAutoCompleteService');
 
 const DEFAULT_BIKE_RATE = 20;
 const DEFAULT_CAR_RATE = 35;
@@ -119,7 +122,9 @@ const cancelCurrentRide = async ({ userId }) => {
     await client.query(
       `
       UPDATE rides
-      SET status = 'cancelled'
+      SET
+        status = 'cancelled',
+        cancelled_at = CURRENT_TIMESTAMP
       WHERE ride_id = $1
       `,
       [rideId]
@@ -130,6 +135,7 @@ const cancelCurrentRide = async ({ userId }) => {
       UPDATE rider_availability
       SET
         is_active = FALSE,
+        last_deactivated_at = CURRENT_TIMESTAMP,
         updated_at = CURRENT_TIMESTAMP
       WHERE rider_id = $1
       `,
@@ -273,6 +279,10 @@ const activateRide = async ({ userId, body }) => {
 
   const vehicle = vehicleRes.rows[0];
 
+  if (!vehicle.verified) {
+    throw new Error('Only verified vehicles can be used to activate a ride.');
+  }
+
   const riderRes = await rideDb.query(
     `SELECT
         first_name,
@@ -289,7 +299,6 @@ const activateRide = async ({ userId, body }) => {
     currentLocationText ||
     `${Number(currentLat).toFixed(5)}, ${Number(currentLng).toFixed(5)}`;
 
-  // since current rides table has no destination text geocoder column from frontend picker is already destination
   const distanceKmRaw = safeDistanceKm(
     Number(currentLat),
     Number(currentLng),
@@ -304,8 +313,6 @@ const activateRide = async ({ userId, body }) => {
   const totalDistanceKm = Number(distanceKmRaw.toFixed(2));
   const perKmRate = await getPerKmRate(vehicle.vehicle_type);
   const totalFare = Number((totalDistanceKm * perKmRate).toFixed(2));
-
-  // safest offered seats = vehicle total seats
   const availableSeats = Math.max(Number(vehicle.total_seats || 1), 1);
 
   const client = await rideDb.connect();
@@ -313,7 +320,6 @@ const activateRide = async ({ userId, body }) => {
   try {
     await client.query('BEGIN');
 
-    // rider availability active
     await client.query(
       `INSERT INTO rider_availability (
         rider_id,
@@ -334,8 +340,6 @@ const activateRide = async ({ userId, body }) => {
       [userId, currentLat, currentLng]
     );
 
-    // live location upsert-like behavior using existing unique(user_id, ride_id)
-    // first create ride, then attach ride live location
     const rideInsertRes = await client.query(
       `INSERT INTO rides (
         rider_id,
@@ -351,10 +355,16 @@ const activateRide = async ({ userId, body }) => {
         travel_time,
         vehicle_type,
         gender_preference,
-        note
+        note,
+        pickup_latitude,
+        pickup_longitude,
+        destination_latitude,
+        destination_longitude,
+        start_latitude,
+        start_longitude
       )
       VALUES (
-        $1,$2,$3,$4,$5,$6,$7,$8,'active',$9,$10,$11,$12,$13
+        $1,$2,$3,$4,$5,$6,$7,$8,'active',$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19
       )
       RETURNING *`,
       [
@@ -371,6 +381,12 @@ const activateRide = async ({ userId, body }) => {
         vehicle.vehicle_type,
         String(genderPreference || 'any').toLowerCase(),
         note,
+        currentLat,
+        currentLng,
+        destinationLat,
+        destinationLng,
+        currentLat,
+        currentLng,
       ]
     );
 
@@ -384,12 +400,7 @@ const activateRide = async ({ userId, body }) => {
         longitude,
         updated_at
       )
-      VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP)
-      ON CONFLICT (user_id, ride_id)
-      DO UPDATE SET
-        latitude = EXCLUDED.latitude,
-        longitude = EXCLUDED.longitude,
-        updated_at = CURRENT_TIMESTAMP`,
+      VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP)`,
       [userId, createdRide.ride_id, currentLat, currentLng]
     );
 
@@ -422,6 +433,8 @@ const activateRide = async ({ userId, body }) => {
       totalFare,
       availableSeats: Number(createdRide.available_seats || 0),
       status: createdRide.status,
+      destinationLatitude: Number(createdRide.destination_latitude),
+      destinationLongitude: Number(createdRide.destination_longitude),
     };
   } catch (error) {
     await client.query('ROLLBACK');
@@ -462,30 +475,81 @@ const updateCurrentLocation = async ({ userId, body }) => {
     );
   }
 
-  if (rideId) {
-    await rideDb.query(
-      `INSERT INTO live_locations (
-        user_id,
-        ride_id,
-        latitude,
-        longitude,
-        updated_at
-      )
-      VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP)
-      ON CONFLICT (user_id, ride_id)
-      DO UPDATE SET
-        latitude = EXCLUDED.latitude,
-        longitude = EXCLUDED.longitude,
-        updated_at = CURRENT_TIMESTAMP`,
-      [userId, rideId, latitude, longitude]
+  let resolvedRideId = rideId;
+
+  if (!resolvedRideId) {
+    const activeRideRes = await rideDb.query(
+      `
+      SELECT ride_id
+      FROM rides
+      WHERE rider_id = $1
+        AND status = ANY($2::text[])
+      ORDER BY created_at DESC
+      LIMIT 1
+      `,
+      [userId, BLOCKING_RIDE_STATUSES]
     );
+
+    if (activeRideRes.rows.length) {
+      resolvedRideId = activeRideRes.rows[0].ride_id;
+    }
   }
+
+  if (resolvedRideId) {
+    const existingLiveLocation = await rideDb.query(
+      `
+      SELECT location_id
+      FROM live_locations
+      WHERE user_id = $1
+        AND ride_id = $2
+      LIMIT 1
+      `,
+      [userId, resolvedRideId]
+    );
+
+    if (existingLiveLocation.rows.length) {
+      await rideDb.query(
+        `
+        UPDATE live_locations
+        SET
+          latitude = $3,
+          longitude = $4,
+          updated_at = CURRENT_TIMESTAMP
+        WHERE user_id = $1
+          AND ride_id = $2
+        `,
+        [userId, resolvedRideId, latitude, longitude]
+      );
+    } else {
+      await rideDb.query(
+        `
+        INSERT INTO live_locations (
+          user_id,
+          ride_id,
+          latitude,
+          longitude,
+          updated_at
+        )
+        VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP)
+        `,
+        [userId, resolvedRideId, latitude, longitude]
+      );
+    }
+  }
+
+  const autoCompleteResult = await autoCompleteRideIfReachedDestination({
+    userId,
+    rideId: resolvedRideId,
+    latitude,
+    longitude,
+  });
 
   return {
     userId,
-    rideId,
+    rideId: resolvedRideId,
     latitude,
     longitude,
+    autoComplete: autoCompleteResult,
   };
 };
 
