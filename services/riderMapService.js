@@ -1,5 +1,6 @@
 const rideDb = require('../config/rideDb');
-const riderActiveRideService = require('../riderActiveRideService');
+const riderActiveRideService = require('./riderActiveRideService');
+const { isRouteMatch } = require('../utils/routeMatcher');
 
 const getMapDashboard = async ({ riderId }) => {
   // 1. rider location
@@ -83,17 +84,34 @@ const getMapDashboard = async ({ riderId }) => {
      LIMIT 20`
   );
 
-  const nearbyRideRequests = requestsRes.rows.map(r => ({
-    requestId: r.request_id,
-    name: `${r.first_name} ${r.last_name}`,
-    pickup: r.pickup_location,
-    destination: r.destination,
-    distanceKm: Number(r.distance_km || 0),
-    fare: Number(r.estimated_fare || 0),
-    eta: r.estimated_minutes || 0,
-    pickupLat: r.pickup_latitude,
-    pickupLng: r.pickup_longitude,
-  }));
+  let nearbyRideRequests = [];
+
+  if (currentRide) {
+    nearbyRideRequests = requestsRes.rows
+      .filter((r) =>
+        isRouteMatch({
+          riderStartLat: Number(currentRide.pickupLat ?? 0),
+          riderStartLng: Number(currentRide.pickupLng ?? 0),
+          riderDestLat: Number(currentRide.destinationLat ?? 0),
+          riderDestLng: Number(currentRide.destinationLng ?? 0),
+          reqPickupLat: Number(r.pickup_latitude ?? 0),
+          reqPickupLng: Number(r.pickup_longitude ?? 0),
+          reqDestLat: Number(r.destination_latitude ?? 0),
+          reqDestLng: Number(r.destination_longitude ?? 0),
+        })
+      )
+      .map((r) => ({
+        requestId: r.request_id,
+        name: `${r.first_name} ${r.last_name}`,
+        pickup: r.pickup_location,
+        destination: r.destination,
+        distanceKm: Number(r.distance_km || 0),
+        fare: Number(r.estimated_fare || 0),
+        eta: r.estimated_minutes || 0,
+        pickupLat: r.pickup_latitude,
+        pickupLng: r.pickup_longitude,
+      }));
+  }
 
   return {
     riderLocation: {
