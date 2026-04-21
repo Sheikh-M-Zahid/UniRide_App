@@ -29,26 +29,23 @@ const getActiveRiders = async ({
   limit = 20,
 }) => {
   const safeFilter = ALLOWED_FILTERS.includes(filter) ? filter : 'all_active';
-  const safeLimit = Number.isFinite(limit) && limit > 0 ? Math.min(limit, 100) : 20;
+  const safeLimit =
+    Number.isFinite(limit) && limit > 0 ? Math.min(limit, 100) : 20;
   const safePage = Number.isFinite(page) && page > 0 ? page : 1;
   const offset = (safePage - 1) * safeLimit;
 
   const params = [];
   let whereClause = `
-    WHERE u.account_status = 'active'
-      AND ar.active_ride_id IS NOT NULL
+    WHERE ar.active_ride_id IS NOT NULL
   `;
 
   if (search.trim()) {
     params.push(`%${search.trim()}%`);
     whereClause += `
       AND (
-        u.first_name ILIKE $${params.length}
-        OR u.last_name ILIKE $${params.length}
-        OR (u.first_name || ' ' || u.last_name) ILIKE $${params.length}
-        OR COALESCE(ll.address, '') ILIKE $${params.length}
-        OR COALESCE(ll.location_name, '') ILIKE $${params.length}
-        OR COALESCE(u.phone, '') ILIKE $${params.length}
+        COALESCE(ar.rider_name, '') ILIKE $${params.length}
+        OR COALESCE(ar.active_location, '') ILIKE $${params.length}
+        OR COALESCE(ar.phone, '') ILIKE $${params.length}
       )
     `;
   }
@@ -56,17 +53,14 @@ const getActiveRiders = async ({
   if (location.trim()) {
     params.push(`%${location.trim()}%`);
     whereClause += `
-      AND (
-        COALESCE(ll.address, '') ILIKE $${params.length}
-        OR COALESCE(ll.location_name, '') ILIKE $${params.length}
-      )
+      AND COALESCE(ar.active_location, '') ILIKE $${params.length}
     `;
   }
 
   const baseCTE = `
     WITH active_rides AS (
       SELECT DISTINCT ON (r.rider_id)
-        r.id AS active_ride_id,
+        r.ride_id AS active_ride_id,
         r.rider_id,
         r.created_at AS active_since,
         r.start_location,
@@ -98,13 +92,16 @@ const getActiveRiders = async ({
     today_earnings AS (
       SELECT
         t.user_id,
-        COALESCE(SUM(
-          CASE
-            WHEN t.transaction_type IN ('ride_income', 'earning', 'rider_credit')
-            THEN t.amount
-            ELSE 0
-          END
-        ), 0)::numeric(10,2) AS earning
+        COALESCE(
+          SUM(
+            CASE
+              WHEN t.transaction_type IN ('ride_income', 'earning', 'rider_credit')
+              THEN t.amount
+              ELSE 0
+            END
+          ),
+          0
+        )::numeric(10,2) AS earning
       FROM transactions t
       WHERE DATE(t.created_at) = CURRENT_DATE
       GROUP BY t.user_id
@@ -147,6 +144,7 @@ const getActiveRiders = async ({
         ON te.user_id = u.user_id
       LEFT JOIN rider_vehicle rv
         ON rv.user_id = u.user_id
+      WHERE u.account_status = 'active'
     )
   `;
 
@@ -160,7 +158,6 @@ const getActiveRiders = async ({
       ) AS avg_active_minutes,
       COUNT(*) FILTER (WHERE DATE(active_since) = CURRENT_DATE)::int AS today_active_riders
     FROM rider_data ar
-    LEFT JOIN latest_locations ll ON ll.user_id = ar.user_id
     ${whereClause};
   `;
 
@@ -182,7 +179,6 @@ const getActiveRiders = async ({
       today_ride,
       earning
     FROM rider_data ar
-    LEFT JOIN latest_locations ll ON ll.user_id = ar.user_id
     ${whereClause}
     ${orderByClause}
     LIMIT $${listParams.length - 1}
@@ -193,7 +189,6 @@ const getActiveRiders = async ({
     ${baseCTE}
     SELECT COUNT(*)::int AS total_rows
     FROM rider_data ar
-    LEFT JOIN latest_locations ll ON ll.user_id = ar.user_id
     ${whereClause};
   `;
 
@@ -209,7 +204,7 @@ const getActiveRiders = async ({
     today_active_riders: 0,
   };
 
-  const totalRows = countResult.rows[0]?.total_rows || 0;
+  const totalRows = Number(countResult.rows[0]?.total_rows || 0);
 
   const riders = listResult.rows.map((row) => ({
     user_id: row.user_id,
@@ -225,7 +220,7 @@ const getActiveRiders = async ({
   return {
     stats: {
       totalActiveRiders: Number(statsRow.total_active_riders || 0),
-      avgActiveTime: Number(statsRow.avg_active_minutes || 0), // minutes
+      avgActiveTime: Number(statsRow.avg_active_minutes || 0),
       todayActiveRiders: Number(statsRow.today_active_riders || 0),
     },
     filters: {
@@ -234,8 +229,8 @@ const getActiveRiders = async ({
       location,
       page: safePage,
       limit: safeLimit,
-      totalRows: Number(totalRows),
-      totalPages: Math.ceil(Number(totalRows) / safeLimit),
+      totalRows,
+      totalPages: Math.ceil(totalRows / safeLimit),
     },
     riders,
   };
