@@ -22,7 +22,10 @@ const getRiderDashboard = async ({ riderId }) => {
   // If you do not yet have notifications table, keep fallback 0 for now.
   // Later replace with real query.
   const unreadNotificationsQuery = `
-    SELECT 0::int AS unread_count
+    SELECT COUNT(*)::int AS unread_count
+    FROM notifications
+    WHERE user_id = $1
+      AND is_read = FALSE
   `;
 
   const activeRideQuery = `
@@ -69,7 +72,7 @@ const getRiderDashboard = async ({ riderId }) => {
   ] = await Promise.all([
     rideDb.query(onlineStatusQuery, [riderId]),
     rideDb.query(todayEarningsQuery, [riderId]),
-    rideDb.query(unreadNotificationsQuery),
+    rideDb.query(unreadNotificationsQuery, [riderId]),
     rideDb.query(activeRideQuery, [riderId]),
     rideDb.query(upcomingReservedRideQuery, [riderId]),
   ]);
@@ -110,6 +113,8 @@ const getRiderDashboard = async ({ riderId }) => {
     unreadNotifications,
     activeRide,
     upcomingReservedRide,
+    active_ride: activeRide,
+    upcoming_reserved_ride: upcomingReservedRide,
   };
 };
 
