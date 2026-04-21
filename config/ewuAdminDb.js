@@ -1,15 +1,11 @@
 const { Pool } = require('pg');
 require('dotenv').config();
 
-const isNeon = !!process.env.DATABASE_URL;
-
 const ewuAdminDb = new Pool(
-  isNeon
+  process.env.DATABASE_EWU_URL
     ? {
-        connectionString: process.env.DATABASE_URL,
-        ssl: {
-          rejectUnauthorized: false,
-        },
+        connectionString: process.env.DATABASE_EWU_URL,
+        ssl: { rejectUnauthorized: false },
       }
     : {
         host: process.env.DB_EWU_HOST,
@@ -25,7 +21,7 @@ ewuAdminDb.on('connect', () => {
 });
 
 ewuAdminDb.on('error', (err) => {
-  console.error('DB error:', err.message);
+  console.error('DB error (ewuAdminDb):', err.message);
 });
 
 module.exports = ewuAdminDb;
