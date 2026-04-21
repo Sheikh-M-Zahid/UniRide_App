@@ -1,4 +1,7 @@
 const rideDb = require('../config/rideDb');
+const {
+  emitAdminVehicleVerificationUpdated,
+} = require('../utils/adminVehicleEmitter');
 
 const getPendingVehicleRequests = async (search = '') => {
   const values = [];
@@ -217,6 +220,13 @@ const approveVehicleRequest = async (vehicleId, adminUserId) => {
 
     await client.query('COMMIT');
 
+    emitAdminVehicleVerificationUpdated({
+        action: 'approved',
+        vehicleId,
+        userId: vehicle.user_id,
+        adminUserId,
+    });
+
     return {
       vehicleId,
       userId: vehicle.user_id,
@@ -302,6 +312,13 @@ const rejectVehicleRequest = async (vehicleId, adminUserId, reason = null) => {
     );
 
     await client.query('COMMIT');
+
+    emitAdminVehicleVerificationUpdated({
+      action: 'rejected',
+      vehicleId,
+      userId: vehicle.user_id,
+      adminUserId,
+    });
 
     return {
       vehicleId,
