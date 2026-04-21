@@ -1,6 +1,7 @@
 const rideDb = require('../config/rideDb');
 const { getDistanceAndDuration } = require('./distanceService');
 const { getActiveRateByVehicleType, calculateFare } = require('./fareService');
+const { isRouteMatch } = require('../utils/routeMatcher');
 
 const createRideRequest = async ({ passengerId, body, io }) => {
   const {
@@ -51,6 +52,43 @@ const createRideRequest = async ({ passengerId, body, io }) => {
 
   if (!availabilityRes.rows.length || !availabilityRes.rows[0].is_active) {
     throw new Error('Rider is not currently active.');
+  }
+
+  const activeRideRes = await rideDb.query(
+    `SELECT
+        pickup_latitude,
+        pickup_longitude,
+        destination_latitude,
+        destination_longitude,
+        start_latitude,
+        start_longitude
+     FROM rides
+     WHERE rider_id = $1
+       AND status IN ('active', 'assigned', 'ongoing')
+     ORDER BY created_at DESC
+     LIMIT 1`,
+    [riderId]
+  );
+
+  if (!activeRideRes.rows.length) {
+    throw new Error('Rider does not have an active route right now.');
+  }
+
+  const activeRide = activeRideRes.rows[0];
+
+  const matched = isRouteMatch({
+    riderStartLat: Number(activeRide.start_latitude ?? activeRide.pickup_latitude ?? 0),
+    riderStartLng: Number(activeRide.start_longitude ?? activeRide.pickup_longitude ?? 0),
+    riderDestLat: Number(activeRide.destination_latitude ?? 0),
+    riderDestLng: Number(activeRide.destination_longitude ?? 0),
+    reqPickupLat: Number(pickupLatitude),
+    reqPickupLng: Number(pickupLongitude),
+    reqDestLat: Number(destinationLatitude),
+    reqDestLng: Number(destinationLongitude),
+  });
+
+  if (!matched) {
+    throw new Error('This ride request does not match the rider route.');
   }
 
   // 3. Distance + estimated time
