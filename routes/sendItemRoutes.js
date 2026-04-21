@@ -22,6 +22,10 @@ router.post(
     'sender_phone',
     'pickup_location',
     'destination_location',
+    'pickup_lat',
+    'pickup_lng',
+    'destination_lat',
+    'destination_lng',
   ]),
   sendItemController.createSendItemRequest
 );
