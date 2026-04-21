@@ -2,7 +2,6 @@ const riderDeliverySocket = (io) => {
   io.on('connection', (socket) => {
     console.log(`Delivery socket connected: ${socket.id}`);
 
-    // Rider dashboard room join
     socket.on('join:rider-delivery', (userId) => {
       if (!userId) return;
 
@@ -12,7 +11,6 @@ const riderDeliverySocket = (io) => {
       console.log(`Socket ${socket.id} joined ${roomName}`);
     });
 
-    // Optional: specific delivery room join
     socket.on('join:delivery-room', (deliveryId) => {
       if (!deliveryId) return;
 
@@ -22,7 +20,6 @@ const riderDeliverySocket = (io) => {
       console.log(`Socket ${socket.id} joined ${roomName}`);
     });
 
-    // Optional: leave delivery room
     socket.on('leave:delivery-room', (deliveryId) => {
       if (!deliveryId) return;
 
