@@ -40,8 +40,10 @@ riderDashboardSocket(io);
 rideRequestSocket(io);
 riderDeliverySocket(io);
 rideAvailabilitySocket(io);
+adminVehicleSocket(io);
 
 setRideAvailabilityIo(io);
+setAdminVehicleIo(io);
 setNotificationIo(io);
 
 io.on('connection', (socket) => {
