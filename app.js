@@ -59,6 +59,7 @@ const mapsRoutes = require('./routes/mapsRoutes');
 const rideRequestRoutes = require('./routes/rideRequestRoutes');
 const profileRoutes = require('./routes/profileRoutes');
 const savedPlaceRoutes = require('./routes/savedPlacesRoutes');
+const rideHistoryRoutes = require('./routes/rideHistoryRoutes');
 
 const errorMiddleware = require('./middlewares/errorMiddleware');
 
@@ -133,6 +134,7 @@ app.use('/api/maps', mapsRoutes);
 app.use('/api/ride-requests', rideRequestRoutes);
 app.use('/api/profile', profileRoutes);
 app.use('/api', savedPlaceRoutes);
+app.use('/api', rideHistoryRoutes);
 
 app.use(errorMiddleware);
 
