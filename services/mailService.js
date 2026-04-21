@@ -39,7 +39,23 @@ const sendPasswordRecoveryOtpEmail = async (email, otp) => {
   });
 };
 
+const sendSignupOtpEmail = async (email, otpCode) => {
+  await transporter.sendMail({
+    from: process.env.MAIL_FROM || process.env.EMAIL_USER,
+    to: email,
+    subject: 'Your UniRide signup OTP',
+    html: `
+      <div style="font-family: Arial, sans-serif; line-height: 1.6;">
+        <h2>UniRide Email Verification</h2>
+        <p>Your OTP for signup is:</p>
+        <h1 style="letter-spacing: 4px;">${otpCode}</h1>
+        <p>Don't share this code with anyone. This code will expire in 1 minutes.</p>
+      </div>
+    `,
+  });
+};
+
 module.exports = {
-  sendMail,
   sendPasswordRecoveryOtpEmail,
+  sendSignupOtpEmail,
 };
