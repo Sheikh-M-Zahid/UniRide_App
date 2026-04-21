@@ -287,6 +287,140 @@ const googleLogin = async (email) => {
   };
 };
 
+const googleSignupCheck = async (email) => {
+  const normalizedEmail = normalizeEmail(email);
+
+  const allowed = await checkEwuAllowedUser(normalizedEmail);
+  if (!allowed.allowed) {
+    throw new Error(allowed.reason);
+  }
+
+  const userResult = await rideDb.query(
+    `SELECT user_id
+     FROM users
+     WHERE university_email = $1`,
+    [normalizedEmail]
+  );
+
+  return {
+    accountExists: userResult.rowCount > 0,
+    email: normalizedEmail,
+  };
+};
+
+const registerWithSignupToken = async (payload) => {
+  const {
+    signupToken,
+    first_name,
+    last_name,
+    phone,
+    recovery_phone,
+    emergency_phone,
+    gender,
+    blood_group,
+    date_of_birth,
+    home_address,
+    hostel_address,
+    campus_address,
+    password,
+  } = payload;
+
+  if (!signupToken) {
+    throw new Error('Signup token is required.');
+  }
+
+  let decoded;
+  try {
+    decoded = verifyResetToken(signupToken);
+  } catch (err) {
+    throw new Error('Invalid or expired signup session. Please verify OTP again.');
+  }
+
+  const email =
+    decoded.email ||
+    decoded.university_email ||
+    decoded.user_email;
+
+  if (!email) {
+    throw new Error('Invalid signup token payload.');
+  }
+
+  const normalizedEmail = normalizeEmail(email);
+
+  const allowed = await checkEwuAllowedUser(normalizedEmail);
+  if (!allowed.allowed) {
+    throw new Error(allowed.reason);
+  }
+
+  const existingUser = await rideDb.query(
+    `SELECT user_id FROM users WHERE university_email = $1`,
+    [normalizedEmail]
+  );
+
+  if (existingUser.rowCount > 0) {
+    throw new Error('User already exists.');
+  }
+
+  const password_hash = await hashPassword(password);
+
+  const insertedUser = await rideDb.query(
+    `INSERT INTO users (
+      university_email,
+      password_hash,
+      first_name,
+      last_name,
+      phone,
+      recovery_phone,
+      emergency_phone,
+      gender,
+      blood_group,
+      date_of_birth,
+      home_address,
+      hostel_address,
+      campus_address
+    )
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+    RETURNING user_id, university_email, first_name, last_name, phone, account_status, created_at`,
+    [
+      normalizedEmail,
+      password_hash,
+      first_name || null,
+      last_name || null,
+      phone || null,
+      recovery_phone || null,
+      emergency_phone || null,
+      gender || null,
+      blood_group || null,
+      date_of_birth || null,
+      home_address || null,
+      hostel_address || null,
+      campus_address || null,
+    ]
+  );
+
+  const user = insertedUser.rows[0];
+
+  await rideDb.query(
+    `INSERT INTO user_roles (user_id, role)
+     VALUES ($1, 'user')`,
+    [user.user_id]
+  );
+
+  const adminCheck = await checkAdminStatus(normalizedEmail, user.user_id);
+
+  const token = generateToken({
+    userId: user.user_id,
+    email: user.university_email,
+    isAdmin: adminCheck.isAdmin,
+  });
+
+  return {
+    user,
+    token,
+    isAdmin: adminCheck.isAdmin,
+  };
+};
+
 const resetPassword = async (email, otpCode, newPassword) => {
   await verifyOtp(email, otpCode);
   const password_hash = await hashPassword(newPassword);
