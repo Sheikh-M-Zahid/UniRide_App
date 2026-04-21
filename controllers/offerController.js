@@ -33,6 +33,32 @@ const applyOffer = asyncHandler(async (req, res) => {
 
 // Get active offers count
 const getActiveOffersCount = asyncHandler(async (req, res) => {
+  // Create offer (ADMIN)
+  const createOffer = asyncHandler(async (req, res) => {
+    const {
+      offer_name,
+      offer_type,
+      reward_percentage,
+      eligible_user,
+      start_date,
+      end_date,
+      promo_code,
+      conditions,
+    } = req.body;
+
+    const data = await offerService.createOffer({
+      offer_name,
+      offer_type,
+      reward_percentage,
+      eligible_user,
+      start_date,
+      end_date,
+      promo_code,
+      conditions,
+    });
+
+    return successResponse(res, 'Offer created successfully.', data);
+  });
   const count = await offerService.getActiveOffersCount();
 
   return successResponse(
@@ -46,4 +72,5 @@ module.exports = {
   getActiveOffers,
   applyOffer,
   getActiveOffersCount,
+  createOffer,
 };
