@@ -12,5 +12,6 @@ router.post('/requests/:id/accept', riderDeliveryController.acceptRequest);
 router.post('/requests/:id/reject', riderDeliveryController.rejectRequest);
 
 router.post('/:id/mark-delivered', riderDeliveryController.markDelivered);
+router.post('/:id/mark-picked-up', riderDeliveryController.markPickedUp);
 
 module.exports = router;
