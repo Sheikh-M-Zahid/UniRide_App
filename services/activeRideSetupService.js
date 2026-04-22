@@ -218,10 +218,16 @@ const activateRide = async ({ userId, body }) => {
         travel_time,
         vehicle_type,
         gender_preference,
-        note
+        note,
+        pickup_latitude,
+        pickup_longitude,
+        destination_latitude,
+        destination_longitude,
+        start_latitude,
+        start_longitude
       )
-      VALUES (
-        $1,$2,$3,$4,$5,$6,$7,$8,'assigned',$9,$10,$11,$12,$13
+        VALUES (
+        $1,$2,$3,$4,$5,$6,$7,$8,'assigned',$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19
       )
       RETURNING *`,
       [
@@ -238,8 +244,14 @@ const activateRide = async ({ userId, body }) => {
         vehicle.vehicle_type,
         String(genderPreference || 'any').toLowerCase(),
         note,
+        currentLat,
+        currentLng,
+        destinationLat,
+        destinationLng,
+        currentLat,
+        currentLng,
       ]
-    );
+   );
 
     const createdRide = rideInsertRes.rows[0];
 
