@@ -115,9 +115,40 @@ const markDelivered = async (req, res) => {
   }
 };
 
+// =========================
+// MARK DELIVERY AS PICKED UP
+// =========================
+const markPickedUp = async (req, res) => {
+  try {
+    const riderId = req.user?.userId;
+    const deliveryId = req.params?.id;
+    const io = req.app.get('io');
+
+    if (!riderId || !deliveryId) {
+      return errorResponse(res, 'Invalid request data', 400);
+    }
+
+    const data = await service.markPickedUp({
+      riderId,
+      id: deliveryId,
+      io,
+    });
+
+    return successResponse(
+      res,
+      'Delivery marked as picked up successfully.',
+      data
+    );
+  } catch (err) {
+    console.error('markPickedUp error:', err);
+    return errorResponse(res, err.message || 'Failed to mark picked up', 400);
+  }
+};
+
 module.exports = {
   getDashboard,
   acceptRequest,
   rejectRequest,
   markDelivered,
+  markPickedUp,
 };
