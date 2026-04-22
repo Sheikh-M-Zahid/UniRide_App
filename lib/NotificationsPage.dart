@@ -1,5 +1,7 @@
+import 'RiderDelivery.dart';
+import 'RiderMap.dart';
+import 'CoRideDetailsPopup.dart';
 import 'package:flutter/material.dart';
-import 'UserOffer.dart';
 import 'services/auth_api_service.dart';
 
 class AppColors {
@@ -46,6 +48,7 @@ class NotificationItemModel {
   final bool isRead;
   final bool isImportant;
   final UserRole targetRole;
+  final String? relatedId;
 
   const NotificationItemModel({
     required this.id,
@@ -56,6 +59,7 @@ class NotificationItemModel {
     required this.isRead,
     required this.isImportant,
     required this.targetRole,
+    this.relatedId,
   });
 
   NotificationItemModel copyWith({
@@ -67,6 +71,7 @@ class NotificationItemModel {
     bool? isRead,
     bool? isImportant,
     UserRole? targetRole,
+    String? relatedId,
   }) {
     return NotificationItemModel(
       id: id ?? this.id,
@@ -77,6 +82,7 @@ class NotificationItemModel {
       isRead: isRead ?? this.isRead,
       isImportant: isImportant ?? this.isImportant,
       targetRole: targetRole ?? this.targetRole,
+      relatedId: relatedId ?? this.relatedId,
     );
   }
 
@@ -91,6 +97,9 @@ class NotificationItemModel {
       isRead: json['isRead'] == true,
       isImportant: json['isImportant'] == true,
       targetRole: _userRoleFromString((json['targetRole'] ?? '').toString()),
+      relatedId: (json['relatedId'] ?? '').toString().isEmpty
+          ? null
+          : (json['relatedId']).toString(),
     );
   }
 }
@@ -368,21 +377,89 @@ class _NotificationsPageState extends State<NotificationsPage> {
 
     if (!mounted) return;
 
-    if (item.type == NotificationType.offer) {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => const OffersPage(),
+    if (widget.userRole == UserRole.rider &&
+        item.type == NotificationType.reserveRequest &&
+        item.relatedId != null) {
+      showDialog(
+        context: context,
+        builder: (_) => AlertDialog(
+          title: Text(item.title),
+          content: Text(item.message),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                Navigator.pop(context);
+
+                try {
+                  await _api.acceptReserveRequest(reserveId: item.relatedId!);
+
+                  if (!mounted) return;
+
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Reserve request accepted')),
+                  );
+
+                  await _loadNotifications();
+                } catch (e) {
+                  if (!mounted) return;
+
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
+                  );
+                }
+              },
+              child: const Text('Confirm'),
+            ),
+          ],
         ),
       );
       return;
     }
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text("${item.title} opened"),
-        backgroundColor: AppColors.secondary,
-        behavior: SnackBarBehavior.floating,
+    if (widget.userRole == UserRole.rider &&
+        item.type == NotificationType.sendItem) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => const RiderDeliveryPage(),
+        ),
+      );
+      return;
+    }
+
+    if (item.type == NotificationType.coRide && item.relatedId != null) {
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => CoRideDetailsPopup(sessionId: item.relatedId!),
+      );
+      return;
+    }
+
+    if (widget.userRole == UserRole.rider &&
+        item.type == NotificationType.booking) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const MapPage()),
+      );
+      return;
+    }
+
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: Text(item.title),
+        content: Text(item.message),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('OK'),
+          ),
+        ],
       ),
     );
   }

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'services/auth_api_service.dart';
+import 'RiderRegistrationHelp.dart';
 
 class AppColors {
   static const Color primary = Color(0xFF14B8A6);
@@ -263,6 +264,7 @@ class _PrivateCarRegistrationState
         modelOk &&
         selectedYear != null &&
         numberPlateController.text.isNotEmpty &&
+        RegExp(r'^[A-Za-z]{2,4}-[A-Za-z]+-[A-Za-z]{1,3}-\d{1,2}-\d{3,4}$').hasMatch(numberPlateController.text.trim()) &&
         varsityId != null &&
         profilePhoto != null &&
         drivingLicense != null &&
@@ -270,22 +272,46 @@ class _PrivateCarRegistrationState
         taxToken != null;
   }
 
-  Future<void> requestCameraPermission() async {
-    await Permission.camera.request();
+  Future<bool> requestCameraPermission() async {
+    final status = await Permission.camera.request();
+    if (status.isDenied || status.isPermanentlyDenied) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Camera permission is required. Please enable it from settings.'),
+            action: SnackBarAction(
+              label: 'Settings',
+              onPressed: () => openAppSettings(),
+            ),
+          ),
+        );
+      }
+      return false;
+    }
+    return true;
   }
 
   Future<void> pickFromCamera(Function(File) onPicked) async {
-    await requestCameraPermission();
-    final XFile? image =
-    await _picker.pickImage(source: ImageSource.camera);
+    final granted = await requestCameraPermission();
+    if (!granted) return;
+    final XFile? image = await _picker.pickImage(
+      source: ImageSource.camera,
+      imageQuality: 85,
+      maxWidth: 1920,
+      maxHeight: 1080,
+    );
     if (image != null) {
       onPicked(File(image.path));
     }
   }
 
   Future<void> pickFromGallery(Function(File) onPicked) async {
-    final XFile? image =
-    await _picker.pickImage(source: ImageSource.gallery);
+    final XFile? image = await _picker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 85,
+      maxWidth: 1920,
+      maxHeight: 1080,
+    );
     if (image != null) {
       onPicked(File(image.path));
     }
@@ -479,7 +505,14 @@ class _PrivateCarRegistrationState
         centerTitle: true,
         actions: [
           TextButton(
-            onPressed: () {},
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const RiderRegistrationHelpPage(),
+                ),
+              );
+            },
             child: const Text(
               "Help",
               style: TextStyle(color: AppColors.primary),
@@ -695,12 +728,16 @@ class _PrivateCarRegistrationState
 
             const SizedBox(height: 15),
 
-            TextField(
+            TextFormField(
               controller: numberPlateController,
               textCapitalization: TextCapitalization.characters,
+              autovalidateMode: AutovalidateMode.onUserInteraction,
               decoration: InputDecoration(
                 labelText: "Number Plate",
                 labelStyle: const TextStyle(color: AppColors.mutedText),
+                hintText: 'e.g. DHA-Metro-Ga-11-1234',
+                helperText: 'Format: City-Type-Letter-Series-Number',
+                helperStyle: TextStyle(color: AppColors.mutedText, fontSize: 12),
                 filled: true,
                 fillColor: Colors.white,
                 enabledBorder: OutlineInputBorder(
@@ -716,6 +753,14 @@ class _PrivateCarRegistrationState
                 ),
               ),
               onChanged: (_) => setState(() {}),
+              validator: (value) {
+                if (value == null || value.trim().isEmpty) return null;
+                final regex = RegExp(r'^[A-Za-z]{2,4}-[A-Za-z]+-[A-Za-z]{1,3}-\d{1,2}-\d{3,4}$');
+                if (!regex.hasMatch(value.trim())) {
+                  return 'Invalid format (e.g. DHA-Metro-Ga-11-1234)';
+                }
+                return null;
+              },
             ),
 
             const SizedBox(height: 30),

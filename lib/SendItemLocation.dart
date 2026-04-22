@@ -97,6 +97,13 @@ class _SendItemLocationState extends State<SendItemLocation> {
   Future<void> confirmSendItem() async {
     if (!isFormValid) return;
 
+    if (pickupLatLng == null || destinationLatLng == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Please select both locations from map")),
+      );
+      return;
+    }
+
     setState(() {
       isSubmitting = true;
     });
@@ -109,7 +116,11 @@ class _SendItemLocationState extends State<SendItemLocation> {
         senderName: widget.senderName,
         senderPhone: widget.senderPhone,
         pickupLocation: pickupController.text.trim(),
-        destinationLocation: destinationController.text.trim(),
+        dropLocation: destinationController.text.trim(),
+        pickupLat: pickupLatLng!.latitude,
+        pickupLng: pickupLatLng!.longitude,
+        destinationLat: destinationLatLng!.latitude,
+        destinationLng: destinationLatLng!.longitude,
       );
 
       if (!mounted) return;

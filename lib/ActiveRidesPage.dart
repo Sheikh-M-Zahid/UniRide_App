@@ -36,6 +36,9 @@ class _ActiveRidesPageState extends State<ActiveRidesPage> {
 
   bool isLoading = true;
   bool isConfirming = false;
+  bool isCancelling = false;
+  bool hasActiveRide = false;
+  Map<String, dynamic>? activeRideData;
   StreamSubscription<Position>? _positionStream;
 
   @override
@@ -46,9 +49,14 @@ class _ActiveRidesPageState extends State<ActiveRidesPage> {
 
   Future<void> _initializePage() async {
     try {
-      await _loadSetupData();
+      await _loadCurrentActiveRide();
+
       await _getCurrentLocation();
       _startLocationTracking();
+
+      if (!hasActiveRide) {
+        await _loadSetupData();
+      }
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -58,6 +66,53 @@ class _ActiveRidesPageState extends State<ActiveRidesPage> {
       if (!mounted) return;
       setState(() {
         isLoading = false;
+      });
+    }
+  }
+
+  Future<void> _loadCurrentActiveRide() async {
+    final response = await _api.getCurrentActiveRide();
+    final data = response['data'] ?? {};
+
+    if (!mounted) return;
+
+    setState(() {
+      hasActiveRide = data['hasActiveRide'] == true;
+      activeRideData = data['activeRide'];
+    });
+  }
+
+  Future<void> _cancelActiveRide() async {
+    try {
+      setState(() {
+        isCancelling = true;
+      });
+
+      await _api.cancelCurrentActiveRide();
+
+      if (!mounted) return;
+
+      setState(() {
+        hasActiveRide = false;
+        activeRideData = null;
+        destination = "Select destination";
+        destinationLatLng = null;
+      });
+
+      await _loadSetupData();
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Active ride cancelled successfully")),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
+      );
+    } finally {
+      if (!mounted) return;
+      setState(() {
+        isCancelling = false;
       });
     }
   }
@@ -148,10 +203,32 @@ class _ActiveRidesPageState extends State<ActiveRidesPage> {
       }
 
       try {
-        await _api.updateActiveRideLocation(
+        final response = await _api.updateActiveRideLocation(
           latitude: position.latitude,
           longitude: position.longitude,
         );
+
+        final auto = response['autoComplete'];
+
+        if (auto != null && auto['autoCompleted'] == true) {
+          if (!mounted) return;
+
+          setState(() {
+            hasActiveRide = false;
+            activeRideData = null;
+            destination = "Select destination";
+            destinationLatLng = null;
+          });
+
+          await _loadSetupData();
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text("Ride completed automatically 🎉"),
+            ),
+          );
+        }
+
       } catch (_) {}
     });
   }
@@ -191,6 +268,10 @@ class _ActiveRidesPageState extends State<ActiveRidesPage> {
       destination = address.toString();
       destinationLatLng = latLng;
     });
+  }
+
+  String travelDateToDisplay() {
+    return "${today.day.toString().padLeft(2, '0')}-${today.month.toString().padLeft(2, '0')}-${today.year}";
   }
 
   Future<void> confirmRide() async {
@@ -245,13 +326,27 @@ class _ActiveRidesPageState extends State<ActiveRidesPage> {
 
       if (!mounted) return;
 
+      setState(() {
+        hasActiveRide = true;
+        activeRideData = {
+          'rideId': data['rideId'],
+          'pickup': data['currentLocation'],
+          'destination': data['destination'],
+          'fare': data['totalFare'],
+          'travelDate': travelDateToDisplay(),
+          'travelTime': time.format(context),
+          'status': data['status'],
+          'vehicleType': data['vehicleType'],
+          'vehicleModel': data['vehicleModel'],
+          'vehicleNumber': data['vehicleNumber'],
+        };
+      });
+
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text("Ride Activated Successfully"),
         ),
       );
-
-      Navigator.pop(context, true);
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -305,11 +400,93 @@ class _ActiveRidesPageState extends State<ActiveRidesPage> {
       body: Padding(
         padding: const EdgeInsets.all(16),
 
-        child: Column(
+        child: hasActiveRide
+            ? Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-
-            // ================= NAME / DATE / TIME =================
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(18),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(15),
+                border: Border.all(color: const Color(0xFFE5E7EB)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    "You are already active",
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF1F2937),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  Text(
+                    "You started your ride from ${activeRideData?['pickup'] ?? 'Unknown location'}",
+                    style: const TextStyle(
+                      fontSize: 15,
+                      color: Color(0xFF374151),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    "Destination: ${activeRideData?['destination'] ?? 'Unknown destination'}",
+                    style: const TextStyle(
+                      fontSize: 15,
+                      color: Color(0xFF374151),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    "Vehicle: ${activeRideData?['vehicleType'] ?? ''} ${activeRideData?['vehicleModel'] ?? ''}",
+                    style: const TextStyle(
+                      fontSize: 15,
+                      color: Color(0xFF374151),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    "Number: ${activeRideData?['vehicleNumber'] ?? ''}",
+                    style: const TextStyle(
+                      fontSize: 15,
+                      color: Color(0xFF374151),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Spacer(),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: isCancelling ? null : _cancelActiveRide,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.red,
+                  minimumSize: const Size.fromHeight(55),
+                ),
+                child: isCancelling
+                    ? const SizedBox(
+                  height: 22,
+                  width: 22,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2.4,
+                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                  ),
+                )
+                    : const Text(
+                  "Cancel Ride",
+                  style: TextStyle(color: Colors.white),
+                ),
+              ),
+            ),
+          ],
+        )
+            : Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
 
             Container(
               padding: const EdgeInsets.all(16),
@@ -319,10 +496,8 @@ class _ActiveRidesPageState extends State<ActiveRidesPage> {
                 border: Border.all(color: const Color(0xFFE5E7EB)),
               ),
               child: Row(
-                mainAxisAlignment:
-                MainAxisAlignment.spaceBetween,
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-
                   Text(
                     riderName,
                     style: const TextStyle(
@@ -330,25 +505,19 @@ class _ActiveRidesPageState extends State<ActiveRidesPage> {
                         fontSize: 16,
                         color: Color(0xFF1F2937)),
                   ),
-
                   Text(
                     "${today.day}-${today.month}-${today.year}",
-                    style: const TextStyle(
-                        color: Color(0xFF1F2937)),
+                    style: const TextStyle(color: Color(0xFF1F2937)),
                   ),
-
                   Text(
                     time.format(context),
-                    style: const TextStyle(
-                        color: Color(0xFF1F2937)),
+                    style: const TextStyle(color: Color(0xFF1F2937)),
                   ),
                 ],
               ),
             ),
 
             const SizedBox(height: 20),
-
-            // ================= VEHICLE SECTION =================
 
             Container(
               padding: const EdgeInsets.all(16),
@@ -360,7 +529,6 @@ class _ActiveRidesPageState extends State<ActiveRidesPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-
                   DropdownButton<String>(
                     value: selectedVehicle?['vehicleId']?.toString(),
                     isExpanded: true,
@@ -392,9 +560,7 @@ class _ActiveRidesPageState extends State<ActiveRidesPage> {
                       });
                     },
                   ),
-
                   const SizedBox(height: 12),
-
                   Text(
                     vehicleModel,
                     style: const TextStyle(
@@ -405,9 +571,7 @@ class _ActiveRidesPageState extends State<ActiveRidesPage> {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
-
                   const SizedBox(height: 6),
-
                   Text(
                     vehicleNumber,
                     style: const TextStyle(
@@ -423,8 +587,6 @@ class _ActiveRidesPageState extends State<ActiveRidesPage> {
 
             const SizedBox(height: 20),
 
-            // ================= CURRENT LOCATION =================
-
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
@@ -434,17 +596,12 @@ class _ActiveRidesPageState extends State<ActiveRidesPage> {
               ),
               child: Row(
                 children: [
-
-                  const Icon(Icons.my_location,
-                      color: Color(0xFF0F766E)),
-
+                  const Icon(Icons.my_location, color: Color(0xFF0F766E)),
                   const SizedBox(width: 10),
-
                   Expanded(
                     child: Text(
                       currentLocation,
-                      style: const TextStyle(
-                          color: Color(0xFF1F2937)),
+                      style: const TextStyle(color: Color(0xFF1F2937)),
                     ),
                   ),
                 ],
@@ -453,32 +610,23 @@ class _ActiveRidesPageState extends State<ActiveRidesPage> {
 
             const SizedBox(height: 15),
 
-            // ================= DESTINATION =================
-
             GestureDetector(
               onTap: pickDestination,
               child: Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
                   color: Colors.white,
-                  borderRadius:
-                  BorderRadius.circular(15),
-                  border: Border.all(
-                      color: const Color(0xFFE5E7EB)),
+                  borderRadius: BorderRadius.circular(15),
+                  border: Border.all(color: const Color(0xFFE5E7EB)),
                 ),
                 child: Row(
                   children: [
-
-                    const Icon(Icons.location_on,
-                        color: Color(0xFF0F766E)),
-
+                    const Icon(Icons.location_on, color: Color(0xFF0F766E)),
                     const SizedBox(width: 10),
-
                     Expanded(
                       child: Text(
                         destination,
-                        style: const TextStyle(
-                            color: Color(0xFF1F2937)),
+                        style: const TextStyle(color: Color(0xFF1F2937)),
                       ),
                     ),
                   ],
@@ -488,30 +636,22 @@ class _ActiveRidesPageState extends State<ActiveRidesPage> {
 
             const Spacer(),
 
-            // ================= BUTTONS =================
-
             Row(
               children: [
-
                 Expanded(
                   child: OutlinedButton(
                     onPressed: () => Navigator.pop(context),
                     style: OutlinedButton.styleFrom(
-                      minimumSize:
-                      const Size.fromHeight(55),
-                      side: const BorderSide(
-                          color: Color(0xFF14B8A6)),
+                      minimumSize: const Size.fromHeight(55),
+                      side: const BorderSide(color: Color(0xFF14B8A6)),
                     ),
                     child: const Text(
                       "Back",
-                      style: TextStyle(
-                          color: Color(0xFF14B8A6)),
+                      style: TextStyle(color: Color(0xFF14B8A6)),
                     ),
                   ),
                 ),
-
                 const SizedBox(width: 15),
-
                 Expanded(
                   child: ElevatedButton(
                     onPressed: isConfirming ? null : confirmRide,
@@ -525,8 +665,7 @@ class _ActiveRidesPageState extends State<ActiveRidesPage> {
                       width: 22,
                       child: CircularProgressIndicator(
                         strokeWidth: 2.4,
-                        valueColor:
-                        AlwaysStoppedAnimation<Color>(Colors.white),
+                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                       ),
                     )
                         : const Text(

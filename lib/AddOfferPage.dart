@@ -101,14 +101,14 @@ class _AddOfferPageState extends State<AddOfferPage> {
       final data = response['data'] ?? {};
 
       final Map<String, dynamic> newOffer = {
-        "name": data["name"] ?? offerNameController.text.trim(),
-        "type": data["type"] ?? selectedOfferType,
-        "reward": data["reward"] ?? rewardController.text.trim(),
-        "target": data["target"] ?? selectedTarget,
-        "start": startDate,
-        "end": endDate,
-        "promo": data["promo"] ?? promoController.text.trim(),
-        "condition": data["condition"] ?? conditionController.text.trim(),
+        "name": data["offer_name"] ?? offerNameController.text.trim(),
+        "type": data["offer_type"] ?? selectedOfferType,
+        "reward": data["reward_percentage"]?.toString() ?? rewardController.text.trim(),
+        "target": data["eligible_user"] ?? selectedTarget,
+        "start": DateTime.tryParse((data["start_date"] ?? '').toString()) ?? startDate,
+        "end": DateTime.tryParse((data["end_date"] ?? '').toString()) ?? endDate,
+        "promo": data["promo_code"] ?? promoController.text.trim(),
+        "condition": data["conditions"] ?? conditionController.text.trim(),
       };
 
       setState(() {

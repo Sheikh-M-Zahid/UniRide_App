@@ -172,7 +172,6 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
 
   void _searchPlaces(String input) {
     _debounce?.cancel();
-
     if (!mounted) return;
 
     setState(() {
@@ -189,39 +188,28 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
 
     _debounce = Timer(const Duration(milliseconds: 450), () async {
       if (!mounted) return;
-
-      setState(() {
-        _isSearchingPlaces = true;
-      });
+      setState(() => _isSearchingPlaces = true);
 
       try {
         final response = await _api.mapsAutocomplete(input: input.trim());
-        final List predictions = response['data'] ?? [];
-
-        if (!mounted) return;
-
-        setState(() {
-          _placePredictions = predictions;
-          _isSearchingPlaces = false;
-        });
-      } on TimeoutException {
-        if (!mounted) return;
-
-        setState(() {
-          _placePredictions = [];
-          _isSearchingPlaces = false;
-        });
-
-        _showSnackBar("Place search timed out.");
+        // চেক করা হচ্ছে ডাটা লিস্ট কি না
+        if (response['data'] is List) {
+          if (!mounted) return;
+          setState(() {
+            _placePredictions = response['data'];
+            _isSearchingPlaces = false;
+          });
+        } else {
+          throw Exception(response['message'] ?? "Unknown error");
+        }
       } catch (e) {
         if (!mounted) return;
-
         setState(() {
           _placePredictions = [];
           _isSearchingPlaces = false;
         });
-
-        _showSnackBar("Error occurred during place search.");
+        // আসল এরর মেসেজটি দেখার জন্য এটি প্রিন্ট বা শো করবে
+        _showSnackBar("Search failed: ${e.toString().replaceAll('Exception:', '')}");
       }
     });
   }

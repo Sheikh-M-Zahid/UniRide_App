@@ -26,6 +26,19 @@ class _RiderDashboardState extends State<RiderDashboard> {
 
   final AuthApiService _authApiService = AuthApiService();
 
+  final PageController _adPageController = PageController();
+  Timer? _adTimer;
+
+  bool _showAds = true;
+  int _currentAdIndex = 0;
+
+  final List<String> _adImages = [
+    'images/ADS/RideRequest_System.png',
+    'images/ADS/Ride_Enjoying.png',
+    'images/ADS/CoRide_System.png',
+    'images/ADS/Delivery_System.png',
+  ];
+
   bool _isLoading = true;
   Map<String, dynamic>? _dashboardData;
   Timer? _dashboardRefreshTimer;
@@ -36,11 +49,14 @@ class _RiderDashboardState extends State<RiderDashboard> {
     super.initState();
     _loadDashboard();
     _startAutoRefresh();
+    _startAdAutoSlide();
   }
 
   @override
   void dispose() {
     _dashboardRefreshTimer?.cancel();
+    _adTimer?.cancel();
+    _adPageController.dispose();
     super.dispose();
   }
 
@@ -83,6 +99,35 @@ class _RiderDashboardState extends State<RiderDashboard> {
       if (mounted) {
         _loadDashboard(showLoader: false);
       }
+    });
+  }
+
+  void _startAdAutoSlide() {
+    _adTimer?.cancel();
+
+    _adTimer = Timer.periodic(const Duration(seconds: 3), (timer) {
+      if (!_showAds || !_adPageController.hasClients || _adImages.isEmpty) return;
+
+      _currentAdIndex++;
+
+      if (_currentAdIndex >= _adImages.length) {
+        _currentAdIndex = 0;
+      }
+
+      _adPageController.animateToPage(
+        _currentAdIndex,
+        duration: const Duration(milliseconds: 400),
+        curve: Curves.easeInOut,
+      );
+    });
+  }
+
+  void _closeAds() {
+    _adTimer?.cancel();
+    if (!mounted) return;
+
+    setState(() {
+      _showAds = false;
     });
   }
 
@@ -292,7 +337,7 @@ class _RiderDashboardState extends State<RiderDashboard> {
                     ),
                   ),
                   const SizedBox(height: 12),
-                  if (_dashboardData?['active_ride'] != null) ...[
+                  if (_dashboardData?['activeRide'] != null) ...[
                     _SummaryRow(
                       label: "Pickup",
                       value: "${_dashboardData?['activeRide']?['pickup'] ?? ''}",
@@ -307,7 +352,7 @@ class _RiderDashboardState extends State<RiderDashboard> {
                     ),
                     _SummaryRow(
                       label: "Status",
-                      value: "${_dashboardData?['active_ride']?['status'] ?? ''}",
+                      value: "${_dashboardData?['activeRide']?['status'] ?? ''}",
                     ),
                   ] else
                     const Text(
@@ -348,22 +393,22 @@ class _RiderDashboardState extends State<RiderDashboard> {
                     ),
                   ),
                   const SizedBox(height: 12),
-                  if (_dashboardData?['upcoming_reserved_ride'] != null) ...[
+                  if (_dashboardData?['upcomingReservedRide'] != null) ...[
                     _SummaryRow(
                       label: "Date",
-                      value: "${_dashboardData?['upcoming_reserved_ride']?['travel_date'] ?? ''}",
+                      value: "${_dashboardData?['upcomingReservedRide']?['date'] ?? ''}",
                     ),
                     _SummaryRow(
                       label: "Time",
-                      value: "${_dashboardData?['upcoming_reserved_ride']?['travel_time'] ?? ''}",
+                      value: "${_dashboardData?['upcomingReservedRide']?['time'] ?? ''}",
                     ),
                     _SummaryRow(
                       label: "Pickup",
-                      value: "${_dashboardData?['upcoming_reserved_ride']?['pickup'] ?? ''}",
+                      value: "${_dashboardData?['upcomingReservedRide']?['pickup'] ?? ''}",
                     ),
                     _SummaryRow(
                       label: "Destination",
-                      value: "${_dashboardData?['upcoming_reserved_ride']?['destination'] ?? ''}",
+                      value: "${_dashboardData?['upcomingReservedRide']?['destination'] ?? ''}",
                     ),
                   ] else
                     const Text(
@@ -461,7 +506,7 @@ class _RiderDashboardState extends State<RiderDashboard> {
                         alignment: Alignment.center,
                         child: _DashboardBox(
                           icon: Icons.local_shipping_outlined,
-                          title: "Send Item",
+                          title: "Delivery Item",
                           onTap: () {
                             Navigator.push(
                               context,
@@ -499,22 +544,67 @@ class _RiderDashboardState extends State<RiderDashboard> {
 
             const SizedBox(height: 20),
 
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: null,
-                icon: const Icon(Icons.add_alert),
-                label: const Text("Live requests will appear here"),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF14B8A6),
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
+            if (_showAds) ...[
+              _HomeAdsSlider(
+                controller: _adPageController,
+                adImages: _adImages,
+                onPageChanged: (index) {
+                  _currentAdIndex = index;
+                  _startAdAutoSlide();
+                },
+                onClose: _closeAds,
+              ),
+              const SizedBox(height: 20),
+            ],
+
+            if ((_dashboardData?['pendingRideRequests'] is List &&
+                (_dashboardData?['pendingRideRequests'] as List).isNotEmpty) ||
+                (_dashboardData?['pendingDeliveryRequests'] is List &&
+                    (_dashboardData?['pendingDeliveryRequests'] as List).isNotEmpty) ||
+                (_dashboardData?['pendingReserveRequests'] is List &&
+                    (_dashboardData?['pendingReserveRequests'] as List).isNotEmpty))
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const NotificationsPage(
+                          userRole: UserRole.rider,
+                        ),
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.add_alert),
+                  label: const Text("You have live requests"),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF14B8A6),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                  ),
+                ),
+              )
+            else
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: null,
+                  icon: const Icon(Icons.add_alert),
+                  label: const Text("No live requests right now"),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF14B8A6),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
                   ),
                 ),
               ),
-            ),
           ],
         ),
       ),
@@ -697,6 +787,83 @@ class _SummaryRow extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _HomeAdsSlider extends StatelessWidget {
+  final PageController controller;
+  final List<String> adImages;
+  final ValueChanged<int> onPageChanged;
+  final VoidCallback onClose;
+
+  const _HomeAdsSlider({
+    required this.controller,
+    required this.adImages,
+    required this.onPageChanged,
+    required this.onClose,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      children: [
+        Container(
+          height: MediaQuery.of(context).size.width * 1,
+          width: double.infinity,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: const Color(0xFFE5E7EB)),
+            boxShadow: const [
+              BoxShadow(
+                color: Colors.black12,
+                blurRadius: 6,
+                offset: Offset(0, 3),
+              ),
+            ],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(18),
+            child: PageView.builder(
+              controller: controller,
+              itemCount: adImages.length,
+              onPageChanged: onPageChanged,
+              itemBuilder: (context, index) {
+                return Container(
+                  color: Colors.white,
+                  padding: const EdgeInsets.all(2),
+                  child: Image.asset(
+                    adImages[index],
+                    fit: BoxFit.contain,
+                    width: double.infinity,
+                    height: double.infinity,
+                  ),
+                );
+              },
+            ),
+          ),
+        ),
+        Positioned(
+          top: 8,
+          right: 8,
+          child: GestureDetector(
+            onTap: onClose,
+            child: Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: Colors.black.withOpacity(0.6),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.close,
+                color: Colors.white,
+                size: 18,
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

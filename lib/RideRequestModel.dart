@@ -19,16 +19,30 @@ class RideRequestModel {
     required this.estimatedMinutes,
   });
 
+  static double _toDouble(dynamic value) {
+    if (value is num) return value.toDouble();
+    return double.tryParse(value?.toString() ?? '') ?? 0;
+  }
+
+  static int _toInt(dynamic value) {
+    if (value is num) return value.toInt();
+    return int.tryParse(value?.toString() ?? '') ?? 0;
+  }
+
   factory RideRequestModel.fromMap(Map<String, dynamic> map) {
+    final meta = map['meta'] is Map<String, dynamic>
+        ? map['meta'] as Map<String, dynamic>
+        : <String, dynamic>{};
+
     return RideRequestModel(
-      requestId: map['requestId']?.toString() ?? '',
-      passengerName: map['passengerName'] ?? '',
-      phoneNumber: map['phoneNumber'] ?? '',
-      currentLocation: map['currentLocation'] ?? '',
-      destination: map['destination'] ?? '',
-      distanceKm: (map['distanceKm'] ?? 0).toDouble(),
-      fare: (map['fare'] ?? 0).toDouble(),
-      estimatedMinutes: (map['estimatedMinutes'] ?? 0) as int,
+      requestId: (map['requestId'] ?? meta['requestId'] ?? '').toString(),
+      passengerName: (map['passengerName'] ?? map['name'] ?? '').toString(),
+      phoneNumber: (map['phoneNumber'] ?? '').toString(),
+      currentLocation: (map['currentLocation'] ?? map['pickup'] ?? map['pickupAddress'] ?? '').toString(),
+      destination: (map['destination'] ?? map['destinationAddress'] ?? '').toString(),
+      distanceKm: _toDouble(map['distanceKm']),
+      fare: _toDouble(map['fare']),
+      estimatedMinutes: _toInt(map['estimatedMinutes'] ?? map['eta']),
     );
   }
 

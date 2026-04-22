@@ -11,7 +11,6 @@ import 'RideSelection.dart';
 import 'WalletPage.dart';
 import 'help_support_page.dart';
 import 'report_problem_page.dart';
-import 'ride_history_page.dart';
 import 'services/auth_api_service.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
@@ -156,22 +155,39 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   Future<void> _logout() async {
+    setState(() {
+      _isLoading = true;
+    });
+
     try {
-      await GoogleSignIn.instance.signOut();
-    } catch (_) {}
+      // ✅ Backend logout (optional)
+      try {
+        await _authApiService.logout();
+      } catch (e) {
+        print("Backend logout failed: $e");
+      }
 
-    await _authApiService.logout();
-    await AppStorage.clearSession();
+      // ✅ Clear local session (MAIN)
+      await AppStorage.clearSession();
 
-    if (!mounted) return;
+      if (!mounted) return;
 
-    Navigator.pushAndRemoveUntil(
-      context,
-      MaterialPageRoute(
-        builder: (context) => const UniRideLogin(),
-      ),
-          (route) => false,
-    );
+      // ✅ Navigate (force reset)
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(
+          builder: (_) => const UniRideLogin(),
+        ),
+            (route) => false,
+      );
+    } catch (e) {
+      print("Logout error: $e");
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
   }
 
   Future<void> _openSavedPlaces() async {
@@ -488,22 +504,6 @@ class _SettingsPageState extends State<SettingsPage> {
                 );
               },
             ),
-
-            _buildSettingsItem(
-              icon: Icons.history,
-              title: 'Ride History',
-              subtitle: 'See your past rides',
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const RideHistoryPage(),
-                  ),
-                );
-              },
-            ),
-
-            const SizedBox(height: 18),
 
             Container(
               margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),

@@ -34,9 +34,30 @@ class _AdminReportsPageState extends State<AdminReportsPage> {
 
     try {
       final response = await _authApiService.getAdminReports();
-      final data = Map<String, dynamic>.from(response['data'] ?? {});
+      final rawData = response['data'];
+      print("RAW DATA: $rawData");
+      print("RAW DATA TYPE: ${rawData.runtimeType}");
+      final data = rawData is Map
+          ? Map<String, dynamic>.from(rawData)
+          : <String, dynamic>{
+        'reports': rawData is List ? rawData : [],
+        'summary': <String, dynamic>{}
+      };
       final summary = Map<String, dynamic>.from(data['summary'] ?? {});
-      final reportsList = List<Map<String, dynamic>>.from(data['reports'] ?? []);
+      final rawList = rawData is List ? rawData : (data['reports'] as List? ?? []);
+      final reportsList = List<Map<String, dynamic>>.from(
+          rawList.map((item) {
+            final m = Map<String, dynamic>.from(item as Map);
+            return {
+              'id': m['report_id'] ?? m['id'] ?? '',
+              'name': m['name'] ?? m['user_email'] ?? 'Unknown',
+              'role': m['role'] ?? 'User',
+              'message': m['message'] ?? m['comment'] ?? '',
+              'status': m['status'] ?? 'unsolved',
+              'isRead': (m['isRead'] ?? m['status']) == 'solved',
+            };
+          })
+      );
 
       setState(() {
         reports = reportsList;
@@ -87,8 +108,9 @@ class _AdminReportsPageState extends State<AdminReportsPage> {
     return Scaffold(
       backgroundColor: const Color(0xff0f2027),
       appBar: AppBar(
-        backgroundColor: Colors.transparent,
+        backgroundColor: const Color(0xff1a3a4a),
         elevation: 0,
+        foregroundColor: Colors.white,
         title: const Text("User Reports"),
       ),
       body: isLoading
@@ -114,7 +136,10 @@ class _AdminReportsPageState extends State<AdminReportsPage> {
         itemBuilder: (context, index) {
           final report = reports[index];
 
-          final isRead = report["isRead"];
+          final name = (report["name"] ?? "Unknown").toString();
+          final role = (report["role"] ?? "User").toString();
+          final message = (report["message"] ?? "").toString();
+          final isRead = report["isRead"] == true;
 
           return Container(
             margin: const EdgeInsets.only(bottom: 16),
@@ -133,7 +158,7 @@ class _AdminReportsPageState extends State<AdminReportsPage> {
                 Row(
                   children: [
                     Text(
-                      report["name"],
+                      name,
                       style: const TextStyle(
                         color: Colors.white,
                         fontWeight: FontWeight.bold,
@@ -148,7 +173,7 @@ class _AdminReportsPageState extends State<AdminReportsPage> {
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Text(
-                        report["role"],
+                        role,
                         style: const TextStyle(
                           color: Colors.cyanAccent,
                           fontSize: 11,
@@ -162,7 +187,7 @@ class _AdminReportsPageState extends State<AdminReportsPage> {
 
                 // ===== Message =====
                 Text(
-                  report["message"],
+                  message,
                   style: const TextStyle(
                     color: Colors.white70,
                   ),

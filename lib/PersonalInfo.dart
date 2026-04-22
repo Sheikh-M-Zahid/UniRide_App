@@ -243,41 +243,23 @@ class _PersonalInformationPageState extends State<PersonalInformationPage> {
       if (!mounted) return;
 
       setState(() {
-        firstName = (data['first_name'] ?? data['firstName'] ?? '').toString();
-        lastName = (data['last_name'] ?? data['lastName'] ?? '').toString();
+        // ১. ভেরিয়েবল আপডেট
+        firstName = (data['first_name'] ?? '').toString();
+        lastName = (data['last_name'] ?? '').toString();
         occupation = (data['occupation'] ?? '').toString();
+        universityEmail = (data['university_email'] ?? '').toString();
+        profileImageUrl = (data['profile_picture'] ?? '').toString();
 
-        universityEmail =
-            (data['university_email'] ?? data['universityEmail'] ?? '').toString();
-
-        final rawProfilePicture =
-        (data['profile_picture'] ?? data['profilePicture'] ?? '').toString();
-        profileImageUrl = rawProfilePicture;
-
+        // ২. কন্ট্রোলার আপডেট (এটি না করলে ফিল্ড খালি দেখাবে)
         phoneController.text = (data['phone'] ?? '').toString();
-
-        secondaryPhoneController.text =
-            (data['recovery_phone'] ?? data['secondaryPhoneNumber'] ?? '')
-                .toString();
-
-        emergencyContactController.text =
-            (data['emergency_phone'] ?? data['emergencyContactNumber'] ?? '')
-                .toString();
-
-        presentAreaController.text =
-            (data['hostel_address'] ?? '').toString();
-
-        permanentAddressController.text =
-            (data['home_address'] ?? '').toString();
+        secondaryPhoneController.text = (data['recovery_phone'] ?? '').toString();
+        emergencyContactController.text = (data['emergency_phone'] ?? '').toString();
+        presentAreaController.text = (data['hostel_address'] ?? '').toString();
+        permanentAddressController.text = (data['home_address'] ?? '').toString();
 
         /// ✅ DATE FIX
-        final rawDob =
-        (data['date_of_birth'] ?? data['dateOfBirth'] ?? '').toString();
-
-        dateOfBirthController.text =
-        rawDob.isNotEmpty && rawDob.length >= 10
-            ? rawDob.substring(0, 10)
-            : rawDob;
+        final rawDob = (data['date_of_birth'] ?? '').toString();
+        dateOfBirthController.text = rawDob.length >= 10 ? rawDob.substring(0, 10) : rawDob;
 
         /// ✅ GENDER FIX
         final rawGender = (data['gender'] ?? '').toString().trim();
@@ -286,13 +268,11 @@ class _PersonalInformationPageState extends State<PersonalInformationPage> {
             : null;
 
         /// ✅ BLOOD GROUP FIX
-        selectedBloodGroup =
-        (data['blood_group'] ?? '').toString().trim().isNotEmpty
+        selectedBloodGroup = (data['blood_group'] ?? '').toString().trim().isNotEmpty
             ? data['blood_group'].toString()
             : null;
 
-        bloodGroupLocked = selectedBloodGroup != null &&
-            selectedBloodGroup!.trim().isNotEmpty;
+        bloodGroupLocked = selectedBloodGroup != null;
       });
     } catch (e) {
       if (!mounted) return;
@@ -346,6 +326,9 @@ class _PersonalInformationPageState extends State<PersonalInformationPage> {
         isEditing = false;
         isSaving = false;
       });
+
+      // ডাটাবেজ থেকে লেটেস্ট ডাটা আবার লোড করা
+      await _loadProfile();
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -760,6 +743,7 @@ class _PersonalInformationPageState extends State<PersonalInformationPage> {
     required String value,
   }) {
     return TextFormField(
+      key: ValueKey(value), // এটি ডাটা আসার সাথে সাথে ফিল্ড আপডেট করবে
       initialValue: value,
       enabled: false,
       style: const TextStyle(color: AppColors.text),

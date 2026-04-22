@@ -131,21 +131,27 @@ class _RiderSettingsPageState extends State<RiderSettingsPage> {
 
   Future<void> _logout() async {
     try {
+      await _authApiService.logout();
+    } catch (_) {}
+
+    try {
+      await AppStorage.clearSession();
+    } catch (_) {}
+
+    try {
       await GoogleSignIn.instance.signOut();
     } catch (_) {}
 
-    await AppStorage.clearSession();
-
     if (!mounted) return;
 
-    Navigator.pushAndRemoveUntil(
-      context,
+    Navigator.of(context).pushAndRemoveUntil(
       MaterialPageRoute(
-        builder: (context) => const UniRideLogin(),
+        builder: (_) => const UniRideLogin(),
       ),
           (route) => false,
     );
   }
+
 
   ImageProvider? _getProfileImage() {
     if (userPhotoPath != null && userPhotoPath!.trim().isNotEmpty) {

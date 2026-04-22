@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'services/auth_api_service.dart';
@@ -15,6 +16,11 @@ class SharingCaringPage extends StatefulWidget {
 class _SharingCaringPageState extends State<SharingCaringPage> {
   final AuthApiService _authApiService = AuthApiService();
   bool _isSubmitting = false;
+  bool _isLoadingActiveSession = false;
+  bool _isCancellingSession = false;
+  bool _isStartingJourney = false;
+  Map<String, dynamic>? _activeSession;
+  Timer? _locationTimer;
   final _formKey = GlobalKey<FormState>();
 
   final TextEditingController currentLocationController =
@@ -59,12 +65,77 @@ class _SharingCaringPageState extends State<SharingCaringPage> {
   @override
   void initState() {
     super.initState();
-
     currentLocationController.addListener(_refreshForm);
     destinationController.addListener(_refreshForm);
     vehicleNumberController.addListener(_refreshForm);
     availableSeatController.addListener(_refreshForm);
     fareController.addListener(_refreshForm);
+    _loadActiveSession();
+  }
+
+  Future<void> _loadActiveSession() async {
+    setState(() => _isLoadingActiveSession = true);
+    try {
+      final res = await _authApiService.getMyActiveCoRideSession();
+      if (!mounted) return;
+      setState(() => _activeSession = res['data']);
+    } catch (_) {}
+    if (mounted) setState(() => _isLoadingActiveSession = false);
+  }
+
+  Future<void> _cancelSession() async {
+    if (_activeSession == null || _isCancellingSession) return;
+    setState(() => _isCancellingSession = true);
+    try {
+      await _authApiService.cancelCoRideSession(
+        _activeSession!['session_id'].toString(),
+      );
+      if (!mounted) return;
+      setState(() => _activeSession = null);
+      _locationTimer?.cancel();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('CoRide cancelled.')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
+      );
+    }
+    if (mounted) setState(() => _isCancellingSession = false);
+  }
+
+  Future<void> _startJourney() async {
+    if (_activeSession == null) return;
+    setState(() => _isStartingJourney = true);
+    try {
+      await _authApiService.startCoRideJourney(
+        _activeSession!['session_id'].toString(),
+      );
+      if (!mounted) return;
+      setState(() {
+        _activeSession!['is_started'] = true;
+        _isStartingJourney = false;
+      });
+      _startLiveLocationUpdates();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Journey started! Sharing live location.')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isStartingJourney = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
+      );
+    }
+  }
+
+  void _startLiveLocationUpdates() {
+    _locationTimer?.cancel();
+    _locationTimer = Timer.periodic(const Duration(seconds: 10), (_) async {
+      // GPS এর জন্য geolocator package ব্যবহার করো
+      // এখানে placeholder — তোমার existing GPS logic দিয়ে replace করো
+    });
   }
 
   void _refreshForm() {
@@ -139,6 +210,126 @@ class _SharingCaringPageState extends State<SharingCaringPage> {
     }
   }
 
+  Widget _buildActiveSessionBanner() {
+    final s = _activeSession!;
+    final isStarted = s['is_started'] == true;
+
+    return Container(
+      margin: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFF14B8A6), width: 1.5),
+        boxShadow: const [
+          BoxShadow(color: Colors.black12, blurRadius: 6, offset: Offset(0, 2)),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.people_alt, color: Color(0xFF14B8A6), size: 20),
+              const SizedBox(width: 8),
+              const Text(
+                'Your Active CoRide',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 15,
+                  color: Color(0xFF14B8A6),
+                ),
+              ),
+              const Spacer(),
+              if (isStarted)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: Colors.green.shade100,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: const Text(
+                    '🟢 Started',
+                    style: TextStyle(fontSize: 11, color: Color(0xFF16A34A)),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Text(
+            '${s['start_location']} → ${s['destination']}',
+            style: const TextStyle(fontSize: 13, color: Color(0xFF1F2937)),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Seats: ${(s['total_seats'] ?? 2) - (s['booked_seats'] ?? 0)} available',
+            style: const TextStyle(fontSize: 12, color: Color(0xFF6B7280)),
+          ),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              if (!isStarted)
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: _isStartingJourney ? null : _startJourney,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF16A34A),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                    ),
+                    child: _isStartingJourney
+                        ? const SizedBox(
+                      height: 16,
+                      width: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
+                        : const Text(
+                      'Start Journey',
+                      style: TextStyle(color: Colors.white, fontSize: 13),
+                    ),
+                  ),
+                ),
+              if (!isStarted) const SizedBox(width: 10),
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: _isCancellingSession ? null : _cancelSession,
+                  style: OutlinedButton.styleFrom(
+                    side: const BorderSide(color: Color(0xFFDC2626)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                  ),
+                  child: _isCancellingSession
+                      ? const SizedBox(
+                    height: 16,
+                    width: 16,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Color(0xFFDC2626),
+                    ),
+                  )
+                      : const Text(
+                    'Cancel / Close',
+                    style: TextStyle(
+                      color: Color(0xFFDC2626),
+                      fontSize: 13,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> confirmSharing() async {
     FocusScope.of(context).unfocus();
 
@@ -207,7 +398,7 @@ class _SharingCaringPageState extends State<SharingCaringPage> {
     vehicleNumberController.dispose();
     availableSeatController.dispose();
     fareController.dispose();
-
+    _locationTimer?.cancel();
     super.dispose();
   }
 
@@ -266,230 +457,248 @@ class _SharingCaringPageState extends State<SharingCaringPage> {
             ),
           ],
         ),
-        body: SingleChildScrollView(
-          physics: const BouncingScrollPhysics(),
-          padding: const EdgeInsets.all(16),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              children: [
-                // CURRENT LOCATION
-                TextFormField(
-                  controller: currentLocationController,
-                  readOnly: true,
-                  onTap: _pickCurrentLocation,
-                  decoration: _inputDecoration(
-                    label: "Current Location",
-                    prefixIcon: const Icon(
-                      Icons.my_location,
-                      color: Color(0xFF0F766E),
-                    ),
-                  ),
-                ),
+        body: Column(
+          children: [
+            if (_isLoadingActiveSession)
+              const LinearProgressIndicator(
+                color: Color(0xFF14B8A6),
+              ),
 
-                const SizedBox(height: 15),
+            if (_activeSession != null)
+              _buildActiveSessionBanner(),
 
-                // DESTINATION
-                TextFormField(
-                  controller: destinationController,
-                  readOnly: true,
-                  onTap: _pickDestinationLocation,
-                  decoration: _inputDecoration(
-                    label: "Destination",
-                    prefixIcon: const Icon(
-                      Icons.location_on,
-                      color: Color(0xFF0F766E),
-                    ),
-                  ),
-                ),
-
-                const SizedBox(height: 15),
-
-                // DATE
-                ListTile(
-                  tileColor: Colors.white,
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 4,
-                  ),
-                  shape: RoundedRectangleBorder(
-                    side: const BorderSide(color: Color(0xFFE5E7EB)),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  title: Text(
-                    selectedDate == null
-                        ? "Select Date"
-                        : "${selectedDate!.day}-${selectedDate!.month}-${selectedDate!.year}",
-                    style: const TextStyle(
-                      color: Color(0xFF1F2937),
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                  trailing: const Icon(
-                    Icons.calendar_today,
-                    color: Color(0xFF0F766E),
-                  ),
-                  onTap: pickDate,
-                ),
-
-                const SizedBox(height: 15),
-
-                // TIME
-                ListTile(
-                  tileColor: Colors.white,
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 4,
-                  ),
-                  shape: RoundedRectangleBorder(
-                    side: const BorderSide(color: Color(0xFFE5E7EB)),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  title: Text(
-                    selectedTime == null
-                        ? "Select Time"
-                        : selectedTime!.format(context),
-                    style: const TextStyle(
-                      color: Color(0xFF1F2937),
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                  trailing: const Icon(
-                    Icons.access_time,
-                    color: Color(0xFF0F766E),
-                  ),
-                  onTap: pickTime,
-                ),
-
-                const SizedBox(height: 15),
-
-                // VEHICLE TYPE
-                DropdownButtonFormField<String>(
-                  decoration: _inputDecoration(
-                    label: "Vehicle Type",
-                  ),
-                  value: selectedVehicleType,
-                  items: vehicleTypes
-                      .map(
-                        (type) => DropdownMenuItem(
-                      value: type,
-                      child: Text(type),
-                    ),
-                  )
-                      .toList(),
-                  onChanged: (value) {
-                    setState(() {
-                      selectedVehicleType = value;
-                    });
-                  },
-                ),
-
-                const SizedBox(height: 15),
-
-                // VEHICLE NUMBER
-                TextFormField(
-                  controller: vehicleNumberController,
-                  textInputAction: TextInputAction.next,
-                  decoration: _inputDecoration(
-                    label: "Vehicle Number",
-                  ),
-                ),
-
-                const SizedBox(height: 15),
-
-                // AVAILABLE SEAT
-                TextFormField(
-                  controller: availableSeatController,
-                  keyboardType: TextInputType.number,
-                  textInputAction: TextInputAction.next,
-                  inputFormatters: [
-                    FilteringTextInputFormatter.digitsOnly,
-                    LengthLimitingTextInputFormatter(2),
-                  ],
-                  decoration: _inputDecoration(
-                    label: "Available Seat",
-                  ),
-                ),
-
-                const SizedBox(height: 15),
-
-                // PREFERRED GENDER
-                DropdownButtonFormField<String>(
-                  decoration: _inputDecoration(
-                    label: "Preferred Gender",
-                  ),
-                  value: selectedGender,
-                  items: genderOptions
-                      .map(
-                        (gender) => DropdownMenuItem(
-                      value: gender,
-                      child: Text(gender),
-                    ),
-                  )
-                      .toList(),
-                  onChanged: (value) {
-                    setState(() {
-                      selectedGender = value;
-                    });
-                  },
-                ),
-
-                const SizedBox(height: 15),
-
-                // FARE
-                TextFormField(
-                  controller: fareController,
-                  keyboardType: TextInputType.number,
-                  textInputAction: TextInputAction.done,
-                  inputFormatters: [
-                    FilteringTextInputFormatter.digitsOnly,
-                  ],
-                  decoration: _inputDecoration(
-                    label: "Fare Per Person (BDT)",
-                  ),
-                ),
-
-                const SizedBox(height: 25),
-
-                // CONFIRM BUTTON
-                AnimatedContainer(
-                  duration: const Duration(milliseconds: 220),
-                  width: double.infinity,
-                  height: 55,
-                  child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: isFormValid
-                          ? const Color(0xFF14B8A6)
-                          : Colors.grey,
-                      disabledBackgroundColor: Colors.grey.shade400,
-                      elevation: isFormValid ? 1.5 : 0,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+            Expanded(
+              child: SingleChildScrollView(
+                physics: const BouncingScrollPhysics(),
+                padding: const EdgeInsets.all(16),
+                child: Form(
+                  key: _formKey,
+                  child: Column(
+                    children: [
+                      // CURRENT LOCATION
+                      TextFormField(
+                        controller: currentLocationController,
+                        readOnly: true,
+                        onTap: _pickCurrentLocation,
+                        decoration: _inputDecoration(
+                          label: "Current Location",
+                          prefixIcon: const Icon(
+                            Icons.my_location,
+                            color: Color(0xFF0F766E),
+                          ),
+                        ),
                       ),
-                    ),
-                    onPressed: (isFormValid && !_isSubmitting) ? confirmSharing : null,
-                    child: _isSubmitting
-                        ? const SizedBox(
-                      height: 22,
-                      width: 22,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2.2,
-                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+
+                      const SizedBox(height: 15),
+
+                      // DESTINATION
+                      TextFormField(
+                        controller: destinationController,
+                        readOnly: true,
+                        onTap: _pickDestinationLocation,
+                        decoration: _inputDecoration(
+                          label: "Destination",
+                          prefixIcon: const Icon(
+                            Icons.location_on,
+                            color: Color(0xFF0F766E),
+                          ),
+                        ),
                       ),
-                    )
-                        : const Text(
-                      "Confirm & Notify",
-                      style: TextStyle(
-                        fontSize: 16,
-                        color: Colors.white,
-                        fontWeight: FontWeight.w600,
+
+                      const SizedBox(height: 15),
+
+                      // DATE
+                      ListTile(
+                        tileColor: Colors.white,
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 4,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          side: const BorderSide(color: Color(0xFFE5E7EB)),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        title: Text(
+                          selectedDate == null
+                              ? "Select Date"
+                              : "${selectedDate!.day}-${selectedDate!.month}-${selectedDate!.year}",
+                          style: const TextStyle(
+                            color: Color(0xFF1F2937),
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        trailing: const Icon(
+                          Icons.calendar_today,
+                          color: Color(0xFF0F766E),
+                        ),
+                        onTap: pickDate,
                       ),
-                    ),
+
+                      const SizedBox(height: 15),
+
+                      // TIME
+                      ListTile(
+                        tileColor: Colors.white,
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 4,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          side: const BorderSide(color: Color(0xFFE5E7EB)),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        title: Text(
+                          selectedTime == null
+                              ? "Select Time"
+                              : selectedTime!.format(context),
+                          style: const TextStyle(
+                            color: Color(0xFF1F2937),
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        trailing: const Icon(
+                          Icons.access_time,
+                          color: Color(0xFF0F766E),
+                        ),
+                        onTap: pickTime,
+                      ),
+
+                      const SizedBox(height: 15),
+
+                      // VEHICLE TYPE
+                      DropdownButtonFormField<String>(
+                        decoration: _inputDecoration(
+                          label: "Vehicle Type",
+                        ),
+                        value: selectedVehicleType,
+                        items: vehicleTypes
+                            .map(
+                              (type) => DropdownMenuItem(
+                            value: type,
+                            child: Text(type),
+                          ),
+                        )
+                            .toList(),
+                        onChanged: (value) {
+                          setState(() {
+                            selectedVehicleType = value;
+                          });
+                        },
+                      ),
+
+                      const SizedBox(height: 15),
+
+                      // VEHICLE NUMBER
+                      TextFormField(
+                        controller: vehicleNumberController,
+                        textInputAction: TextInputAction.next,
+                        decoration: _inputDecoration(
+                          label: "Vehicle Number",
+                        ),
+                      ),
+
+                      const SizedBox(height: 15),
+
+                      // AVAILABLE SEAT
+                      TextFormField(
+                        controller: availableSeatController,
+                        keyboardType: TextInputType.number,
+                        textInputAction: TextInputAction.next,
+                        inputFormatters: [
+                          FilteringTextInputFormatter.digitsOnly,
+                          LengthLimitingTextInputFormatter(2),
+                        ],
+                        decoration: _inputDecoration(
+                          label: "Available Seat",
+                        ),
+                      ),
+
+                      const SizedBox(height: 15),
+
+                      // PREFERRED GENDER
+                      DropdownButtonFormField<String>(
+                        decoration: _inputDecoration(
+                          label: "Preferred Gender",
+                        ),
+                        value: selectedGender,
+                        items: genderOptions
+                            .map(
+                              (gender) => DropdownMenuItem(
+                            value: gender,
+                            child: Text(gender),
+                          ),
+                        )
+                            .toList(),
+                        onChanged: (value) {
+                          setState(() {
+                            selectedGender = value;
+                          });
+                        },
+                      ),
+
+                      const SizedBox(height: 15),
+
+                      // FARE
+                      TextFormField(
+                        controller: fareController,
+                        keyboardType: TextInputType.number,
+                        textInputAction: TextInputAction.done,
+                        inputFormatters: [
+                          FilteringTextInputFormatter.digitsOnly,
+                        ],
+                        decoration: _inputDecoration(
+                          label: "Fare Per Person (BDT)",
+                        ),
+                      ),
+
+                      const SizedBox(height: 25),
+
+                      // CONFIRM BUTTON
+                      AnimatedContainer(
+                        duration: const Duration(milliseconds: 220),
+                        width: double.infinity,
+                        height: 55,
+                        child: ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: isFormValid
+                                ? const Color(0xFF14B8A6)
+                                : Colors.grey,
+                            disabledBackgroundColor: Colors.grey.shade400,
+                            elevation: isFormValid ? 1.5 : 0,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          onPressed: (isFormValid && !_isSubmitting)
+                              ? confirmSharing
+                              : null,
+                          child: _isSubmitting
+                              ? const SizedBox(
+                            height: 22,
+                            width: 22,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2.2,
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                Colors.white,
+                              ),
+                            ),
+                          )
+                              : const Text(
+                            "Confirm & Notify",
+                            style: TextStyle(
+                              fontSize: 16,
+                              color: Colors.white,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-              ],
+              ),
             ),
-          ),
+          ],
         ),
       ),
     );

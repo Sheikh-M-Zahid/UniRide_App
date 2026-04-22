@@ -25,13 +25,32 @@ class RideRequestService {
 
     _listenersAttached = true;
 
-    SocketService.on('ride-request:new', (data) {
+    void handleIncoming(dynamic data) {
       if (data is Map<String, dynamic>) {
         final requestData = data['request'] ?? data;
         addRequest(RideRequestModel.fromMap(Map<String, dynamic>.from(requestData)));
       } else if (data is Map) {
         final requestData = data['request'] ?? data;
         addRequest(RideRequestModel.fromMap(Map<String, dynamic>.from(requestData)));
+      }
+    }
+
+    SocketService.on('ride-request:new', handleIncoming);
+    SocketService.on('new_ride_request', handleIncoming);
+
+    SocketService.on('ride_request_status_update', (data) {
+      if (data is Map) {
+        final requestId = data['requestId']?.toString();
+        final status = data['status']?.toString().toLowerCase();
+
+        if (requestId != null && requestId.isNotEmpty) {
+          if (status == 'rejected' ||
+              status == 'cancelled' ||
+              status == 'expired' ||
+              status == 'accepted') {
+            removePendingRequest(requestId);
+          }
+        }
       }
     });
 

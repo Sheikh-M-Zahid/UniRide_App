@@ -6,7 +6,7 @@ import 'UserProfile.dart';
 import 'UserServices.dart';
 
 class AppColors {
-  static const Color primary = Color(0xFF14B8A6);
+  static const Color primary = Color(0xFF14B8A6); // Teal
   static const Color secondary = Color(0xFF0F766E);
   static const Color background = Color(0xFFF9FAFB);
   static const Color text = Color(0xFF1F2937);
@@ -24,23 +24,10 @@ class ActivityPage extends StatefulWidget {
 
 class _ActivityPageState extends State<ActivityPage> {
   final AuthApiService _authApiService = AuthApiService();
-
   String _selectedType = 'all';
   String _selectedTime = 'today';
-
-  final List<String> _typeOptions = [
-    'all',
-    'completed',
-    'cancelled',
-    'reserved',
-    'send_item',
-  ];
-
-  final List<String> _timeOptions = [
-    'today',
-    'this_week',
-    'this_month',
-  ];
+  bool isLoading = true;
+  String? emptyState;
 
   Map<String, dynamic> summary = {
     'total': 0,
@@ -50,8 +37,9 @@ class _ActivityPageState extends State<ActivityPage> {
   };
 
   List<Map<String, dynamic>> activities = [];
-  bool isLoading = true;
-  String? emptyState;
+
+  final List<String> _typeOptions = ['all', 'completed', 'cancelled', 'reserved', 'send_item'];
+  final List<String> _timeOptions = ['today', 'this_week', 'this_month'];
 
   @override
   void initState() {
@@ -60,586 +48,263 @@ class _ActivityPageState extends State<ActivityPage> {
   }
 
   Future<void> _loadActivityDashboard() async {
+    setState(() => isLoading = true);
     try {
       final response = await _authApiService.getActivityDashboard(
         type: _selectedType,
         time: _selectedTime,
       );
-
       final data = response['data'] ?? {};
-
       if (!mounted) return;
 
       setState(() {
-        summary = data['summary'] is Map
-            ? Map<String, dynamic>.from(data['summary'])
-            : {
-          'total': 0,
-          'completed': 0,
-          'cancelled': 0,
-          'earnings': 0,
-        };
-
-        activities = data['activities'] is List
-            ? List<Map<String, dynamic>>.from(data['activities'])
-            : [];
-
-        emptyState = data['emptyState']?.toString();
+        summary = Map<String, dynamic>.from(data['summary'] ?? {});
+        activities = List<Map<String, dynamic>>.from(data['activities'] ?? []);
+        emptyState = data['emptyState'];
         isLoading = false;
       });
     } catch (e) {
       if (!mounted) return;
-
-      setState(() {
-        isLoading = false;
-      });
-
+      setState(() => isLoading = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            e.toString().replaceFirst('Exception: ', ''),
-          ),
-        ),
+        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
       );
     }
   }
 
   String _formatTypeLabel(String value) {
-    switch (value) {
-      case 'all':
-        return 'All';
-      case 'completed':
-        return 'Completed';
-      case 'cancelled':
-        return 'Cancelled';
-      case 'reserved':
-        return 'Reserved';
-      case 'send_item':
-        return 'Send Item';
-      case 'today':
-        return 'Today';
-      case 'this_week':
-        return 'This Week';
-      case 'this_month':
-        return 'This Month';
-      default:
-        return value;
-    }
+    return value.split('_').map((e) => e[0].toUpperCase() + e.substring(1)).join(' ');
   }
 
   String _formatMoney(dynamic value) {
-    final num amount =
-    (value is num) ? value : num.tryParse(value.toString()) ?? 0;
+    final num amount = (value is num) ? value : num.tryParse(value.toString()) ?? 0;
     return '৳${amount.toStringAsFixed(amount % 1 == 0 ? 0 : 1)}';
   }
 
   Color _statusColor(String status) {
-    final safe = status.toLowerCase();
-
-    if (safe == 'completed' || safe == 'confirmed') {
-      return const Color(0xFF0F766E);
+    switch (status.toLowerCase()) {
+      case 'completed': return AppColors.secondary;
+      case 'confirmed': return Colors.green;
+      case 'cancelled': return Colors.red;
+      case 'pending': return Colors.orange;
+      case 'ongoing': return Colors.blue;
+      default: return AppColors.mutedText;
     }
-
-    if (safe == 'cancelled') {
-      return Colors.red;
-    }
-
-    if (safe == 'pending') {
-      return Colors.orange;
-    }
-
-    if (safe == 'ongoing') {
-      return Colors.blue;
-    }
-
-    return AppColors.mutedText;
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
-
       appBar: AppBar(
         backgroundColor: AppColors.background,
         elevation: 0,
         automaticallyImplyLeading: false,
-        title: const Padding(
-          padding: EdgeInsets.only(left: 8.0, top: 10),
-          child: Text(
-            "Activity",
-            style: TextStyle(
-              color: AppColors.text,
-              fontSize: 32,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ),
+        title: const Text("Activity", style: TextStyle(color: AppColors.text, fontSize: 28, fontWeight: FontWeight.bold)),
       ),
-
       body: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 10.0),
-            child: Row(
-              children: [
-                const Text(
-                  "Filter",
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.text,
-                  ),
-                ),
-                const Spacer(),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: AppColors.inputFill,
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: AppColors.border),
-                  ),
-                  child: DropdownButtonHideUnderline(
-                    child: DropdownButton<String>(
-                      value: _selectedType,
-                      icon: const Icon(
-                        Icons.keyboard_arrow_down,
-                        color: AppColors.secondary,
-                      ),
-                      style: const TextStyle(
-                        color: AppColors.text,
-                        fontWeight: FontWeight.w500,
-                        fontSize: 14,
-                      ),
-                      onChanged: (String? newValue) async {
-                        if (newValue == null) return;
-                        setState(() {
-                          _selectedType = newValue;
-                          isLoading = true;
-                        });
-                        await _loadActivityDashboard();
-                      },
-                      items: _typeOptions.map((value) {
-                        return DropdownMenuItem<String>(
-                          value: value,
-                          child: Text(_formatTypeLabel(value)),
-                        );
-                      }).toList(),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: AppColors.inputFill,
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: AppColors.border),
-                  ),
-                  child: DropdownButtonHideUnderline(
-                    child: DropdownButton<String>(
-                      value: _selectedTime,
-                      icon: const Icon(
-                        Icons.keyboard_arrow_down,
-                        color: AppColors.secondary,
-                      ),
-                      style: const TextStyle(
-                        color: AppColors.text,
-                        fontWeight: FontWeight.w500,
-                        fontSize: 14,
-                      ),
-                      onChanged: (String? newValue) async {
-                        if (newValue == null) return;
-                        setState(() {
-                          _selectedTime = newValue;
-                          isLoading = true;
-                        });
-                        await _loadActivityDashboard();
-                      },
-                      items: _timeOptions.map((value) {
-                        return DropdownMenuItem<String>(
-                          value: value,
-                          child: Text(_formatTypeLabel(value)),
-                        );
-                      }).toList(),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: Row(
-              children: [
-                Expanded(
-                  child: _summaryCard(
-                    title: 'Total',
-                    value: '${summary['total'] ?? 0}',
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: _summaryCard(
-                    title: 'Completed',
-                    value: '${summary['completed'] ?? 0}',
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: _summaryCard(
-                    title: 'Cancelled',
-                    value: '${summary['cancelled'] ?? 0}',
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          const SizedBox(height: 12),
-
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: AppColors.border),
-              ),
-              child: Text(
-                'Earnings: ${_formatMoney(summary['earnings'] ?? 0)}',
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.text,
-                ),
-              ),
-            ),
-          ),
-
-          const SizedBox(height: 14),
-
+          _buildFilters(),
+          _buildSummarySection(),
+          const SizedBox(height: 15),
           Expanded(
             child: isLoading
-                ? const Center(
-              child: CircularProgressIndicator(
-                color: AppColors.primary,
-              ),
-            )
+                ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
                 : activities.isEmpty
-                ? Center(
-              child: Text(
-                emptyState ?? "No activity found",
-                style: const TextStyle(
-                  color: AppColors.mutedText,
-                  fontSize: 16,
-                ),
-              ),
-            )
+                ? Center(child: Text(emptyState ?? "No activity found", style: const TextStyle(color: AppColors.mutedText)))
                 : ListView.separated(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 20),
               itemCount: activities.length,
               separatorBuilder: (_, __) => const SizedBox(height: 12),
-              itemBuilder: (context, index) {
-                final item = activities[index];
-                final status = (item['status'] ?? 'unknown').toString();
-                final canCancel = item['canCancel'] == true;
-                final riderName =
-                (item['riderName'] ?? item['name'] ?? '').toString();
-                final riderPhone =
-                (item['riderPhone'] ?? item['phone'] ?? '').toString();
-                final itemType = (item['item_type'] ?? 'ride').toString();
-
-                return Container(
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: AppColors.border),
-                    boxShadow: const [
-                      BoxShadow(
-                        color: Colors.black12,
-                        blurRadius: 6,
-                        offset: Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              (item['title'] ?? 'Activity').toString(),
-                              style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                                color: AppColors.text,
-                              ),
-                            ),
-                          ),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 10,
-                              vertical: 6,
-                            ),
-                            decoration: BoxDecoration(
-                              color: _statusColor(status).withOpacity(0.12),
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            child: Text(
-                              status,
-                              style: TextStyle(
-                                color: _statusColor(status),
-                                fontWeight: FontWeight.w600,
-                                fontSize: 12,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 10),
-
-                      if (itemType == 'reserve') ...[
-                        _activityRow(
-                          'Route',
-                          '${(item['pickup'] ?? '').toString()} → ${(item['destination'] ?? '').toString()}',
-                        ),
-                        _activityRow(
-                          'Distance',
-                          item['totalDistanceKm'] == null
-                              ? ''
-                              : '${item['totalDistanceKm']} km',
-                        ),
-                        _activityRow(
-                          'Estimated Time',
-                          item['estimatedTravelMinutes'] == null
-                              ? ''
-                              : '${item['estimatedTravelMinutes']} min',
-                        ),
-                        _activityRow(
-                          'Fare',
-                          _formatMoney(item['fare'] ?? 0),
-                        ),
-                        _activityRow('Date', (item['date'] ?? '').toString()),
-                        _activityRow('Time', (item['time'] ?? '').toString()),
-                        _activityRow(
-                          'Rider Name',
-                          riderName.isEmpty || riderName == 'Waiting for rider'
-                              ? 'Waiting for rider'
-                              : riderName,
-                        ),
-                        _activityRow(
-                          'Rider Phone',
-                          riderPhone.isEmpty || riderPhone == 'Not assigned yet'
-                              ? 'Not assigned yet'
-                              : riderPhone,
-                        ),
-                      ] else ...[
-                        _activityRow('Name', (item['name'] ?? '').toString()),
-                        _activityRow('Phone', (item['phone'] ?? '').toString()),
-                        _activityRow('Pickup', (item['pickup'] ?? '').toString()),
-                        _activityRow(
-                          'Destination',
-                          (item['destination'] ?? '').toString(),
-                        ),
-                        _activityRow('Time', (item['time'] ?? '').toString()),
-                        _activityRow(
-                          'Fare',
-                          _formatMoney(item['fare'] ?? 0),
-                        ),
-                        _activityRow('Date', (item['date'] ?? '').toString()),
-                      ],
-
-                      if (itemType == 'reserve' && canCancel) ...[
-                        const SizedBox(height: 10),
-                        SizedBox(
-                          width: double.infinity,
-                          child: OutlinedButton(
-                            onPressed: () async {
-                              try {
-                                final reserveId = (item['id'] ?? '').toString();
-                                if (reserveId.isEmpty) return;
-
-                                await _authApiService.cancelReserve(
-                                  reserveId: reserveId,
-                                );
-
-                                if (!mounted) return;
-
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text(
-                                      'Reserve request cancelled successfully.',
-                                    ),
-                                  ),
-                                );
-
-                                setState(() {
-                                  isLoading = true;
-                                });
-
-                                await _loadActivityDashboard();
-                              } catch (e) {
-                                if (!mounted) return;
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text(
-                                      e.toString().replaceFirst('Exception: ', ''),
-                                    ),
-                                  ),
-                                );
-                              }
-                            },
-                            style: OutlinedButton.styleFrom(
-                              side: const BorderSide(color: Colors.red),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                            ),
-                            child: const Text(
-                              'Cancel Request',
-                              style: TextStyle(
-                                color: Colors.red,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                );
-              },
+              itemBuilder: (context, index) => _buildActivityCard(activities[index]),
             ),
           ),
         ],
       ),
+      bottomNavigationBar: _buildBottomNav(),
+    );
+  }
 
-      bottomNavigationBar: BottomNavigationBar(
-        type: BottomNavigationBarType.fixed,
-        backgroundColor: Colors.white,
-        selectedItemColor: AppColors.primary,
-        unselectedItemColor: AppColors.mutedText,
-        currentIndex: 2,
-        onTap: (index) {
-          switch (index) {
-
-            case 0:
-              Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(
-                    builder: (context) => const UniRideHomePage()),
-              );
-              break;
-
-            case 1:
-              Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(
-                    builder: (context) => const ServicesPage()),
-              );
-              break;
-
-            case 3:
-              Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(
-                    builder: (context) => const OffersPage()),
-              );
-              break;
-
-            case 4:
-              Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(
-                    builder: (context) => const UniRideProfilePage()),
-              );
-              break;
-          }
-        },
-
-        items: const [
-          BottomNavigationBarItem(
-              icon: Icon(Icons.home), label: "Home"),
-          BottomNavigationBarItem(
-              icon: Icon(Icons.grid_view), label: "Services"),
-          BottomNavigationBarItem(
-              icon: Icon(Icons.receipt_long), label: "Activity"),
-          BottomNavigationBarItem(
-              icon: Icon(Icons.local_offer), label: "Offers"),
-          BottomNavigationBarItem(
-              icon: Icon(Icons.person), label: "Account"),
+  Widget _buildFilters() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+      child: Row(
+        children: [
+          const Text("Filter", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+          const Spacer(),
+          _dropDownFilter(_selectedType, _typeOptions, (val) {
+            setState(() => _selectedType = val!);
+            _loadActivityDashboard();
+          }),
+          const SizedBox(width: 8),
+          _dropDownFilter(_selectedTime, _timeOptions, (val) {
+            setState(() => _selectedTime = val!);
+            _loadActivityDashboard();
+          }),
         ],
       ),
     );
   }
-  Widget _summaryCard({
-    required String title,
-    required String value,
-  }) {
+
+  Widget _dropDownFilter(String value, List<String> options, ValueChanged<String?> onChanged) {
     return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.border),
+      padding: const EdgeInsets.symmetric(horizontal: 10),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), border: Border.all(color: AppColors.border)),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<String>(
+          value: value,
+          onChanged: onChanged,
+          items: options.map((e) => DropdownMenuItem(value: e, child: Text(_formatTypeLabel(e), style: const TextStyle(fontSize: 12)))).toList(),
+        ),
       ),
+    );
+  }
+
+  Widget _buildSummarySection() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Column(
         children: [
-          Text(
-            title,
-            style: const TextStyle(
-              fontSize: 13,
-              color: AppColors.mutedText,
-              fontWeight: FontWeight.w500,
-            ),
+          Row(
+            children: [
+              Expanded(child: _summaryBox("Total", summary['total'].toString())),
+              const SizedBox(width: 10),
+              Expanded(child: _summaryBox("Done", summary['completed'].toString())),
+              const SizedBox(width: 10),
+              Expanded(child: _summaryBox("Cancel", summary['cancelled'].toString())),
+            ],
           ),
-          const SizedBox(height: 6),
-          Text(
-            value,
-            style: const TextStyle(
-              fontSize: 18,
-              color: AppColors.text,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
+          const SizedBox(height: 10),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), border: Border.all(color: AppColors.border)),
+            child: Text("Total Spent: ${_formatMoney(summary['earnings'])}", style: const TextStyle(fontWeight: FontWeight.bold)),
+          )
         ],
       ),
     );
   }
 
-  Widget _activityRow(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Row(
+  Widget _summaryBox(String label, String val) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), border: Border.all(color: AppColors.border)),
+      child: Column(children: [Text(label, style: const TextStyle(fontSize: 12, color: AppColors.mutedText)), Text(val, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16))]),
+    );
+  }
+
+  Widget _buildActivityCard(Map<String, dynamic> item) {
+    final type = item['item_type']?.toString() ?? 'ride';
+    final status = item['status']?.toString() ?? 'Pending';
+    final canCancel = item['canCancel'] == true;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.border),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4))],
+      ),
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SizedBox(
-            width: 90,
-            child: Text(
-              '$label:',
-              style: const TextStyle(
-                fontWeight: FontWeight.w600,
-                color: AppColors.text,
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(item['title'] ?? 'Activity', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppColors.primary)),
+              _statusBadge(status),
+            ],
+          ),
+          const Divider(height: 20),
+          if (type == 'send_item') ...[
+            _infoRow("Sender", item['sender_name'] ?? 'Me'),
+            _infoRow("Receiver", item['receiver_email'] ?? 'N/A'),
+            _infoRow("Item", item['item_type_label'] ?? 'Parcel'),
+            _infoRow("Pickup", item['pickup'] ?? 'N/A'),
+            _infoRow("Destination", item['destination'] ?? 'N/A'),
+          ] else if (type == 'reserve') ...[
+            _infoRow("Route", "${item['pickup']} → ${item['destination']}"),
+            _infoRow("Distance", "${item['totalDistanceKm']} km"),
+            _infoRow("Est. Time", "${item['estimatedTravelMinutes']} min"),
+            _infoRow("Schedule", "${item['date']} at ${item['time']}"),
+            _infoRow("Rider", item['riderName'] ?? "Waiting for rider"),
+            if (item['riderPhone'] != null) _infoRow("Phone", item['riderPhone']),
+          ] else ...[
+            _infoRow("Route", "${item['pickup']} → ${item['destination']}"),
+            _infoRow("Driver", item['name'] ?? 'N/A'),
+            _infoRow("Time", "${item['time']} min"),
+          ],
+          _infoRow("Fare", _formatMoney(item['fare'])),
+          _infoRow("Date", item['date'] ?? ''),
+
+          // Cancellation Button Logic
+          if (type == 'reserve' && status.toLowerCase() == 'pending') ...[
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton(
+                onPressed: () => _handleCancel(item['id'].toString()),
+                style: OutlinedButton.styleFrom(side: const BorderSide(color: Colors.red), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
+                child: const Text("Cancel Request", style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
               ),
             ),
-          ),
-          Expanded(
-            child: Text(
-              value,
-              style: const TextStyle(
-                color: AppColors.mutedText,
-              ),
-            ),
-          ),
+          ],
         ],
       ),
+    );
+  }
+
+  Widget _statusBadge(String status) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(color: _statusColor(status).withOpacity(0.1), borderRadius: BorderRadius.circular(20)),
+      child: Text(status.toUpperCase(), style: TextStyle(color: _statusColor(status), fontSize: 10, fontWeight: FontWeight.bold)),
+    );
+  }
+
+  Widget _infoRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Row(
+        children: [
+          SizedBox(width: 85, child: Text("$label:", style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13))),
+          Expanded(child: Text(value, style: const TextStyle(color: AppColors.mutedText, fontSize: 13), overflow: TextOverflow.ellipsis)),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _handleCancel(String id) async {
+    try {
+      await _authApiService.cancelReserve(reserveId: id);
+      _loadActivityDashboard();
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Request cancelled successfully")));
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
+    }
+  }
+
+  Widget _buildBottomNav() {
+    return BottomNavigationBar(
+      currentIndex: 2,
+      selectedItemColor: AppColors.primary,
+      unselectedItemColor: AppColors.mutedText,
+      type: BottomNavigationBarType.fixed,
+      onTap: (index) {
+        if (index == 0) Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const UniRideHomePage()));
+        if (index == 1) Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const ServicesPage()));
+        if (index == 3) Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const OffersPage()));
+        if (index == 4) Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const UniRideProfilePage()));
+      },
+      items: const [
+        BottomNavigationBarItem(icon: Icon(Icons.home), label: "Home"),
+        BottomNavigationBarItem(icon: Icon(Icons.grid_view), label: "Services"),
+        BottomNavigationBarItem(icon: Icon(Icons.receipt_long), label: "Activity"),
+        BottomNavigationBarItem(icon: Icon(Icons.local_offer), label: "Offers"),
+        BottomNavigationBarItem(icon: Icon(Icons.person), label: "Account"),
+      ],
     );
   }
 }

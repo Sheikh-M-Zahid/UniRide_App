@@ -13,6 +13,7 @@ import 'RideSharingHistory.dart';
 import 'SharingCaringHistory.dart';
 import 'AdminPaymentApproval.dart';
 import 'AdminReportsPage.dart';
+import 'RiderVerifyByAdmin.dart';
 
 class AdminDashboard extends StatefulWidget {
   @override
@@ -89,9 +90,10 @@ class _AdminDashboardState extends State<AdminDashboard>
       if (!mounted) return;
 
       setState(() {
-        adminName = admin['name'] ?? 'Admin';
-        adminEmail = admin['email'] ?? '';
-        adminProfileImage = admin['profileImage'];
+        final fetchedName = (admin['name'] ?? '').toString().trim();
+        adminName = fetchedName.isNotEmpty ? fetchedName : 'Admin';
+        adminEmail = (admin['email'] ?? '').toString();
+        adminProfileImage = admin['profileImage']?.toString();
 
         totalRide = stats['totalRide'] ?? 0;
         totalUser = stats['totalUser'] ?? 0;
@@ -116,7 +118,11 @@ class _AdminDashboardState extends State<AdminDashboard>
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.toString())),
+        SnackBar(
+          content: Text(
+            e.toString().replaceFirst('Exception: ', ''),
+          ),
+        ),
       );
     }
   }
@@ -377,6 +383,22 @@ class _AdminDashboardState extends State<AdminDashboard>
                   context,
                   MaterialPageRoute(
                     builder: (context) => const AdminPaymentApproval(),
+                  ),
+                );
+              },
+            ),
+
+            ListTile(
+              title: const Text(
+                "Rider Verify by Admin",
+                style: TextStyle(color: Colors.white),
+              ),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const RiderVerifyByAdmin(),
                   ),
                 );
               },
