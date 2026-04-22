@@ -3,6 +3,7 @@ import 'RiderMap.dart';
 import 'CoRideDetailsPopup.dart';
 import 'package:flutter/material.dart';
 import 'services/auth_api_service.dart';
+import 'RideRequestPopup.dart';
 
 class AppColors {
   static const Color primary = Color(0xFF14B8A6);
@@ -436,6 +437,17 @@ class _NotificationsPageState extends State<NotificationsPage> {
         context: context,
         barrierDismissible: false,
         builder: (_) => CoRideDetailsPopup(sessionId: item.relatedId!),
+      );
+      return;
+    }
+
+    if (widget.userRole == UserRole.rider &&
+        item.type == NotificationType.booking &&
+        item.relatedId != null) {
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => RideRequestPopup(requestId: item.relatedId!),
       );
       return;
     }

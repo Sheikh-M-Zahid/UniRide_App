@@ -121,6 +121,35 @@ class _RiderDeliveryPageState extends State<RiderDeliveryPage> {
     }
   }
 
+  Future<void> _markAsPickedUp() async {
+    if (isActionLoading || activeDelivery == null) return;
+
+    final deliveryId =
+    (activeDelivery!['deliveryId'] ?? activeDelivery!['id'] ?? '').toString();
+
+    if (deliveryId.isEmpty) return;
+
+    setState(() => isActionLoading = true);
+
+    try {
+      await _authApiService.markDeliveryAsPickedUp(deliveryId: deliveryId);
+      await _loadDeliveryDashboard();
+
+      if (!mounted) return;
+      setState(() => isActionLoading = false);
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Marked as picked up")),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => isActionLoading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
+      );
+    }
+  }
+
   Future<void> _markAsDelivered() async {
     if (isActionLoading || activeDelivery == null) return;
 
@@ -403,6 +432,26 @@ class _RiderDeliveryPageState extends State<RiderDeliveryPage> {
                       child: const Text("Mark as Delivered"),
                     ),
                   ),
+                  if ((activeDelivery!["status"] ?? '').toString().toLowerCase() == 'accepted')
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 10),
+                      child: SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          onPressed: isActionLoading ? null : _markAsPickedUp,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF8B5CF6),
+                            foregroundColor: Colors.white,
+                            elevation: 0,
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                          ),
+                          child: const Text("Mark as Picked Up"),
+                        ),
+                      ),
+                    ),
                 ],
               ),
             ),

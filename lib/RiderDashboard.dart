@@ -43,6 +43,7 @@ class _RiderDashboardState extends State<RiderDashboard> {
   Map<String, dynamic>? _dashboardData;
   Timer? _dashboardRefreshTimer;
   bool _isUpdatingStatus = false;
+  bool _isCancellingRide = false;
 
   @override
   void initState() {
@@ -159,6 +160,70 @@ class _RiderDashboardState extends State<RiderDashboard> {
           builder: (_) => const RiderProfile(),
         ),
       );
+    }
+  }
+
+  Future<void> _cancelActiveRide() async {
+    final confirmedRides = RideRequestService.getConfirmedRides();
+    String? requestId;
+
+    if (confirmedRides.isNotEmpty) {
+      requestId = confirmedRides.first.requestId;
+    } else {
+      requestId = _dashboardData?['activeRide']?['requestId']?.toString();
+    }
+
+    if (requestId == null || requestId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not find active ride to cancel.')),
+      );
+      return;
+    }
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Cancel Ride?'),
+        content: const Text(
+          'Are you sure you want to cancel this confirmed ride? The passenger will be notified.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('No'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFDC2626),
+            ),
+            child: const Text('Yes, Cancel', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    setState(() => _isCancellingRide = true);
+
+    final result = await RideRequestService.rejectConfirmedRide(requestId);
+
+    if (!mounted) return;
+    setState(() => _isCancellingRide = false);
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(result.message),
+        backgroundColor: result.success
+            ? const Color(0xFF16A34A)
+            : const Color(0xFFDC2626),
+      ),
+    );
+
+    if (result.success) {
+      _loadDashboard(showLoader: false);
     }
   }
 
@@ -353,6 +418,37 @@ class _RiderDashboardState extends State<RiderDashboard> {
                     _SummaryRow(
                       label: "Status",
                       value: "${_dashboardData?['activeRide']?['status'] ?? ''}",
+                    ),
+                    const SizedBox(height: 14),
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        onPressed: _isCancellingRide ? null : _cancelActiveRide,
+                        icon: _isCancellingRide
+                            ? const SizedBox(
+                          height: 16,
+                          width: 16,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Color(0xFFDC2626),
+                          ),
+                        )
+                            : const Icon(Icons.cancel, color: Color(0xFFDC2626), size: 18),
+                        label: Text(
+                          _isCancellingRide ? 'Cancelling...' : 'Cancel Ride',
+                          style: const TextStyle(
+                            color: Color(0xFFDC2626),
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        style: OutlinedButton.styleFrom(
+                          side: const BorderSide(color: Color(0xFFDC2626)),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          padding: const EdgeInsets.symmetric(vertical: 11),
+                        ),
+                      ),
                     ),
                   ] else
                     const Text(

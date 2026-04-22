@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'services/auth_api_service.dart';
 import 'services/socket_service.dart';
 import 'RideRequestModel.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class RideRequestService {
   RideRequestService._();
@@ -233,13 +234,25 @@ class RideRequestService {
         Navigator.pop(context);
       }
 
-      ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-        SnackBar(
-          content: Text(
-            response['message'] ?? "Ride confirmed for ${request.passengerName}",
+      final passengerPhone = request.phoneNumber;
+      if (passengerPhone.isNotEmpty) {
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (_) => _ConfirmedRidePhoneDialog(
+            passengerName: request.passengerName,
+            passengerPhone: passengerPhone,
           ),
-        ),
-      );
+        );
+      } else {
+        ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+          SnackBar(
+            content: Text(
+              response['message'] ?? "Ride confirmed for ${request.passengerName}",
+            ),
+          ),
+        );
+      }
     } catch (e) {
       if (Navigator.canPop(context)) {
         Navigator.pop(context);
@@ -319,6 +332,7 @@ class _RideRequestDialog extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             _infoRow("Name", request.passengerName),
+            _infoRow("Email", request.passengerEmail),
             _infoRow("Phone", request.phoneNumber),
             _infoRow("Location", request.currentLocation),
             _infoRow("Destination", request.destination),
@@ -442,4 +456,107 @@ class CancelRideResult {
     required this.message,
     required this.fineAdded,
   });
+}
+
+class _ConfirmedRidePhoneDialog extends StatelessWidget {
+  final String passengerName;
+  final String passengerPhone;
+
+  const _ConfirmedRidePhoneDialog({
+    required this.passengerName,
+    required this.passengerPhone,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+      title: const Row(
+        children: [
+          Icon(Icons.check_circle, color: Color(0xFF16A34A), size: 26),
+          SizedBox(width: 8),
+          Text(
+            'Ride Confirmed!',
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              color: Color(0xFF1F2937),
+              fontSize: 18,
+            ),
+          ),
+        ],
+      ),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Passenger: $passengerName',
+            style: const TextStyle(color: Color(0xFF374151), fontSize: 14),
+          ),
+          const SizedBox(height: 16),
+          const Text(
+            'Contact the passenger:',
+            style: TextStyle(
+              fontSize: 13,
+              color: Color(0xFF6B7280),
+            ),
+          ),
+          const SizedBox(height: 10),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF0FDF4),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFF86EFAC)),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.phone, color: Color(0xFF16A34A), size: 22),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    passengerPhone,
+                    style: const TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF1F2937),
+                    ),
+                  ),
+                ),
+                GestureDetector(
+                  onTap: () async {
+                    final uri = Uri(scheme: 'tel', path: passengerPhone);
+                    if (await canLaunchUrl(uri)) {
+                      await launchUrl(uri);
+                    }
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: const BoxDecoration(
+                      color: Color(0xFF16A34A),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.call,
+                      color: Colors.white,
+                      size: 20,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text(
+            'Close',
+            style: TextStyle(color: Color(0xFF14B8A6), fontWeight: FontWeight.bold),
+          ),
+        ),
+      ],
+    );
+  }
 }

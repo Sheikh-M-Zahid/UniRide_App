@@ -1214,6 +1214,57 @@ class AuthApiService {
     }
   }
 
+  // SendItemTracking.dart
+  Future<Map<String, dynamic>> getSendItemDetails({
+    required String sId,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+
+    final url = Uri.parse('$baseUrl/send-items/$sId');
+
+    final response = await http.get(
+      url,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    );
+
+    final data = jsonDecode(response.body);
+
+    if (response.statusCode == 200) {
+      return data;
+    } else {
+      throw Exception(data['message'] ?? 'Failed to load item details');
+    }
+  }
+
+  Future<Map<String, dynamic>> cancelSendItem({
+    required String sId,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+
+    final url = Uri.parse('$baseUrl/send-items/$sId/cancel');
+
+    final response = await http.patch(
+      url,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    );
+
+    final data = jsonDecode(response.body);
+
+    if (response.statusCode == 200) {
+      return data;
+    } else {
+      throw Exception(data['message'] ?? 'Failed to cancel delivery');
+    }
+  }
+
   //RideSelection.dart
   Future<Map<String, dynamic>> getVehicleSelectionStatus() async {
     final prefs = await SharedPreferences.getInstance();
@@ -1580,6 +1631,31 @@ class AuthApiService {
       return data;
     } else {
       throw Exception(data['message'] ?? 'Failed to mark delivery as delivered');
+    }
+  }
+
+  Future<Map<String, dynamic>> markDeliveryAsPickedUp({
+    required String deliveryId,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+
+    final url = Uri.parse('$baseUrl/rider/delivery/$deliveryId/mark-picked-up');
+
+    final response = await http.post(
+      url,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    );
+
+    final data = jsonDecode(response.body);
+
+    if (response.statusCode == 200) {
+      return data;
+    } else {
+      throw Exception(data['message'] ?? 'Failed to mark as picked up');
     }
   }
 
