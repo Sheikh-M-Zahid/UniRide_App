@@ -34,6 +34,7 @@ router.get('/available', authMiddleware, sendItemController.getAvailableSendItem
 router.get('/my-sent', authMiddleware, sendItemController.getMySentItems);
 router.get('/my-rides', authMiddleware, sendItemController.getMyRiderSendItems);
 
+router.get('/:sId', authMiddleware, sendItemController.getSenderItemDetails);
 router.get('/:sId/sender-details', authMiddleware, sendItemController.getSenderItemDetails);
 router.get('/:sId/rider-details', authMiddleware, sendItemController.getRiderItemDetails);
 
