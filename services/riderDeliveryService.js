@@ -192,7 +192,7 @@ const getDashboard = async ({ riderId }) => {
     SELECT *
     FROM send_items
     WHERE rider_id = $1
-      AND status IN ('accepted', 'on_the_way')
+      AND status IN ('accepted', 'picked_up', 'on_the_way')
     ORDER BY accepted_at DESC NULLS LAST, created_at DESC
     LIMIT 1
   `,
@@ -384,9 +384,96 @@ const markDelivered = async ({ riderId, id, io }) => {
   };
 };
 
+/* =========================
+   MARK AS PICKED UP
+========================= */
+const markPickedUp = async ({ riderId, id, io }) => {
+  const rider = await getRiderBasicInfo(riderId);
+
+  const result = await rideDb.query(
+    `
+    UPDATE send_items
+    SET status = 'picked_up'
+    WHERE s_id = $1
+      AND rider_id = $2
+      AND status = 'accepted'
+    RETURNING *
+  `,
+    [id, riderId]
+  );
+
+  if (!result.rows.length) {
+    throw new Error('Delivery not found or not yours.');
+  }
+
+  const delivery = result.rows[0];
+
+  if (delivery.sender_id) {
+    await createNotification({
+      userId: delivery.sender_id,
+      title: 'Item Picked Up',
+      message: `Your ${delivery.item_type} has been picked up by the rider.`,
+      type: 'sendItem',
+      isImportant: true,
+      targetRole: 'passenger',
+      relatedId: delivery.s_id,
+    });
+  }
+
+  if (delivery.receiver_id) {
+    await createNotification({
+      userId: delivery.receiver_id,
+      title: 'Item On The Way',
+      message: `Your incoming ${delivery.item_type} is now on the way.`,
+      type: 'sendItem',
+      isImportant: true,
+      targetRole: 'passenger',
+      relatedId: delivery.s_id,
+    });
+  }
+
+  await createNotification({
+    userId: rider.user_id,
+    title: 'Pickup Confirmed',
+    message: `You picked up the ${delivery.item_type}. Deliver it to the receiver now.`,
+    type: 'sendItem',
+    isImportant: false,
+    targetRole: 'rider',
+    relatedId: delivery.s_id,
+  });
+
+  if (io) {
+    io.to(`rider_${riderId}`).emit('delivery:updated', {
+      deliveryId: id,
+      status: 'picked_up',
+    });
+
+    if (delivery.sender_id) {
+      io.to(`user_${delivery.sender_id}`).emit('delivery:status-changed', {
+        deliveryId: delivery.s_id,
+        status: 'picked_up',
+      });
+    }
+
+    if (delivery.receiver_id) {
+      io.to(`user_${delivery.receiver_id}`).emit('delivery:status-changed', {
+        deliveryId: delivery.s_id,
+        status: 'picked_up',
+      });
+    }
+  }
+
+  return {
+    deliveryId: id,
+    status: 'picked_up',
+  };
+};
+
+
 module.exports = {
   getDashboard,
   acceptRequest,
   rejectRequest,
   markDelivered,
+  markPickedUp,
 };
