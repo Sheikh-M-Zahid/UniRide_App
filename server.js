@@ -28,7 +28,7 @@ const { setAdminVehicleIo } = require('./utils/adminVehicleEmitter');
 
 const { setNotificationIo } = require('./utils/notificationEmitter');
 const attachNotificationSocket = require('./sockets/notificationSocket');
-const coRideSocket = require('./sockets/coRideSocket');
+const coRideSocket = require('./socket/coRideSocket');
 const { setCoRideIo } = require('./utils/coRideEmitter');
 
 
