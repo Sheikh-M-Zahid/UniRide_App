@@ -64,15 +64,25 @@ const createRequest = async (passengerId, payload) => {
     throw new Error('Ride not found.');
   }
 
+  
   const ride = rideRes.rows[0];
+
+  // নিচে add করো:
+  const passengerRes = await rideDb.query(
+    `SELECT first_name, last_name, university_email, phone FROM users WHERE user_id = $1`,
+    [passengerId]
+  );
+  const passenger = passengerRes.rows[0] || {};
+  const passengerName = `${passenger.first_name || ''} ${passenger.last_name || ''}`.trim();
 
   if (ride.rider_id === passengerId) {
     throw new Error('You cannot request your own ride.');
   }
 
-  if (String(ride.status).toLowerCase() !== 'assigned') {
-    throw new Error('This ride is not available for request.');
-  }
+  const rideStatus = String(ride.status).toLowerCase();
+    if (!['active', 'assigned'].includes(rideStatus)) {
+      throw new Error('This ride is not available for request.');
+    }
 
   if (Number(ride.available_seats || 0) <= 0) {
     throw new Error('No seats available for this ride.');
@@ -143,9 +153,25 @@ const createRequest = async (passengerId, payload) => {
     status: request.status,
     expiresAt: request.expires_at,
     vehicleType: request.vehicle_type,
+    passengerName,
+    passengerEmail: passenger.university_email || '',
+    passengerPhone: passenger.phone || '',
+    currentLocation: request.pickup_location,
   };
 
   emitToRider(request.rider_id, riderPayload);
+
+  // নিচে add করো:
+  const { createNotification } = require('./notificationService');
+  await createNotification({
+    userId: ride.rider_id,
+    title: 'New Ride Request!',
+    message: `${passengerName} wants to ride from ${pickupAddress} to ${destinationAddress}. Fare: ৳${fare || 0}`,
+    type: 'booking',
+    isImportant: true,
+    targetRole: 'rider',
+    relatedId: String(request.request_id),
+  });
 
   setTimeout(async () => {
     try {
@@ -298,8 +324,43 @@ const acceptRequest = async (riderId, requestId) => {
       [requestId]
     );
 
+    // এই লাইনের পরে:
     await client.query('COMMIT');
-
+    
+    // নিচে add করো:
+    const { createNotification } = require('./notificationService');
+    
+    const passengerInfoRes = await rideDb.query(
+      `SELECT first_name, last_name, phone FROM users WHERE user_id = $1`,
+      [acceptedRequest.passenger_id]
+    );
+    const passengerInfo = passengerInfoRes.rows[0] || {};
+    
+    const riderInfoRes = await rideDb.query(
+      `SELECT first_name, last_name, phone FROM users WHERE user_id = $1`,
+      [acceptedRequest.rider_id]
+    );
+    const riderInfo = riderInfoRes.rows[0] || {};
+    
+    await createNotification({
+      userId: acceptedRequest.passenger_id,
+      title: 'Ride Confirmed! 🎉',
+      message: `Your ride was confirmed by ${riderInfo.first_name || 'the rider'}. Rider's phone: ${riderInfo.phone || 'N/A'}`,
+      type: 'booking',
+      isImportant: true,
+      targetRole: 'passenger',
+      relatedId: String(acceptedRequest.request_id),
+    });
+    
+    await createNotification({
+      userId: acceptedRequest.rider_id,
+      title: 'Ride Confirmed!',
+      message: `You confirmed ride for ${passengerInfo.first_name || 'passenger'}. Passenger phone: ${passengerInfo.phone || 'N/A'}`,
+      type: 'booking',
+      isImportant: true,
+      targetRole: 'rider',
+      relatedId: String(acceptedRequest.request_id),
+    });
     const acceptedRequest = acceptedRes.rows[0];
 
     const payload = {
@@ -307,6 +368,8 @@ const acceptRequest = async (riderId, requestId) => {
       status: 'accepted',
       rideId: acceptedRequest.ride_id,
       message: 'Ride accepted',
+      passengerPhone: passengerInfo.phone || '',
+      riderPhone: riderInfo.phone || '',
     };
 
     emitRideRequestStatusUpdate(acceptedRequest.request_id, payload);
@@ -340,7 +403,20 @@ const rejectRequest = async (riderId, requestId, cancelReason = null) => {
     throw new Error('Pending ride request not found or already processed.');
   }
 
+  // এই লাইনের পরে:
   const request = result.rows[0];
+  
+  // নিচে add করো:
+  const { createNotification } = require('./notificationService');
+  await createNotification({
+    userId: request.passenger_id,
+    title: 'Ride Request Rejected',
+    message: 'Your ride request was rejected by the rider. Please try another available ride.',
+    type: 'booking',
+    isImportant: false,
+    targetRole: 'passenger',
+    relatedId: String(request.request_id),
+  });
 
   const payload = {
     requestId: request.request_id,
