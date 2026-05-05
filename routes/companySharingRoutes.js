@@ -28,4 +28,16 @@ router.post(
 );
 router.get('/:sessionId/chat', authMiddleware, controller.fetchCompanyChatMessages);
 
+router.delete(
+  '/:sessionId/participants/:participantUserId',
+  authMiddleware,
+  controller.removeParticipant
+);
+
+router.get(
+  '/:sessionId/with-participants',
+  authMiddleware,
+  controller.getSessionWithParticipants
+);
+
 module.exports = router;
