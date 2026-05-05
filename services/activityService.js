@@ -123,6 +123,61 @@ const getActivityDashboard = async ({
   const rideSummaryRow = rideSummaryResult.rows[0] || {};
   const reserveSummary = reserveData.summary || {};
 
+  // CoRide activity (participant হিসেবে)
+  const coRideParticipantResult = await rideDb.query(
+    `SELECT
+      css.session_id AS id,
+      'coride' AS item_type,
+      'CoRide' AS title,
+      u.first_name || ' ' || u.last_name AS creator_name,
+      css.start_location AS pickup,
+      css.destination,
+      css.fare_per_person AS fare,
+      TO_CHAR(css.created_at, 'DD Mon YYYY') AS date,
+      css.status,
+      css.created_at,
+      css.is_started,
+      cp.confirmed,
+      css.total_seats,
+      css.booked_seats,
+      css.session_id
+     FROM company_participants cp
+     JOIN company_sharing_sessions css ON cp.session_id = css.session_id
+     JOIN users u ON css.created_by = u.user_id
+     WHERE cp.user_id = $1 AND cp.confirmed = TRUE
+     ${time === 'today' ? "AND DATE(css.created_at) = CURRENT_DATE" : ""}
+     ${time === 'week' ? "AND css.created_at >= DATE_TRUNC('week', CURRENT_DATE)" : ""}
+     ${time === 'month' ? "AND css.created_at >= DATE_TRUNC('month', CURRENT_DATE)" : ""}
+     ORDER BY css.created_at DESC`,
+    [userId]
+  );
+  
+  // CoRide activity (creator হিসেবে)
+  const coRideCreatorResult = await rideDb.query(
+    `SELECT
+      css.session_id AS id,
+      'coride_creator' AS item_type,
+      'CoRide (My Post)' AS title,
+      NULL AS creator_name,
+      css.start_location AS pickup,
+      css.destination,
+      css.fare_per_person AS fare,
+      TO_CHAR(css.created_at, 'DD Mon YYYY') AS date,
+      css.status,
+      css.created_at,
+      css.is_started,
+      css.total_seats,
+      css.booked_seats,
+      css.session_id
+     FROM company_sharing_sessions css
+     WHERE css.created_by = $1
+     ${time === 'today' ? "AND DATE(css.created_at) = CURRENT_DATE" : ""}
+     ${time === 'week' ? "AND css.created_at >= DATE_TRUNC('week', CURRENT_DATE)" : ""}
+     ${time === 'month' ? "AND css.created_at >= DATE_TRUNC('month', CURRENT_DATE)" : ""}
+     ORDER BY css.created_at DESC`,
+    [userId]
+  );
+
   // ৬. সকল ডেটা মার্জ করা
   const mergedActivities = [
     ...(rideActivitiesResult.rows || []).map((row) => ({
@@ -139,6 +194,18 @@ const getActivityDashboard = async ({
       ...row,
       created_at: row.created_at,
     }))),
+    ...(coRideParticipantResult.rows || []).map((row) => ({
+      ...row,
+      fare: Number(row.fare || 0),
+      canCancel: false,
+      item_type: 'coride',
+    })),
+    ...(coRideCreatorResult.rows || []).map((row) => ({
+      ...row,
+      fare: Number(row.fare || 0),
+      canCancel: false,
+      item_type: 'coride_creator',
+    })),
   ];
 
   mergedActivities.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
