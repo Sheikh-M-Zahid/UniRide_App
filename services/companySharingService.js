@@ -285,6 +285,78 @@ const fetchCompanyChatMessages = async (sessionId) => {
   return result.rows;
 };
 
+const removeParticipant = async (sessionId, creatorId, participantUserId) => {
+  // Creator কিনা check
+  const sessionRes = await rideDb.query(
+    `SELECT created_by FROM company_sharing_sessions WHERE session_id = $1`,
+    [sessionId]
+  );
+  if (sessionRes.rowCount === 0) throw new Error('Session not found.');
+  if (String(sessionRes.rows[0].created_by) !== String(creatorId)) {
+    throw new Error('Only the creator can remove participants.');
+  }
+
+  // Participant আছে কিনা check
+  const partRes = await rideDb.query(
+    `SELECT id FROM company_participants WHERE session_id = $1 AND user_id = $2`,
+    [sessionId, participantUserId]
+  );
+  if (partRes.rowCount === 0) throw new Error('Participant not found.');
+
+  // Remove
+  await rideDb.query(
+    `DELETE FROM company_participants WHERE session_id = $1 AND user_id = $2`,
+    [sessionId, participantUserId]
+  );
+
+  // Seat ফিরিয়ে দাও
+  await rideDb.query(
+    `UPDATE company_sharing_sessions SET booked_seats = booked_seats - 1 WHERE session_id = $1`,
+    [sessionId]
+  );
+
+  // Removed user কে notification
+  await createNotification({
+    userId: participantUserId,
+    title: 'Removed from CoRide',
+    message: 'You have been removed from a CoRide session by the creator.',
+    type: 'co_ride',
+    isImportant: true,
+    targetRole: 'passenger',
+    relatedId: String(sessionId),
+  });
+
+  return { success: true };
+};
+
+const getSessionWithParticipants = async (sessionId, userId) => {
+  const sessionRes = await rideDb.query(
+    `SELECT css.*, u.first_name, u.last_name, u.phone
+     FROM company_sharing_sessions css
+     JOIN users u ON css.created_by = u.user_id
+     WHERE css.session_id = $1`,
+    [sessionId]
+  );
+  if (sessionRes.rowCount === 0) throw new Error('Session not found.');
+
+  const session = sessionRes.rows[0];
+
+  const participantsRes = await rideDb.query(
+    `SELECT cp.user_id, cp.id as participant_id,
+            u.first_name, u.last_name, u.profile_picture
+     FROM company_participants cp
+     JOIN users u ON cp.user_id = u.user_id
+     WHERE cp.session_id = $1 AND cp.confirmed = TRUE`,
+    [sessionId]
+  );
+
+  return {
+    ...session,
+    confirmed_participants: participantsRes.rows,
+    is_creator: String(session.created_by) === String(userId),
+  };
+};
+
 module.exports = {
   createSession,
   getSessionById,
@@ -297,4 +369,6 @@ module.exports = {
   listSessions,
   sendCompanyChatMessage,
   fetchCompanyChatMessages,
+  removeParticipant,
+  getSessionWithParticipants,
 };
