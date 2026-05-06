@@ -58,7 +58,7 @@ const getActivityDashboard = async ({
     if (type === 'reserved') {
       rideWhereClause += ` AND rr.status = 'accepted'`;
     } else if (type === 'completed') {
-      rideWhereClause += ` AND rr.status = 'accepted' AND r.status = 'completed'`;
+      rideWhereClause += ` AND rr.status = 'accepted' AND EXISTS (SELECT 1 FROM rides WHERE ride_id = rr.ride_id AND status = 'completed')`;
     } else if (type === 'cancelled') {
       rideWhereClause += ` AND rr.status = 'cancelled'`;
     } else if (type === 'send_item' || type === 'coride') {
@@ -72,11 +72,10 @@ const getActivityDashboard = async ({
   const rideSummaryQuery = `
     SELECT
       COUNT(*)::int AS total,
-      COUNT(*) FILTER (WHERE r.status = 'completed')::int AS completed,
+      COUNT(*) FILTER (WHERE EXISTS (SELECT 1 FROM rides WHERE ride_id = rr.ride_id AND status = 'completed'))::int AS completed,
       COUNT(*) FILTER (WHERE rr.status = 'cancelled')::int AS cancelled,
-      COALESCE(SUM(CASE WHEN r.status = 'completed' THEN rr.estimated_fare ELSE 0 END), 0) AS earnings
+      COALESCE(SUM(CASE WHEN EXISTS (SELECT 1 FROM rides WHERE ride_id = rr.ride_id AND status = 'completed') THEN rr.estimated_fare ELSE 0 END), 0) AS earnings
     FROM ride_requests rr
-    LEFT JOIN rides r ON rr.ride_id = r.ride_id
     ${rideWhereClause}
   `;
 
