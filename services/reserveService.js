@@ -490,7 +490,7 @@ const getReserveActivityList = async ({ userId, type = 'all', time = 'today' }) 
       COUNT(*) FILTER (WHERE status = 'completed')::int AS completed,
       COUNT(*) FILTER (WHERE status = 'cancelled')::int AS cancelled,
       0::float AS earnings
-    FROM reserves
+    FROM reserves r
     WHERE user_id = $1
     ${timeCondition}
     `,
