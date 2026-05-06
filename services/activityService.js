@@ -5,8 +5,7 @@ const reserveService = require('./reserveService');
 // GET MY ACTIVITY
 // ==============================
 const getMyActivity = async (userId, sort = 'new') => {
-  let order = 'DESC';
-  if (sort === 'old') { order = 'ASC'; }
+  const order = sort === 'old' ? 'ASC' : 'DESC';
 
   const result = await rideDb.query(
     `SELECT r.ride_id, r.start_location, r.destination, r.total_fare, r.status, r.created_at
@@ -16,6 +15,27 @@ const getMyActivity = async (userId, sort = 'new') => {
     [userId]
   );
   return result.rows;
+};
+
+// ==============================
+// TIME FILTER HELPER
+// ==============================
+const buildTimeCondition = (time, tableAlias = '') => {
+  const col = tableAlias ? `${tableAlias}.created_at` : 'created_at';
+
+  // frontend থেকে আসতে পারে: 'today', 'week', 'month'
+  // বা mapped: 'this_week' → 'week', 'this_month' → 'month'
+  const normalized = time?.toLowerCase()?.replace('this_', '') || 'today';
+
+  switch (normalized) {
+    case 'week':
+      return `AND ${col} >= DATE_TRUNC('week', CURRENT_DATE)`;
+    case 'month':
+      return `AND ${col} >= DATE_TRUNC('month', CURRENT_DATE)`;
+    case 'today':
+    default:
+      return `AND DATE(${col}) = CURRENT_DATE`;
+  }
 };
 
 // ==============================
@@ -29,12 +49,11 @@ const getActivityDashboard = async ({
   limit = 20,
 }) => {
   const offset = (page - 1) * limit;
+  const timeCondition = buildTimeCondition(time);
 
-  // ১. রাইড রিকোয়েস্টের জন্য ফিল্টার (প্যাসেঞ্জার হিসেবে)
+  // ── ১. Ride requests (passenger হিসেবে) ──
   let rideWhereClause = `WHERE rr.passenger_id = $1`;
-  const rideValues = [userId];
 
-  // টাইপ ফিল্টার লজিক
   if (type !== 'all') {
     if (type === 'reserved') {
       rideWhereClause += ` AND rr.status = 'accepted'`;
@@ -42,21 +61,14 @@ const getActivityDashboard = async ({
       rideWhereClause += ` AND rr.status = 'accepted' AND r.status = 'completed'`;
     } else if (type === 'cancelled') {
       rideWhereClause += ` AND rr.status = 'cancelled'`;
-    } else if (type === 'send_item') {
-      rideWhereClause += ` AND 1 = 0`; // রাইড কোয়েরিতে পার্সেল আসবে না
+    } else if (type === 'send_item' || type === 'coride') {
+      rideWhereClause += ` AND 1 = 0`;
     }
   }
 
-  // টাইম ফিল্টার লজিক
-  if (time === 'today') {
-    rideWhereClause += ` AND DATE(rr.created_at) = CURRENT_DATE`;
-  } else if (time === 'this_week') {
-    rideWhereClause += ` AND rr.created_at >= DATE_TRUNC('week', CURRENT_DATE)`;
-  } else if (time === 'this_month') {
-    rideWhereClause += ` AND rr.created_at >= DATE_TRUNC('month', CURRENT_DATE)`;
-  }
+  rideWhereClause += ` ${buildTimeCondition(time, 'rr')}`;
 
-  // ২. সামারি কোয়েরি (Alias 'r' এবং 'rr' সঠিকভাবে জয়েন করা হয়েছে)
+  // ── Summary ──
   const rideSummaryQuery = `
     SELECT
       COUNT(*)::int AS total,
@@ -68,7 +80,7 @@ const getActivityDashboard = async ({
     ${rideWhereClause}
   `;
 
-  // ৩. রাইড লিস্ট কোয়েরি
+  // ── Ride list ──
   const rideListQuery = `
     SELECT
       rr.request_id AS id,
@@ -95,131 +107,163 @@ const getActivityDashboard = async ({
     ORDER BY rr.created_at DESC
   `;
 
-  const rideSummaryResult = await rideDb.query(rideSummaryQuery, rideValues);
-  const rideActivitiesResult = await rideDb.query(rideListQuery, rideValues);
+  const rideSummaryResult = await rideDb.query(rideSummaryQuery, [userId]);
+  const rideActivitiesResult = await rideDb.query(rideListQuery, [userId]);
 
-  // ৪. সেন্ড আইটেম ডেটা (আপনার ডাটাবেজ কলাম s_id এবং drop_location অনুযায়ী)
+  // ── ২. Send items ──
   const sendItemResult = await rideDb.query(
-    `SELECT 
-      s_id AS id, 'send_item' AS item_type, 'Parcel Delivery' AS title,
-      receiver_name AS name, receiver_phone AS phone, pickup_location AS pickup,
-      drop_location AS destination, estimated_minutes::text AS time,
-      delivery_fee AS fare, TO_CHAR(created_at, 'DD Mon YYYY') AS date,
-      status, created_at
-     FROM send_items 
+    `SELECT
+       s_id AS id,
+       'send_item' AS item_type,
+       'Parcel Delivery' AS title,
+       receiver_name AS name,
+       receiver_phone AS phone,
+       pickup_location AS pickup,
+       drop_location AS destination,
+       estimated_minutes::text AS time,
+       delivery_fee AS fare,
+       TO_CHAR(created_at, 'DD Mon YYYY') AS date,
+       status,
+       created_at
+     FROM send_items
      WHERE (receiver_id = $1 OR rider_id = $1)
-     ${time === 'today' ? "AND created_at >= CURRENT_DATE" : ""}
+     ${buildTimeCondition(time)}
      ORDER BY created_at DESC`,
     [userId]
   );
 
-  // ৫. রিজার্ভেশন ডেটা
+  // ── ৩. Reserves ──
   const reserveData = await reserveService.getReserveActivityList({
     userId,
     type,
     time,
   });
 
-  const rideSummaryRow = rideSummaryResult.rows[0] || {};
-  const reserveSummary = reserveData.summary || {};
-
-  // CoRide activity (participant হিসেবে)
+  // ── ৪. CoRide — Participant হিসেবে ──
   const coRideParticipantResult = await rideDb.query(
     `SELECT
-      css.session_id AS id,
-      'coride' AS item_type,
-      'CoRide' AS title,
-      u.first_name || ' ' || u.last_name AS creator_name,
-      css.start_location AS pickup,
-      css.destination,
-      css.fare_per_person AS fare,
-      TO_CHAR(css.created_at, 'DD Mon YYYY') AS date,
-      css.status,
-      css.created_at,
-      css.is_started,
-      cp.confirmed,
-      css.total_seats,
-      css.booked_seats,
-      css.session_id
+       css.session_id::text AS id,
+       'coride' AS item_type,
+       'CoRide' AS title,
+       (u.first_name || ' ' || u.last_name) AS creator_name,
+       css.start_location AS pickup,
+       css.destination,
+       COALESCE(css.fare_per_person, 0) AS fare,
+       TO_CHAR(css.created_at, 'DD Mon YYYY') AS date,
+       css.status,
+       css.created_at,
+       css.is_started,
+       css.total_seats,
+       COALESCE(css.booked_seats, 0) AS booked_seats,
+       css.session_id::text AS session_id
      FROM company_participants cp
      JOIN company_sharing_sessions css ON cp.session_id = css.session_id
      JOIN users u ON css.created_by = u.user_id
-     WHERE cp.user_id = $1 AND cp.confirmed = TRUE
-     ${time === 'today' ? "AND DATE(css.created_at) = CURRENT_DATE" : ""}
-     ${time === 'week' ? "AND css.created_at >= DATE_TRUNC('week', CURRENT_DATE)" : ""}
-     ${time === 'month' ? "AND css.created_at >= DATE_TRUNC('month', CURRENT_DATE)" : ""}
-     ORDER BY css.created_at DESC`,
-    [userId]
-  );
-  
-  // CoRide activity (creator হিসেবে)
-  const coRideCreatorResult = await rideDb.query(
-    `SELECT
-      css.session_id AS id,
-      'coride_creator' AS item_type,
-      'CoRide (My Post)' AS title,
-      NULL AS creator_name,
-      css.start_location AS pickup,
-      css.destination,
-      css.fare_per_person AS fare,
-      TO_CHAR(css.created_at, 'DD Mon YYYY') AS date,
-      css.status,
-      css.created_at,
-      css.is_started,
-      css.total_seats,
-      css.booked_seats,
-      css.session_id
-     FROM company_sharing_sessions css
-     WHERE css.created_by = $1
-     ${time === 'today' ? "AND DATE(css.created_at) = CURRENT_DATE" : ""}
-     ${time === 'week' ? "AND css.created_at >= DATE_TRUNC('week', CURRENT_DATE)" : ""}
-     ${time === 'month' ? "AND css.created_at >= DATE_TRUNC('month', CURRENT_DATE)" : ""}
+     WHERE cp.user_id = $1
+       AND cp.confirmed = TRUE
+     ${buildTimeCondition(time, 'css')}
      ORDER BY css.created_at DESC`,
     [userId]
   );
 
-  // ৬. সকল ডেটা মার্জ করা
+  // ── ৫. CoRide — Creator হিসেবে ──
+  const coRideCreatorResult = await rideDb.query(
+    `SELECT
+       css.session_id::text AS id,
+       'coride_creator' AS item_type,
+       'CoRide (My Post)' AS title,
+       NULL AS creator_name,
+       css.start_location AS pickup,
+       css.destination,
+       COALESCE(css.fare_per_person, 0) AS fare,
+       TO_CHAR(css.created_at, 'DD Mon YYYY') AS date,
+       css.status,
+       css.created_at,
+       css.is_started,
+       css.total_seats,
+       COALESCE(css.booked_seats, 0) AS booked_seats,
+       css.session_id::text AS session_id
+     FROM company_sharing_sessions css
+     WHERE css.created_by = $1
+     ${buildTimeCondition(time, 'css')}
+     ORDER BY css.created_at DESC`,
+    [userId]
+  );
+
+  // ── Summary merge ──
+  const rideSummaryRow = rideSummaryResult.rows[0] || {};
+  const reserveSummary = reserveData.summary || {};
+
+  const coRideCount =
+    coRideParticipantResult.rowCount + coRideCreatorResult.rowCount;
+
+  // ── type filter এ coride ফিল্টার করা ──
+  const shouldShowRide = type === 'all' || type === 'completed' || type === 'cancelled' || type === 'reserved';
+  const shouldShowSendItem = type === 'all' || type === 'send_item';
+  const shouldShowCoRide = type === 'all' || type === 'coride';
+  const shouldShowReserve = type === 'all' || type === 'reserved';
+
+  // ── সব মার্জ ──
   const mergedActivities = [
-    ...(rideActivitiesResult.rows || []).map((row) => ({
+    ...(shouldShowRide ? (rideActivitiesResult.rows || []).map((row) => ({
       ...row,
       fare: Number(row.fare || 0),
       canCancel: row.can_cancel === true,
-    })),
-    ...(sendItemResult.rows || []).map((row) => ({
+    })) : []),
+
+    ...(shouldShowSendItem ? (sendItemResult.rows || []).map((row) => ({
       ...row,
       fare: Number(row.fare || 0),
       canCancel: false,
-    })),
-    ...((reserveData.activities || []).map((row) => ({
+    })) : []),
+
+    ...(shouldShowReserve ? ((reserveData.activities || []).map((row) => ({
       ...row,
       created_at: row.created_at,
-    }))),
-    ...(coRideParticipantResult.rows || []).map((row) => ({
+    }))) : []),
+
+    ...(shouldShowCoRide ? (coRideParticipantResult.rows || []).map((row) => ({
       ...row,
       fare: Number(row.fare || 0),
       canCancel: false,
       item_type: 'coride',
-    })),
-    ...(coRideCreatorResult.rows || []).map((row) => ({
+    })) : []),
+
+    ...(shouldShowCoRide ? (coRideCreatorResult.rows || []).map((row) => ({
       ...row,
       fare: Number(row.fare || 0),
       canCancel: false,
       item_type: 'coride_creator',
-    })),
+    })) : []),
   ];
 
-  mergedActivities.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+  // Date অনুযায়ী sort
+  mergedActivities.sort(
+    (a, b) => new Date(b.created_at) - new Date(a.created_at)
+  );
+
   const paginatedActivities = mergedActivities.slice(offset, offset + limit);
 
   return {
     summary: {
-      total: Number(rideSummaryRow.total || 0) + Number(reserveSummary.total || 0) + (sendItemResult.rows?.length || 0),
-      completed: Number(rideSummaryRow.completed || 0) + Number(reserveSummary.completed || 0),
-      cancelled: Number(rideSummaryRow.cancelled || 0) + Number(reserveSummary.cancelled || 0),
-      earnings: Number(rideSummaryRow.earnings || 0) + Number(reserveSummary.earnings || 0),
+      total:
+        Number(rideSummaryRow.total || 0) +
+        Number(reserveSummary.total || 0) +
+        (sendItemResult.rows?.length || 0) +
+        coRideCount,
+      completed:
+        Number(rideSummaryRow.completed || 0) +
+        Number(reserveSummary.completed || 0),
+      cancelled:
+        Number(rideSummaryRow.cancelled || 0) +
+        Number(reserveSummary.cancelled || 0),
+      earnings:
+        Number(rideSummaryRow.earnings || 0) +
+        Number(reserveSummary.earnings || 0),
     },
     activities: paginatedActivities,
-    emptyState: paginatedActivities.length === 0 ? 'No activity found' : null,
+    emptyState:
+      paginatedActivities.length === 0 ? 'No activity found' : null,
   };
 };
 
