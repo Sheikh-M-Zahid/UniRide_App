@@ -1,128 +1,27 @@
 const alumniService = require('../services/alumni.service');
 
-exports.registerAlumni = async (req, res) => {
-  try {
-    const result = await alumniService.registerAlumni(req);
-    res.status(201).json(result);
-  } catch (err) {
-    handleError(res, err);
-  }
-};
-
-exports.getMyStatus = async (req, res) => {
-  try {
-    const result = await alumniService.getMyStatus(req);
-    res.json(result);
-  } catch (err) {
-    handleError(res, err);
-  }
-};
-
-exports.updateProfile = async (req, res) => {
-  try {
-    const result = await alumniService.updateProfile(req);
-    res.json(result);
-  } catch (err) {
-    handleError(res, err);
-  }
-};
-
-exports.getAlumniList = async (req, res) => {
-  try {
-    const result = await alumniService.getAlumniList(req);
-    res.json(result);
-  } catch (err) {
-    handleError(res, err);
-  }
-};
-
-exports.getDepartments = async (req, res) => {
-  try {
-    const result = await alumniService.getDepartments();
-    res.json(result);
-  } catch (err) {
-    handleError(res, err);
-  }
-};
-
-exports.sendContactRequest = async (req, res) => {
-  try {
-    const result = await alumniService.sendContactRequest(req);
-    res.status(201).json(result);
-  } catch (err) {
-    handleError(res, err);
-  }
-};
-
-exports.getRequests = async (req, res) => {
-  try {
-    const result = await alumniService.getRequests(req);
-    res.json(result);
-  } catch (err) {
-    handleError(res, err);
-  }
-};
-
-exports.respondRequest = async (req, res) => {
-  try {
-    const result = await alumniService.respondRequest(req);
-    res.json(result);
-  } catch (err) {
-    handleError(res, err);
-  }
-};
-
-exports.getMessages = async (req, res) => {
-  try {
-    const result = await alumniService.getMessages(req);
-    res.json(result);
-  } catch (err) {
-    handleError(res, err);
-  }
-};
-
-exports.getMyChats = async (req, res) => {
-  try {
-    const result = await alumniService.getMyChats(req);
-    res.json(result);
-  } catch (err) {
-    handleError(res, err);
-  }
-};
-
-// ADMIN
-exports.getPending = async (req, res) => {
-  try {
-    const result = await alumniService.getPending(req);
-    res.json(result);
-  } catch (err) {
-    handleError(res, err);
-  }
-};
-
-exports.getPendingCount = async (req, res) => {
-  try {
-    const result = await alumniService.getPendingCount(req);
-    res.json(result);
-  } catch (err) {
-    handleError(res, err);
-  }
-};
-
-exports.reviewAlumni = async (req, res) => {
-  try {
-    const result = await alumniService.reviewAlumni(req);
-    res.json(result);
-  } catch (err) {
-    handleError(res, err);
-  }
-};
-
-// Common error handler
-const handleError = (res, err) => {
+const handle = (res, fn) => fn().then(data => res.json(data)).catch(err => {
   console.error(err);
   res.status(err.status || 500).json({
     success: false,
-    message: err.message || 'Server error',
+    message: err.message || 'Server error'
   });
-};
+});
+
+exports.registerAlumni = (req, res) => handle(res, () => alumniService.registerAlumni(req));
+exports.getMyStatus = (req, res) => handle(res, () => alumniService.getMyStatus(req));
+exports.updateProfile = (req, res) => handle(res, () => alumniService.updateProfile(req));
+exports.getAlumniList = (req, res) => handle(res, () => alumniService.getAlumniList(req));
+exports.getDepartments = (req, res) => handle(res, () => alumniService.getDepartments());
+
+exports.sendContactRequest = (req, res) => handle(res, () => alumniService.sendContactRequest(req));
+exports.getRequests = (req, res) => handle(res, () => alumniService.getRequests(req));
+exports.respondRequest = (req, res) => handle(res, () => alumniService.respondRequest(req));
+
+exports.getMessages = (req, res) => handle(res, () => alumniService.getMessages(req));
+exports.getMyChats = (req, res) => handle(res, () => alumniService.getMyChats(req));
+
+// ADMIN
+exports.getPending = (req, res) => handle(res, () => alumniService.getPending(req));
+exports.getPendingCount = (req, res) => handle(res, () => alumniService.getPendingCount(req));
+exports.reviewAlumni = (req, res) => handle(res, () => alumniService.reviewAlumni(req));
