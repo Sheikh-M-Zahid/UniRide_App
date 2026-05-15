@@ -16,7 +16,6 @@ const {
 } = require('../utils/preferenceHelper');
 
 const BASE_FARE = 40;
-const PER_KM_FARE = 12;
 const AVERAGE_SPEED_KMH = 25;
 const MINIMUM_TIME_MIN = 5;
 
@@ -37,11 +36,56 @@ const formatDisplayText = ({
   const from = start_location || 'Unknown';
   const to = destination || 'Unknown';
   const fareText = fare ? `BDT ${fare}` : 'BDT 0';
-    const status = ride_status || 'pending';
+  const status = ride_status || 'pending';
 
   return `${from} → ${to} | Fare: ${fareText} | ${status}`;
 };
 
+// -----------------------------------------------
+// Get active vehicle rates from DB
+// -----------------------------------------------
+const getVehicleRates = async () => {
+  const result = await rideDb.query(
+    `SELECT vehicle_type, per_km_rate
+     FROM vehicle_rates
+     WHERE is_active = TRUE
+     ORDER BY effective_from DESC`
+  );
+
+  const rates = {};
+  for (const row of result.rows) {
+    if (!rates[row.vehicle_type]) {
+      rates[row.vehicle_type] = Number(row.per_km_rate);
+    }
+  }
+
+  return rates;
+};
+
+// -----------------------------------------------
+// Helper: fetch per_km_rate for a vehicle type
+// -----------------------------------------------
+const getPerKmRate = async (vehicleType) => {
+  const result = await rideDb.query(
+    `SELECT per_km_rate
+     FROM vehicle_rates
+     WHERE vehicle_type = $1
+       AND is_active = TRUE
+     ORDER BY effective_from DESC
+     LIMIT 1`,
+    [vehicleType]
+  );
+
+  if (result.rowCount === 0) {
+    throw new Error(`No active rate found for vehicle type: ${vehicleType}`);
+  }
+
+  return Number(result.rows[0].per_km_rate);
+};
+
+// -----------------------------------------------
+// Validate Schedule
+// -----------------------------------------------
 const validateSchedule = async (payload, user = null) => {
   const {
     pickup_location,
@@ -65,7 +109,9 @@ const validateSchedule = async (payload, user = null) => {
     !travel_date ||
     !travel_time
   ) {
-    throw new Error('Pickup location, destination, travel date and time are required.');
+    throw new Error(
+      'Pickup location, destination, travel date and time are required.'
+    );
   }
 
   if (
@@ -106,6 +152,9 @@ const validateSchedule = async (payload, user = null) => {
   };
 };
 
+// -----------------------------------------------
+// Validate Preferences
+// -----------------------------------------------
 const validatePreferences = async (payload, user = null) => {
   const userId = user?.userId || user?.user_id || null;
 
@@ -189,12 +238,16 @@ const validatePreferences = async (payload, user = null) => {
   };
 };
 
+// -----------------------------------------------
+// Calculate Reserve Ride (uses DB rates)
+// -----------------------------------------------
 const calculateReserveRide = async (payload) => {
   const {
     pickup_lat,
     pickup_lng,
     destination_lat,
     destination_lng,
+    vehicle_type,
   } = payload;
 
   const allFieldsProvided =
@@ -235,17 +288,29 @@ const calculateReserveRide = async (payload) => {
     roundToNearestInteger((rawDistanceKm / AVERAGE_SPEED_KMH) * 60)
   );
 
+  // vehicle_type দিলে সেই rate আনো, না দিলে car এর rate দিয়ে calculate করো
+  const vehicleType = vehicle_type
+    ? String(vehicle_type).toLowerCase()
+    : 'car';
+
+  const perKmRate = await getPerKmRate(vehicleType);
+
   const estimatedCost = roundToNearestInteger(
-    BASE_FARE + rawDistanceKm * PER_KM_FARE
+    BASE_FARE + rawDistanceKm * perKmRate
   );
 
   return {
     distance_km: distanceKm,
     estimated_time_min: estimatedTimeMin,
     estimated_cost: estimatedCost,
+    per_km_rate: perKmRate,
+    vehicle_type: vehicleType,
   };
 };
 
+// -----------------------------------------------
+// Create Reserve
+// -----------------------------------------------
 const createReserve = async (payload, user = null) => {
   const userId = user?.userId || user?.user_id || null;
 
@@ -258,9 +323,6 @@ const createReserve = async (payload, user = null) => {
     destination_location,
     travel_date,
     travel_time,
-    selected_seats,
-    gender_preference,
-    vehicle_type,
     total_distance_km,
     estimated_travel_minutes,
     estimated_cost,
@@ -374,6 +436,9 @@ const createReserve = async (payload, user = null) => {
   }
 };
 
+// -----------------------------------------------
+// Get Upcoming Reserve
+// -----------------------------------------------
 const getUpcomingReserve = async (userId) => {
   const userResult = await rideDb.query(
     `SELECT user_id, account_status
@@ -441,6 +506,9 @@ const getUpcomingReserve = async (userId) => {
   }));
 };
 
+// -----------------------------------------------
+// Cancel Reserve
+// -----------------------------------------------
 const cancelReserve = async (reserveId, userId) => {
   const result = await rideDb.query(
     `
@@ -461,10 +529,16 @@ const cancelReserve = async (reserveId, userId) => {
   return result.rows[0];
 };
 
-const getReserveActivityList = async ({ userId, type = 'all', time = 'today' }) => {
+// -----------------------------------------------
+// Get Reserve Activity List
+// -----------------------------------------------
+const getReserveActivityList = async ({
+  userId,
+  type = 'all',
+  time = 'today',
+}) => {
   let timeCondition = '';
   const params = [userId];
-  let paramIndex = 2;
 
   if (time === 'today') {
     timeCondition = `AND r.created_at >= CURRENT_DATE`;
@@ -561,6 +635,9 @@ const getReserveActivityList = async ({ userId, type = 'all', time = 'today' }) 
   };
 };
 
+// -----------------------------------------------
+// Assign Rider To Reserve
+// -----------------------------------------------
 const assignRiderToReserve = async ({ reserveId, riderId }) => {
   const client = await rideDb.connect();
 
@@ -649,4 +726,5 @@ module.exports = {
   cancelReserve,
   getReserveActivityList,
   assignRiderToReserve,
+  getVehicleRates,
 };
