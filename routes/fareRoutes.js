@@ -1,7 +1,7 @@
 const express = require('express');
 const router  = express.Router();
 
-const { getFareSettings, updateFareSettings, getActiveFare } = require('../controllers/fareController');
+const { getFareSettings, updateFareSettings, getActiveFare } = require('../controllers/fareControllers');
 const { verifyToken, isAdmin } = require('../middlewares/authMiddleware');
 
 // Admin only
