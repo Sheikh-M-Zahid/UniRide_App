@@ -2,7 +2,7 @@ const express = require('express');
 const router  = express.Router();
 
 const { getFareSettings, updateFareSettings, getActiveFare } = require('../controllers/fareControllers');
-const { verifyToken, isAdmin } = require('../middlewares/authMiddleware');
+const verifyToken = require('../middlewares/authMiddleware');
 
 // Admin only
 router.get('/settings',  verifyToken, isAdmin, getFareSettings);
