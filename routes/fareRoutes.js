@@ -1,19 +1,14 @@
 const express = require('express');
 const router  = express.Router();
-const {
-  getFareSettings,
-  updateFareSettings,
-  getActiveFareForVehicle,
-} = require('../controllers/fareController');
-const { verifyToken, isAdmin } = require('../middleware/authMiddleware');
 
-// Admin: GET current fare settings
-router.get('/fare-settings', verifyToken, isAdmin, getFareSettings);
+const { getFareSettings, updateFareSettings, getActiveFare } = require('../controllers/fareController');
+const { verifyToken, isAdmin } = require('../middlewares/authMiddleware');
 
-// Admin: PUT update fare settings
-router.put('/fare-settings', verifyToken, isAdmin, updateFareSettings);
+// Admin only
+router.get('/settings',  verifyToken, isAdmin, getFareSettings);
+router.put('/settings',  verifyToken, isAdmin, updateFareSettings);
 
-// Public: GET active fare by vehicle type
-router.get('/active/:vehicleType', verifyToken, getActiveFareForVehicle);
+// Passenger/Rider (যেকোনো logged-in user)
+router.get('/active/:vehicleType', verifyToken, getActiveFare);
 
 module.exports = router;
