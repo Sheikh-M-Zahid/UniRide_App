@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'services/auth_api_service.dart';
 
 import 'app_colors.dart';
@@ -27,6 +28,10 @@ class _SavedPlacesPageState extends State<SavedPlacesPage> {
 
   bool _isLoading = false;
   bool _isSaving = false;
+
+  LatLng? _homeLatLng;
+  LatLng? _campusLatLng;
+  LatLng? _hallLatLng;
 
   @override
   void initState() {
@@ -79,6 +84,21 @@ class _SavedPlacesPageState extends State<SavedPlacesPage> {
         hostelAddress: hallController.text.trim(),
       );
 
+      // LatLng SharedPreferences এ save করা
+      final prefs = await SharedPreferences.getInstance();
+      if (_homeLatLng != null) {
+        await prefs.setDouble('home_lat', _homeLatLng!.latitude);
+        await prefs.setDouble('home_lng', _homeLatLng!.longitude);
+      }
+      if (_campusLatLng != null) {
+        await prefs.setDouble('campus_lat', _campusLatLng!.latitude);
+        await prefs.setDouble('campus_lng', _campusLatLng!.longitude);
+      }
+      if (_hallLatLng != null) {
+        await prefs.setDouble('hall_lat', _hallLatLng!.latitude);
+        await prefs.setDouble('hall_lng', _hallLatLng!.longitude);
+      }
+
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
@@ -104,6 +124,7 @@ class _SavedPlacesPageState extends State<SavedPlacesPage> {
   Future<void> _pickLocation({
     required TextEditingController controller,
     required String title,
+    required String placeKey,
   }) async {
     final result = await Navigator.push(
       context,
@@ -118,10 +139,14 @@ class _SavedPlacesPageState extends State<SavedPlacesPage> {
 
     if (result != null && result is Map<String, dynamic>) {
       final String address = result["address"] ?? "";
+      final LatLng? latLng = result["latLng"];
 
       if (mounted) {
         setState(() {
           controller.text = address;
+          if (placeKey == 'home') _homeLatLng = latLng;
+          if (placeKey == 'campus') _campusLatLng = latLng;
+          if (placeKey == 'hall') _hallLatLng = latLng;
         });
       }
     }
@@ -131,6 +156,7 @@ class _SavedPlacesPageState extends State<SavedPlacesPage> {
     required String label,
     required TextEditingController controller,
     required String pickerTitle,
+    required String placeKey,
   }) {
     return TextField(
       controller: controller,
@@ -139,6 +165,7 @@ class _SavedPlacesPageState extends State<SavedPlacesPage> {
         _pickLocation(
           controller: controller,
           title: pickerTitle,
+          placeKey: placeKey,
         );
       },
       decoration: InputDecoration(
@@ -204,18 +231,21 @@ class _SavedPlacesPageState extends State<SavedPlacesPage> {
               label: 'Home',
               controller: homeController,
               pickerTitle: 'Select Home Location',
+              placeKey: 'home',
             ),
             const SizedBox(height: 16),
             _locationField(
               label: 'Campus',
               controller: campusController,
               pickerTitle: 'Select Campus Location',
+              placeKey: 'campus',
             ),
             const SizedBox(height: 16),
             _locationField(
               label: 'Hall',
               controller: hallController,
               pickerTitle: 'Select Hall Location',
+              placeKey: 'hall',
             ),
             const SizedBox(height: 24),
             SizedBox(

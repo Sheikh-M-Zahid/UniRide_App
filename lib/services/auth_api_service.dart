@@ -3271,7 +3271,7 @@ class AuthApiService {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('token');
 
-    final url = Uri.parse('$baseUrl/company-chat/list');
+    final url = Uri.parse('$baseUrl/company-sharing');
 
     final response = await http
         .get(
@@ -3298,7 +3298,7 @@ class AuthApiService {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('token');
 
-    final url = Uri.parse('$baseUrl/company-chat/$sessionId/chats/read');
+    final url = Uri.parse('$baseUrl/company-sharing/$sessionId/chat/read');
 
     final response = await http.patch(
       url,
@@ -3324,7 +3324,7 @@ class AuthApiService {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('token');
 
-    final url = Uri.parse('$baseUrl/company-chat/$sessionId/chats');
+    final url = Uri.parse('$baseUrl/company-sharing/$sessionId/chat');
 
     final response = await http.get(
       url,
@@ -3350,7 +3350,7 @@ class AuthApiService {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('token');
 
-    final url = Uri.parse('$baseUrl/company-chat/$sessionId/chats');
+    final url = Uri.parse('$baseUrl/company-sharing/$sessionId/chat');
 
     final response = await http.post(
       url,
@@ -4580,5 +4580,424 @@ class AuthApiService {
     final data = jsonDecode(response.body);
     if (response.statusCode == 200) return data;
     throw Exception(data['message'] ?? 'Failed');
+  }
+
+  // CoRide - Get Session With Participants
+  Future<Map<String, dynamic>> getCoRideSessionWithParticipants(String sessionId) async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+    final url = Uri.parse('$baseUrl/company-sharing/$sessionId/with-participants');
+    final response = await http.get(url, headers: {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer $token',
+    });
+    final data = jsonDecode(response.body);
+    if (response.statusCode == 200) return data;
+    throw Exception(data['message'] ?? 'Failed to load session details');
+  }
+
+// CoRide - Remove Participant
+  Future<Map<String, dynamic>> removeCoRideParticipant({
+    required String sessionId,
+    required String participantUserId,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+    final url = Uri.parse('$baseUrl/company-sharing/$sessionId/participants/$participantUserId');
+    final response = await http.delete(url, headers: {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer $token',
+    });
+    final data = jsonDecode(response.body);
+    if (response.statusCode == 200) return data;
+    throw Exception(data['message'] ?? 'Failed to remove participant');
+  }
+
+  // ─── SOS APIs ───
+  Future<Map<String, dynamic>> triggerCoRideSosHost({
+    required String sessionId,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+    final url = Uri.parse('$baseUrl/sos/coride/host');
+    final response = await http.post(
+      url,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode({'sessionId': sessionId}),
+    );
+    final data = jsonDecode(response.body);
+    if (response.statusCode == 200) return data;
+    throw Exception(data['message'] ?? 'SOS failed');
+  }
+
+  Future<Map<String, dynamic>> triggerCoRideSosParticipant({
+    required String sessionId,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+    final url = Uri.parse('$baseUrl/sos/coride/participant');
+    final response = await http.post(
+      url,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode({'sessionId': sessionId}),
+    );
+    final data = jsonDecode(response.body);
+    if (response.statusCode == 200) return data;
+    throw Exception(data['message'] ?? 'SOS failed');
+  }
+
+  Future<Map<String, dynamic>> triggerRiderSos({
+    required String rideId,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+    final url = Uri.parse('$baseUrl/sos/rider');
+    final response = await http.post(
+      url,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode({'rideId': rideId}),
+    );
+    final data = jsonDecode(response.body);
+    if (response.statusCode == 200) return data;
+    throw Exception(data['message'] ?? 'SOS failed');
+  }
+
+  Future<Map<String, dynamic>> triggerPassengerSos({
+    required String rideId,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+    final url = Uri.parse('$baseUrl/sos/passenger');
+    final response = await http.post(
+      url,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode({'rideId': rideId}),
+    );
+    final data = jsonDecode(response.body);
+    if (response.statusCode == 200) return data;
+    throw Exception(data['message'] ?? 'SOS failed');
+  }
+
+
+  //Alumniiii
+
+  Future<String?> _getToken() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString('token');
+  }
+
+  Future<Map<String, dynamic>> _get(
+      String endpoint, {
+        Map<String, String>? queryParams,
+      }) async {
+    final token = await _getToken();
+    var uri = Uri.parse('$baseUrl$endpoint');
+    if (queryParams != null) {
+      uri = uri.replace(queryParameters: queryParams);
+    }
+    final res = await http.get(uri, headers: {
+      'Authorization': 'Bearer $token',
+      'Content-Type': 'application/json',
+    });
+    final data = jsonDecode(res.body);
+    if (res.statusCode >= 200 && res.statusCode < 300) return data;
+    throw Exception(data['message'] ?? 'Request failed.');
+  }
+
+  Future<Map<String, dynamic>> _post(
+      String endpoint,
+      Map<String, dynamic> body,
+      ) async {
+    final token = await _getToken();
+    final res = await http.post(
+      Uri.parse('$baseUrl$endpoint'),
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode(body),
+    );
+    final data = jsonDecode(res.body);
+    if (res.statusCode >= 200 && res.statusCode < 300) return data;
+    throw Exception(data['message'] ?? 'Request failed.');
+  }
+
+  Future<Map<String, dynamic>> _patch(
+      String endpoint,
+      Map<String, dynamic> body,
+      ) async {
+    final token = await _getToken();
+    final res = await http.patch(
+      Uri.parse('$baseUrl$endpoint'),
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode(body),
+    );
+    final data = jsonDecode(res.body);
+    if (res.statusCode >= 200 && res.statusCode < 300) return data;
+    throw Exception(data['message'] ?? 'Request failed.');
+  }
+
+  Future<Map<String, dynamic>> registerAlumni({
+    // Degree type
+    required String degreeType, // graduation | masters | both
+    // Graduation
+    String? graduationUniversity,
+    String? graduationDepartment,
+    String? graduationMajor,
+    int? graduationYear,
+    // Masters
+    String? mastersStatus, // ongoing | completed | not_started
+    String? mastersUniversity,
+    String? mastersSubject,
+    int? mastersCompletionYear,
+    // Professional
+    required String currentWorkplace,
+    required String currentPosition,
+    required bool livesAbroad,
+    required String country,
+    required File alumniCardPhoto,
+    required File transcriptPhoto,
+    required List<Map<String, dynamic>> works,
+    // Legacy fields (backward compat)
+    required String department,
+    required String majorSubject,
+    required int legacyGraduationYear,
+  }) async {
+    final token = await _getToken();
+    final uri = Uri.parse('$baseUrl/alumni/register');
+
+    final request = http.MultipartRequest('POST', uri)
+      ..headers['Authorization'] = 'Bearer $token'
+      ..fields['degree_type'] = degreeType
+      ..fields['department'] = department
+      ..fields['major_subject'] = majorSubject
+      ..fields['graduation_year'] = graduationYear.toString()
+      ..fields['current_workplace'] = currentWorkplace
+      ..fields['current_position'] = currentPosition
+      ..fields['lives_abroad'] = livesAbroad.toString()
+      ..fields['country'] = country
+      ..fields['works'] = jsonEncode(works);
+
+    // Optional fields
+    if (graduationUniversity != null)
+      request.fields['graduation_university'] = graduationUniversity;
+    if (graduationDepartment != null)
+      request.fields['graduation_department'] = graduationDepartment;
+    if (graduationMajor != null)
+      request.fields['graduation_major'] = graduationMajor;
+    if (graduationYear != null)
+      request.fields['graduation_year_actual'] = graduationYear.toString();
+    if (mastersStatus != null)
+      request.fields['masters_status'] = mastersStatus;
+    if (mastersUniversity != null)
+      request.fields['masters_university'] = mastersUniversity;
+    if (mastersSubject != null)
+      request.fields['masters_subject'] = mastersSubject;
+    if (mastersCompletionYear != null)
+      request.fields['masters_completion_year'] = mastersCompletionYear.toString();
+
+    request.files.add(await http.MultipartFile.fromPath(
+      'alumni_card_photo', alumniCardPhoto.path,
+      contentType: MediaType('image', 'jpeg'),
+    ));
+    request.files.add(await http.MultipartFile.fromPath(
+      'transcript_photo', transcriptPhoto.path,
+      contentType: MediaType('image', 'jpeg'),
+    ));
+
+    final streamed = await request.send();
+    final res = await http.Response.fromStream(streamed);
+    final data = jsonDecode(res.body);
+
+    if (res.statusCode == 201) return data;
+    throw Exception(data['message'] ?? 'Failed to submit alumni application.');
+  }
+
+  Future<Map<String, dynamic>> getAlumniMyStatus() async {
+    return await _get('/alumni/my-status');
+  }
+
+  Future<Map<String, dynamic>> getAlumniList({
+    String? department,
+    String? search,
+    int page = 1,
+    int limit = 20,
+  }) async {
+    final params = <String, String>{
+      'page': page.toString(),
+      'limit': limit.toString(),
+      if (department != null) 'department': department,
+      if (search != null) 'search': search,
+    };
+    return await _get('/alumni/list', queryParams: params);
+  }
+
+  Future<Map<String, dynamic>> getAlumniDepartments() async {
+    return await _get('/alumni/departments');
+  }
+
+  Future<Map<String, dynamic>> sendAlumniContactRequest({
+    required String alumniId,
+    String? message,
+  }) async {
+    return await _post('/alumni/contact-request', {
+      'alumni_id': alumniId,
+      if (message != null && message.isNotEmpty) 'message': message,
+    });
+  }
+
+  Future<Map<String, dynamic>> getAlumniRequests() async {
+    return await _get('/alumni/requests');
+  }
+
+  Future<Map<String, dynamic>> respondAlumniRequest({
+    required String requestId,
+    required String action, // 'accepted' | 'rejected'
+    bool phoneShared = false,
+    DateTime? scheduledTime,
+  }) async {
+    return await _patch('/alumni/requests/$requestId/respond', {
+      'action': action,
+      'phone_shared': phoneShared,
+      if (scheduledTime != null)
+        'scheduled_time': scheduledTime.toIso8601String(),
+    });
+  }
+
+  Future<Map<String, dynamic>> getAlumniChatMessages(String sessionId) async {
+    return await _get('/alumni/chat/$sessionId/messages');
+  }
+
+  Future<Map<String, dynamic>> getMyAlumniChats() async {
+    return await _get('/alumni/my-chats');
+  }
+
+  Future<Map<String, dynamic>> adminGetPendingAlumni() async {
+    return await _get('/alumni/admin/pending');
+  }
+
+  Future<Map<String, dynamic>> updateAlumniProfile({
+    required String alumniId,
+    required String currentWorkplace,
+    required String currentPosition,
+    required bool livesAbroad,
+    required String country,
+    required List<Map<String, dynamic>> works,
+  }) async {
+    return await _patch('/alumni/profile/update', {
+      'current_workplace': currentWorkplace,
+      'current_position': currentPosition,
+      'lives_abroad': livesAbroad,
+      'country': country,
+      'works': works,
+    });
+  }
+
+  Future<Map<String, dynamic>> adminReviewAlumni({
+    required String alumniId,
+    required String action, // 'approved' | 'rejected'
+    String? rejectionReason,
+  }) async {
+    return await _patch('/alumni/admin/$alumniId/review', {
+      'action': action,
+      if (rejectionReason != null) 'rejection_reason': rejectionReason,
+    });
+  }
+
+
+// ─────────────────────────────────────────────────
+// auth_api_service.dart এ এই দুটো method যোগ করো
+// ─────────────────────────────────────────────────
+
+  // ── Fare সেটিংস লোড করা ──
+  Future<Map<String, dynamic>> getFareSettings() async {
+    final token = await _getToken(); // তোমার existing token method
+    final response = await http.get(
+      Uri.parse('$baseUrl/fare/settings'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    );
+
+    final data = jsonDecode(response.body);
+    if (response.statusCode == 200 && data['success'] == true) {
+      return data;
+    }
+    throw Exception(data['message'] ?? 'Fare settings লোড করতে সমস্যা হয়েছে।');
+  }
+
+  // ── Fare সেটিংস আপডেট করা ──
+  Future<Map<String, dynamic>> updateFareSettings(
+      Map<String, dynamic> body) async {
+    final token = await _getToken();
+    final response = await http.put(
+      Uri.parse('$baseUrl/fare/settings'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode(body),
+    );
+
+    final data = jsonDecode(response.body);
+    if (response.statusCode == 200 && data['success'] == true) {
+      return data;
+    }
+    throw Exception(data['message'] ?? 'Fare আপডেট করতে সমস্যা হয়েছে।');
+  }
+
+  // RiderOffersPage.dart
+  Future<Map<String, dynamic>> getRiderOffers() async {
+    final token = await _getToken();
+
+    final response = await http.get(
+      Uri.parse('$baseUrl/rider/offers'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    );
+
+    final data = jsonDecode(response.body);
+
+    if (response.statusCode == 200) {
+      return data;
+    } else {
+      throw Exception(data['message'] ?? 'Failed to load offers');
+    }
+  }
+
+  //Fare Calculation
+  Future<Map<String, dynamic>> getVehicleRates() async {
+    final url = Uri.parse('$baseUrl/reserve/vehicle-rates');
+
+    final response = await http.get(
+      url,
+      headers: {'Content-Type': 'application/json'},
+    );
+
+    final data = jsonDecode(response.body);
+
+    if (response.statusCode == 200) {
+      return data;
+    } else {
+      throw Exception(data['message'] ?? 'Failed to load vehicle rates');
+    }
   }
 }

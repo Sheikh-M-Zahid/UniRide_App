@@ -4,6 +4,8 @@ import 'CoRideDetailsPopup.dart';
 import 'package:flutter/material.dart';
 import 'services/auth_api_service.dart';
 import 'RideRequestPopup.dart';
+import 'UserOffer.dart';
+import 'RiderOffers.dart';
 
 class AppColors {
   static const Color primary = Color(0xFF14B8A6);
@@ -50,6 +52,8 @@ class NotificationItemModel {
   final bool isImportant;
   final UserRole targetRole;
   final String? relatedId;
+  final String? offerStartDate;
+  final String? offerEndDate;
 
   const NotificationItemModel({
     required this.id,
@@ -61,6 +65,8 @@ class NotificationItemModel {
     required this.isImportant,
     required this.targetRole,
     this.relatedId,
+    this.offerStartDate,
+    this.offerEndDate,
   });
 
   NotificationItemModel copyWith({
@@ -73,6 +79,8 @@ class NotificationItemModel {
     bool? isImportant,
     UserRole? targetRole,
     String? relatedId,
+    String? offerStartDate,
+    String? offerEndDate,
   }) {
     return NotificationItemModel(
       id: id ?? this.id,
@@ -84,6 +92,8 @@ class NotificationItemModel {
       isImportant: isImportant ?? this.isImportant,
       targetRole: targetRole ?? this.targetRole,
       relatedId: relatedId ?? this.relatedId,
+      offerStartDate: offerStartDate ?? this.offerStartDate,
+      offerEndDate: offerEndDate ?? this.offerEndDate,
     );
   }
 
@@ -101,6 +111,8 @@ class NotificationItemModel {
       relatedId: (json['relatedId'] ?? '').toString().isEmpty
           ? null
           : (json['relatedId']).toString(),
+      offerStartDate: json['offerStartDate']?.toString(),
+      offerEndDate: json['offerEndDate']?.toString(),
     );
   }
 }
@@ -377,6 +389,22 @@ class _NotificationsPageState extends State<NotificationsPage> {
     }
 
     if (!mounted) return;
+
+    // Offer tap → navigate to offers page
+    if (item.type == NotificationType.offer) {
+      if (widget.userRole == UserRole.rider) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const RiderOffersPage()),
+        );
+      } else {
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const OffersPage()),
+        );
+      }
+      return;
+    }
 
     if (widget.userRole == UserRole.rider &&
         item.type == NotificationType.reserveRequest &&
@@ -761,7 +789,9 @@ class _NotificationsPageState extends State<NotificationsPage> {
                                     ],
                                   ),
                                   const SizedBox(height: 6),
-                                  Text(
+                                  item.type == NotificationType.offer
+                                      ? _OfferCompactInfo(item: item)
+                                      : Text(
                                     item.message,
                                     style: const TextStyle(
                                       fontSize: 13.5,
@@ -961,6 +991,85 @@ class _LoadingView extends StatelessWidget {
       child: CircularProgressIndicator(
         color: AppColors.primary,
       ),
+    );
+  }
+}
+
+class _OfferCompactInfo extends StatelessWidget {
+  final NotificationItemModel item;
+
+  const _OfferCompactInfo({required this.item});
+
+  String _formatDate(String? raw) {
+    if (raw == null || raw.isEmpty) return 'N/A';
+    try {
+      final dt = DateTime.parse(raw).toLocal();
+      const months = [
+        '', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+        'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+      ];
+      return '${dt.day} ${months[dt.month]} ${dt.year}';
+    } catch (_) {
+      return raw;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final hasDate =
+        item.offerStartDate != null || item.offerEndDate != null;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          item.title.replaceFirst('New Offer: ', ''),
+          style: const TextStyle(
+            fontSize: 13.5,
+            fontWeight: FontWeight.w600,
+            color: AppColors.text,
+          ),
+        ),
+        if (hasDate) ...[
+          const SizedBox(height: 4),
+          Row(
+            children: [
+              const Icon(
+                Icons.date_range_outlined,
+                size: 13,
+                color: AppColors.mutedText,
+              ),
+              const SizedBox(width: 4),
+              Text(
+                '${_formatDate(item.offerStartDate)} → ${_formatDate(item.offerEndDate)}',
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: AppColors.mutedText,
+                ),
+              ),
+            ],
+          ),
+        ],
+        const SizedBox(height: 6),
+        Row(
+          children: [
+            const Icon(
+              Icons.touch_app_outlined,
+              size: 13,
+              color: AppColors.primary,
+            ),
+            const SizedBox(width: 4),
+            const Text(
+              'Tap to view full offer',
+              style: TextStyle(
+                fontSize: 12,
+                color: AppColors.primary,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      ],
     );
   }
 }

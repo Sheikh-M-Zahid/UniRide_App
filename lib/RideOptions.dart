@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'RideModels.dart';
@@ -47,16 +48,81 @@ class _RideOptionsPageState extends State<RideOptionsPage> {
   final AuthApiService _authApiService = AuthApiService();
   RideSortType selectedSort = RideSortType.lowestFare;
 
+  late List<RideOptionModel> _liveRides;
+  bool _isRefreshing = false;
+  Timer? _refreshTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    _liveRides = List.from(widget.availableRides);
+    _startLiveRefresh();
+  }
+
+  void _startLiveRefresh() {
+    _refreshTimer = Timer.periodic(const Duration(seconds: 15), (_) {
+      _fetchLiveRides();
+    });
+  }
+
+  Future<void> _fetchLiveRides() async {
+    if (_isRefreshing || !mounted) return;
+    setState(() => _isRefreshing = true);
+    try {
+      final response = await _authApiService.searchRides(
+        pickupLat: widget.pickupLocation.latLng.latitude,
+        pickupLng: widget.pickupLocation.latLng.longitude,
+        destinationLat: widget.destinationLocation.latLng.latitude,
+        destinationLng: widget.destinationLocation.latLng.longitude,
+      );
+      final data = response['data'] ?? {};
+      final List<dynamic> rawRides = data['availableRides'] ?? [];
+      final updated = rawRides.map((ride) {
+        final map = Map<String, dynamic>.from(ride as Map);
+        final rider = Map<String, dynamic>.from(map['rider'] ?? {});
+        return RideOptionModel(
+          id: map['ride_id']?.toString() ?? '',
+          driverPhoneNumber: (rider['phone'] ?? '').toString(),
+          driverName: (rider['name'] ?? '').toString(),
+          userType: 'Student',
+          vehicleType: (map['vehicle_type'] ?? '').toString().isEmpty
+              ? 'Car'
+              : (map['vehicle_type'] ?? '').toString(),
+          rating: double.tryParse('${rider['rating'] ?? 0}') ?? 0,
+          vehicleNumber: '${map['company'] ?? ''} ${map['model'] ?? ''}'.trim(),
+          emptySeats: int.tryParse('${map['available_seats'] ?? 0}') ?? 0,
+          departureTime: (map['travel_time'] ?? 'Now').toString(),
+          genderPreference: (map['gender_preference'] ?? 'Any').toString(),
+          distanceAwayKm: double.tryParse('${map['total_distance_km'] ?? 0}') ?? 0,
+          estimatedFare: double.tryParse('${map['total_fare'] ?? 0}') ?? 0,
+          isAvailable: (int.tryParse('${map['available_seats'] ?? 0}') ?? 0) > 0,
+        );
+      }).toList();
+      if (!mounted) return;
+      setState(() => _liveRides = updated);
+    } catch (_) {
+      // silent fail — পুরনো list রেখে দাও
+    } finally {
+      if (mounted) setState(() => _isRefreshing = false);
+    }
+  }
+
+  @override
+  void dispose() {
+    _refreshTimer?.cancel();
+    super.dispose();
+  }
+
   String selectedGender = 'Any';
   String selectedUserType = 'All';
   String selectedVehicleType = 'All';
 
   List<RideOptionModel> get filteredRides {
-    final List<RideOptionModel> rides = widget.availableRides.where((ride) {
+    final List<RideOptionModel> rides = _liveRides.where((ride) {
       final bool genderMatch = selectedGender == 'Any'
           ? true
-          : ride.genderPreference == selectedGender ||
-          ride.genderPreference == 'Any';
+          : ride.genderPreference.toLowerCase() == selectedGender.toLowerCase() ||
+          ride.genderPreference.toLowerCase() == 'any';
 
       final bool userTypeMatch =
       selectedUserType == 'All' ? true : ride.userType == selectedUserType;
@@ -108,7 +174,7 @@ class _RideOptionsPageState extends State<RideOptionsPage> {
     return hour * 60 + minute;
   }
 
-  Future<void> _reloadRideOptions() async {
+  /*Future<void> _reloadRideOptions() async {
     try {
       final response = await _authApiService.getRideOptions(
         pickupAddress: widget.pickupLocation.address,
@@ -149,7 +215,7 @@ class _RideOptionsPageState extends State<RideOptionsPage> {
         SnackBar(content: Text('Failed to refresh ride options: $e')),
       );
     }
-  }
+  }*/
 
   void _onViewDetails(RideOptionModel ride) {
     showDialog(
@@ -278,10 +344,25 @@ class _RideOptionsPageState extends State<RideOptionsPage> {
                     const SizedBox(height: 12),
                     _buildFilterSection(),
                     const SizedBox(height: 22),
-                    _buildSectionTitle(
-                      rides.isEmpty
-                          ? "Available rides"
-                          : "Available rides (${rides.length})",
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _buildSectionTitle(
+                            rides.isEmpty
+                                ? "Available rides"
+                                : "Available rides (${rides.length})",
+                          ),
+                        ),
+                        if (_isRefreshing)
+                          const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: AppColors.primary,
+                            ),
+                          ),
+                      ],
                     ),
                     const SizedBox(height: 12),
                     if (rides.isEmpty)
@@ -650,7 +731,6 @@ class _RideOptionsPageState extends State<RideOptionsPage> {
               setState(() {
                 selectedGender = value;
               });
-              _reloadRideOptions();
             },
           ),
           const SizedBox(height: 12),
@@ -663,7 +743,7 @@ class _RideOptionsPageState extends State<RideOptionsPage> {
               setState(() {
                 selectedUserType = value;
               });
-              _reloadRideOptions();
+              //_reloadRideOptions();
             },
           ),
           const SizedBox(height: 12),
@@ -676,7 +756,7 @@ class _RideOptionsPageState extends State<RideOptionsPage> {
               setState(() {
                 selectedVehicleType = value;
               });
-              _reloadRideOptions();
+              //_reloadRideOptions();
             },
           ),
         ],
@@ -767,6 +847,7 @@ class _RideOptionsPageState extends State<RideOptionsPage> {
 
   Widget _buildRideCard(RideOptionModel ride) {
     return Container(
+      key: ValueKey(ride.id),
       margin: const EdgeInsets.only(bottom: 14),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'services/auth_api_service.dart';
 
@@ -62,11 +63,12 @@ class _PlanYourRidePageState extends State<PlanYourRidePage> {
   bool isLoadingCurrentLocation = true;
   bool isPickingPickup = false;
   bool isPickingDestination = false;
+  bool isLoadingSavedPlaces = true;
 
   PickedLocation? currentLocation;
   PickedLocation? destinationLocation;
 
-  late final List<SavedPlace> savedPlaces;
+  List<SavedPlace> savedPlaces = [];
 
   static const LatLng _fallbackLatLng = LatLng(23.8103, 90.4125);
 
@@ -75,24 +77,13 @@ class _PlanYourRidePageState extends State<PlanYourRidePage> {
     super.initState();
 
     savedPlaces = [
-      widget.homePlace ??
-          const SavedPlace(
-            keyName: 'home',
-            title: 'Home',
-          ),
-      widget.campusPlace ??
-          const SavedPlace(
-            keyName: 'campus',
-            title: 'Campus',
-          ),
-      widget.hallPlace ??
-          const SavedPlace(
-            keyName: 'hall',
-            title: 'Hall',
-          ),
+      const SavedPlace(keyName: 'home', title: 'Home'),
+      const SavedPlace(keyName: 'campus', title: 'Campus'),
+      const SavedPlace(keyName: 'hall', title: 'Hall'),
     ];
 
     _loadCurrentLocation();
+    _loadSavedPlaces();
   }
 
   Future<void> _loadCurrentLocation() async {
@@ -177,6 +168,103 @@ class _PlanYourRidePageState extends State<PlanYourRidePage> {
       setState(() {
         isLoadingCurrentLocation = false;
       });
+    }
+  }
+
+  Future<void> _loadSavedPlaces() async {
+    if (!mounted) return;
+
+    setState(() {
+      isLoadingSavedPlaces = true;
+    });
+
+    try {
+      final response = await _authApiService.getSavedPlaces();
+      final data = response['data'] ?? {};
+
+      final String homeAddress = (data['home_address'] ?? '').toString().trim();
+      final String campusAddress = (data['campus_address'] ?? '').toString().trim();
+      final String hallAddress = (data['hostel_address'] ?? '').toString().trim();
+
+      // প্রতিটা address এর জন্য LatLng বের করো
+      final LatLng? homeLatLng = await _getLatLngForAddress('home', homeAddress);
+      final LatLng? campusLatLng = await _getLatLngForAddress('campus', campusAddress);
+      final LatLng? hallLatLng = await _getLatLngForAddress('hall', hallAddress);
+
+      if (!mounted) return;
+
+      setState(() {
+        savedPlaces = [
+          SavedPlace(
+            keyName: 'home',
+            title: 'Home',
+            address: homeAddress.isNotEmpty ? homeAddress : null,
+            latLng: homeLatLng,
+          ),
+          SavedPlace(
+            keyName: 'campus',
+            title: 'Campus',
+            address: campusAddress.isNotEmpty ? campusAddress : null,
+            latLng: campusLatLng,
+          ),
+          SavedPlace(
+            keyName: 'hall',
+            title: 'Hall',
+            address: hallAddress.isNotEmpty ? hallAddress : null,
+            latLng: hallLatLng,
+          ),
+        ];
+        isLoadingSavedPlaces = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        isLoadingSavedPlaces = false;
+      });
+    }
+  }
+
+  // SharedPreferences এ LatLng আছে কিনা দেখো, না থাকলে API দিয়ে geocode করো
+  Future<LatLng?> _getLatLngForAddress(String key, String address) async {
+    if (address.isEmpty) return null;
+
+    // আগে SharedPreferences এ দেখো
+    final prefs = await SharedPreferences.getInstance();
+    final double? lat = prefs.getDouble('${key}_lat');
+    final double? lng = prefs.getDouble('${key}_lng');
+
+    if (lat != null && lng != null) {
+      return LatLng(lat, lng);
+    }
+
+    // SharedPreferences এ নেই, API দিয়ে geocode করো
+    try {
+      final result = await _authApiService.mapsAutocomplete(input: address);
+      final List predictions = result['data'] ?? [];
+
+      if (predictions.isEmpty) return null;
+
+      final String placeId = predictions[0]['place_id']?.toString() ?? '';
+      if (placeId.isEmpty) return null;
+
+      final details = await _authApiService.mapsPlaceDetails(placeId: placeId);
+      final detailData = details['data'] ?? {};
+
+      final dynamic latVal = detailData['lat'];
+      final dynamic lngVal = detailData['lng'];
+
+      if (latVal == null || lngVal == null) return null;
+
+      final double resolvedLat = (latVal as num).toDouble();
+      final double resolvedLng = (lngVal as num).toDouble();
+
+      // পরবর্তীবারের জন্য SharedPreferences এ save করো
+      await prefs.setDouble('${key}_lat', resolvedLat);
+      await prefs.setDouble('${key}_lng', resolvedLng);
+
+      return LatLng(resolvedLat, resolvedLng);
+    } catch (_) {
+      return null;
     }
   }
 
@@ -380,7 +468,18 @@ class _PlanYourRidePageState extends State<PlanYourRidePage> {
                     ],
                     _buildSectionTitle("Saved places"),
                     const SizedBox(height: 12),
-                    ...savedPlaces.map(_buildSavedPlaceCard),
+                    if (isLoadingSavedPlaces)
+                      const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 16),
+                        child: Center(
+                          child: CircularProgressIndicator(
+                            color: AppColors.primary,
+                            strokeWidth: 2,
+                          ),
+                        ),
+                      )
+                    else
+                      ...savedPlaces.map(_buildSavedPlaceCard),
                     const SizedBox(height: 22),
                     _buildSectionTitle("More options"),
                     const SizedBox(height: 12),

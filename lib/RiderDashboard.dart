@@ -11,6 +11,7 @@ import 'RiderProfile.dart';
 import 'RiderDelivery.dart';
 import 'EarningsPage.dart';
 import 'NotificationsPage.dart';
+import 'RiderOffers.dart';
 import 'services/auth_api_service.dart';
 
 class RiderDashboard extends StatefulWidget {
@@ -627,6 +628,44 @@ class _RiderDashboardState extends State<RiderDashboard> {
                               context,
                               MaterialPageRoute(
                                 builder: (_) => const EarningsPage(),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                    ),
+                    SizedBox(
+                      width: itemWidth,
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.center,
+                        child: _DashboardBox(
+                          icon: Icons.account_balance_wallet,
+                          title: "Earnings",
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const EarningsPage(),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                    ),
+                    SizedBox(
+                      width: itemWidth,
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.center,
+                        child: _DashboardBox(
+                          icon: Icons.local_offer_rounded,
+                          title: "Offers",
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const RiderOffersPage(),
                               ),
                             );
                           },

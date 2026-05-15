@@ -206,12 +206,18 @@ class _CoRideDetailsPopupState extends State<CoRideDetailsPopup> {
           SizedBox(
             width: double.infinity,
             child: OutlinedButton.icon(
+              // ✅ ঠিক করা কোড
               onPressed: () {
                 Navigator.pop(context);
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (_) => CoRideLiveMapPage(sessionId: widget.sessionId),
+                    builder: (_) => CoRideLiveMapPage(
+                      sessionId: widget.sessionId,
+                      isHost: false, // participant হিসেবে দেখছে
+                      destination: s['destination'] ?? '',
+                      otherPartyName: creatorName,
+                    ),
                   ),
                 );
               },

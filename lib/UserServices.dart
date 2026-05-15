@@ -7,6 +7,7 @@ import 'RideSearch.dart';
 import 'ReserveRide.dart';
 import 'SendItem.dart';
 import 'SharingCaringPage.dart';
+import 'package:uni_ride/Alumnipage.dart';
 import 'services/auth_api_service.dart';
 
 void main() {
@@ -166,9 +167,10 @@ class _ServicesPageState extends State<ServicesPage> {
       icon: Icons.school_outlined,
       category: 'Community',
       onTap: () {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Alumni feature will be added soon'),
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => const AlumniPage(),
           ),
         );
       },

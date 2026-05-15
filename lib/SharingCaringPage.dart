@@ -1,10 +1,15 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
+
 import 'services/auth_api_service.dart';
+
 import 'ChatListPage.dart';
 import 'map_picker_screen.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'CoRideChatRoom.dart';
+import 'CoRideModels.dart';
+import 'CoRideLiveMapPage.dart';
 
 class SharingCaringPage extends StatefulWidget {
   const SharingCaringPage({super.key});
@@ -78,7 +83,20 @@ class _SharingCaringPageState extends State<SharingCaringPage> {
     try {
       final res = await _authApiService.getMyActiveCoRideSession();
       if (!mounted) return;
-      setState(() => _activeSession = res['data']);
+      final sessionData = res['data'];
+      if (sessionData != null) {
+        final sessionId = sessionData['session_id']?.toString() ?? '';
+        if (sessionId.isNotEmpty) {
+          // Participants সহ নতুন API call
+          final detailRes = await _authApiService
+              .getCoRideSessionWithParticipants(sessionId);
+          setState(() => _activeSession = detailRes['data']);
+        } else {
+          setState(() => _activeSession = sessionData);
+        }
+      } else {
+        setState(() => _activeSession = null);
+      }
     } catch (_) {}
     if (mounted) setState(() => _isLoadingActiveSession = false);
   }
@@ -117,9 +135,18 @@ class _SharingCaringPageState extends State<SharingCaringPage> {
         _activeSession!['is_started'] = true;
         _isStartingJourney = false;
       });
-      _startLiveLocationUpdates();
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Journey started! Sharing live location.')),
+
+      // Map page এ navigate করো
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => CoRideLiveMapPage(
+            sessionId: _activeSession!['session_id'].toString(),
+            isHost: true,
+            destination: _activeSession!['destination'] ?? '',
+            otherPartyName: 'Co-Riders',
+          ),
+        ),
       );
     } catch (e) {
       if (!mounted) return;
@@ -127,6 +154,51 @@ class _SharingCaringPageState extends State<SharingCaringPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
       );
+    }
+  }
+
+  Future<void> _confirmRemoveParticipant(
+      String sessionId, String participantUserId, String participantName) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Remove Participant'),
+        content: Text(
+            'Are you sure you want to remove $participantName কfrom your ride?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('No'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFDC2626)),
+            child:
+            const Text('Yes, remove.', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    try {
+      await _authApiService.removeCoRideParticipant(
+        sessionId: sessionId,
+        participantUserId: participantUserId,
+      );
+      await _loadActiveSession();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('$participantName has been removed.')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(e.toString())));
+      }
     }
   }
 
@@ -213,6 +285,7 @@ class _SharingCaringPageState extends State<SharingCaringPage> {
   Widget _buildActiveSessionBanner() {
     final s = _activeSession!;
     final isStarted = s['is_started'] == true;
+    final List confirmedParticipants = s['confirmed_participants'] ?? [];
 
     return Container(
       margin: const EdgeInsets.all(16),
@@ -265,6 +338,121 @@ class _SharingCaringPageState extends State<SharingCaringPage> {
             'Seats: ${(s['total_seats'] ?? 2) - (s['booked_seats'] ?? 0)} available',
             style: const TextStyle(fontSize: 12, color: Color(0xFF6B7280)),
           ),
+
+          // ─── Confirmed Participants List ───
+          if (confirmedParticipants.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            const Divider(),
+            const Text(
+              'Confirmed Riders',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
+                color: Color(0xFF1F2937),
+              ),
+            ),
+            const SizedBox(height: 8),
+            ...confirmedParticipants.asMap().entries.map((entry) {
+              final index = entry.key;
+              final p = entry.value;
+              final name = '${p['first_name'] ?? ''} ${p['last_name'] ?? ''}'.trim();
+              final userId = p['user_id']?.toString() ?? '';
+              final sessionId = s['session_id']?.toString() ?? '';
+
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 14,
+                      backgroundColor: const Color(0xFFCCFBF1),
+                      backgroundImage: (p['profile_picture'] != null &&
+                          p['profile_picture'].toString().isNotEmpty)
+                          ? NetworkImage(p['profile_picture'].toString())
+                          : null,
+                      child: (p['profile_picture'] == null ||
+                          p['profile_picture'].toString().isEmpty)
+                          ? Text(
+                        name.isNotEmpty ? name[0].toUpperCase() : '?',
+                        style: const TextStyle(
+                          color: Color(0xFF0F766E),
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      )
+                          : null,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      '${index + 1}. $name',
+                      style: const TextStyle(fontSize: 13),
+                    ),
+                    const Spacer(),
+                    // See Message Button
+                    GestureDetector(
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => CoRideChatRoomPage(
+                              post: CoRidePost(
+                                id: sessionId,
+                                sessionId: sessionId,
+                                creatorId: s['created_by']?.toString() ?? '',
+                                creatorName: '',
+                                creatorPhoto: '',
+                                pickup: s['start_location'] ?? '',
+                                destination: s['destination'] ?? '',
+                                vehicleType: '',
+                                vehicleNumber: '',
+                                preferredGender: '',
+                                dateText: '',
+                                timeText: '',
+                                totalSeats: s['total_seats'] ?? 2,
+                                confirmedSeats: s['booked_seats'] ?? 0,
+                                farePerPerson: 0,
+                                note: '',
+                                confirmedMembers: [],
+                              ),
+                              currentUserId: userId,
+                              currentUserName: name,
+                            ),
+                          ),
+                        );
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 5),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF14B8A6),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: const Text(
+                          'See Message',
+                          style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    // Long press remove
+                    GestureDetector(
+                      onLongPress: () => _confirmRemoveParticipant(
+                          sessionId, userId, name),
+                      child: Container(
+                        padding: const EdgeInsets.all(4),
+                        child: const Icon(Icons.more_vert,
+                            size: 18, color: Color(0xFF6B7280)),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }).toList(),
+          ],
+
           const SizedBox(height: 14),
           Row(
             children: [

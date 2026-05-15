@@ -38,6 +38,31 @@ class _ReserveRidePreferencePageState
   String? selectedVehicleType;
   final TextEditingController noteController = TextEditingController();
 
+  double _carRatePerKm = 12;
+  double _bikeRatePerKm = 8;
+  bool _ratesLoaded = false;
+
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchVehicleRates();
+  }
+
+  Future<void> _fetchVehicleRates() async {
+    try {
+      final result = await _authApiService.getVehicleRates();
+      final rates = result['data'] as Map<String, dynamic>;
+      setState(() {
+        _carRatePerKm = (rates['car'] ?? 12).toDouble();
+        _bikeRatePerKm = (rates['bike'] ?? 8).toDouble();
+        _ratesLoaded = true;
+      });
+    } catch (e) {
+      setState(() => _ratesLoaded = true);
+    }
+  }
+
   String _formatDate(DateTime date) {
     const List<String> months = [
       'Jan',
@@ -65,6 +90,16 @@ class _ReserveRidePreferencePageState
   }
 
   bool get _isFormValid => selectedVehicleType != null;
+
+  double get _calculatedFare {
+    const double baseFare = 40;
+    double perKmRate = (selectedVehicleType == 'Bike')
+        ? _bikeRatePerKm
+        : _carRatePerKm;
+    int seats = (selectedVehicleType == 'Bike') ? 1 : selectedSeats;
+    return ((baseFare + widget.totalDistanceKm * perKmRate) * seats)
+        .roundToDouble();
+  }
 
   String _toApiDate(DateTime date) {
     return '${date.year.toString().padLeft(4, '0')}-'
@@ -119,7 +154,7 @@ class _ReserveRidePreferencePageState
         destinationLocation: widget.destinationLocation,
         totalDistanceKm: widget.totalDistanceKm,
         estimatedTravelMinutes: widget.estimatedTravelMinutes,
-        estimatedCost: widget.estimatedCost,
+        estimatedCost: _calculatedFare,
         travelDate: _toApiDate(widget.selectedDate),
         travelTime: _formatTime(widget.selectedTime),
         selectedSeats: selectedSeats,
@@ -145,7 +180,7 @@ class _ReserveRidePreferencePageState
             vehicleType: selectedVehicleType!,
             totalDistanceKm: widget.totalDistanceKm,
             estimatedTravelMinutes: widget.estimatedTravelMinutes,
-            estimatedCost: widget.estimatedCost,
+            estimatedCost: _calculatedFare,
             note: noteController.text,
           ),
         ),
@@ -654,7 +689,9 @@ class _ReserveRidePreferencePageState
           _buildInfoRow(
             icon: Icons.payments_rounded,
             label: "Estimated cost",
-            value: "৳ ${widget.estimatedCost.toStringAsFixed(0)}",
+            value: _ratesLoaded
+                ? "৳ ${_calculatedFare.toStringAsFixed(0)}"
+                : "Calculating...",
             valueColor: const Color(0xFF0F766E),
             valueWeight: FontWeight.bold,
           ),
