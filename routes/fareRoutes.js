@@ -5,8 +5,8 @@ const { getFareSettings, updateFareSettings, getActiveFare } = require('../contr
 const verifyToken = require('../middlewares/authMiddleware');
 
 // Admin only
-router.get('/settings',  verifyToken, isAdmin, getFareSettings);
-router.put('/settings',  verifyToken, isAdmin, updateFareSettings);
+router.get('/settings', verifyToken, getFareSettings);
+router.put('/settings', verifyToken, updateFareSettings);
 
 // Passenger/Rider (যেকোনো logged-in user)
 router.get('/active/:vehicleType', verifyToken, getActiveFare);
