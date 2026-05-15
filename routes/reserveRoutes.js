@@ -39,4 +39,7 @@ router.post(
   reserveController.validatePreferences
 );
 
+// Get vehicle rates (public)
+router.get('/vehicle-rates', reserveController.getVehicleRates);
+
 module.exports = router;
