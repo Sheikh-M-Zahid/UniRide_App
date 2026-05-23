@@ -8,8 +8,7 @@ const getServicesSummary = async () => {
         reward_percentage,
         conditions
      FROM offers
-     WHERE CURRENT_DATE >= start_date
-       AND CURRENT_DATE <= end_date
+     WHERE end_date >= CURRENT_DATE
      ORDER BY reward_percentage DESC NULLS LAST
      LIMIT 1`
   );
