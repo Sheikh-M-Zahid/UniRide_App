@@ -1,23 +1,20 @@
+const asyncHandler = require('../utils/asyncHandler');
+const { successResponse, errorResponse } = require('../utils/apiResponse');
 const riderOfferService = require('../services/riderOfferServices');
 
-const getRiderOffers = async (req, res) => {
-  try {
-    const offers = await riderOfferService.getOffersForRider();
+/* =========================
+   GET RIDER OFFERS
+========================= */
+const getRiderOffers = asyncHandler(async (req, res) => {
+  const data = await riderOfferService.getOffersForRider();
 
-    return res.status(200).json({
-      success: true,
-      message: 'Offers fetched successfully',
-      data: offers,
-    });
-  } catch (err) {
-    console.error('[RiderOfferController] getRiderOffers error:', err);
-    return res.status(500).json({
-      success: false,
-      message: err.message || 'Failed to fetch offers',
-      data: [],
-    });
-  }
-};
+  const message =
+    data.length > 0
+      ? 'Offers fetched successfully.'
+      : 'No offers available right now.';
+
+  return successResponse(res, message, data);
+});
 
 module.exports = {
   getRiderOffers,
