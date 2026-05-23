@@ -29,7 +29,7 @@ const getFareSettings = async (req, res) => {
     });
   } catch (error) {
     console.error('getFareSettings error:', error);
-    return res.status(500).json({ success: false, message: 'Fare settings লোড করতে সমস্যা হয়েছে।' });
+    return res.status(500).json({ success: false, message: 'Failed to load fare settings.' });
   }
 };
 
@@ -41,7 +41,7 @@ const updateFareSettings = async (req, res) => {
   const { bike, car } = req.body;
 
   if (!bike || !car) {
-    return res.status(400).json({ success: false, message: 'bike এবং car উভয়ের fare দিতে হবে।' });
+    return res.status(400).json({ success: false, message: 'Both bike and car fare are required.' });
   }
 
   const bikeBase  = parseFloat(bike.baseFare);
@@ -50,13 +50,13 @@ const updateFareSettings = async (req, res) => {
   const carPerKm  = parseFloat(car.perKm);
 
   if (isNaN(bikeBase) || isNaN(bikePerKm) || isNaN(carBase) || isNaN(carPerKm)) {
-    return res.status(400).json({ success: false, message: 'সব ফিল্ডে সঠিক সংখ্যা দিন।' });
+    return res.status(400).json({ success: false, message: 'Please enter valid numbers in all fields.' });
   }
 
   if (bikeBase < 0 || bikePerKm <= 0 || carBase < 0 || carPerKm <= 0) {
     return res.status(400).json({
       success: false,
-      message: 'বেস ফেয়ার ০ বা বেশি এবং প্রতি কিমি ফেয়ার ০-এর বেশি হতে হবে।',
+      message: 'Base fare must be >= 0 and per km fare must be > 0.' });
     });
   }
 
@@ -86,7 +86,7 @@ const updateFareSettings = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      message: 'Fare সফলভাবে আপডেট হয়েছে।',
+      message: 'Fare updated successfully.',
       data: {
         bike: { baseFare: bikeBase, perKm: bikePerKm },
         car:  { baseFare: carBase,  perKm: carPerKm  },
@@ -95,7 +95,7 @@ const updateFareSettings = async (req, res) => {
   } catch (error) {
     await client.query('ROLLBACK');
     console.error('updateFareSettings error:', error);
-    return res.status(500).json({ success: false, message: 'Fare আপডেট করতে সমস্যা হয়েছে।' });
+    return res.status(500).json({ success: false, message: 'Failed to update fare settings.' });
   } finally {
     client.release();
   }
@@ -108,7 +108,7 @@ const getActiveFare = async (req, res) => {
   const { vehicleType } = req.params;
 
   if (!['bike', 'car'].includes(vehicleType)) {
-    return res.status(400).json({ success: false, message: "vehicleType অবশ্যই 'bike' অথবা 'car' হতে হবে।" });
+    return res.status(400).json({ success: false, message: "vehicleType must be 'bike' or 'car'." });
   }
 
   try {
@@ -121,7 +121,7 @@ const getActiveFare = async (req, res) => {
     `, [vehicleType]);
 
     if (result.rows.length === 0) {
-      return res.status(404).json({ success: false, message: 'কোনো active fare পাওয়া যায়নি।' });
+      return res.status(404).json({ success: false, message: 'No active fare found.' });
     }
 
     const row = result.rows[0];
@@ -135,7 +135,7 @@ const getActiveFare = async (req, res) => {
     });
   } catch (error) {
     console.error('getActiveFare error:', error);
-    return res.status(500).json({ success: false, message: 'Fare লোড করতে সমস্যা হয়েছে।' });
+    return res.status(500).json({ success: false, message: 'Failed to load active fare.' });
   }
 };
 
