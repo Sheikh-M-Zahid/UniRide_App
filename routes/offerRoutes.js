@@ -10,6 +10,9 @@ router.get('/active', offersController.getActiveOffers);
 // Get active offers count
 router.get('/active-count', offersController.getActiveOffersCount);
 
+// All offers (active + expired within 30 days)
+router.get('/recent', offersController.getRecentOffers);
+
 // Apply promo code
 router.post(
   '/apply',
