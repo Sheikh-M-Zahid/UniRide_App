@@ -57,7 +57,6 @@ const updateFareSettings = async (req, res) => {
     return res.status(400).json({
       success: false,
       message: 'Base fare must be >= 0 and per km fare must be > 0.' });
-    });
   }
 
   const client = await pool.connect();
