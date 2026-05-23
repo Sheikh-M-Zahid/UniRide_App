@@ -90,6 +90,19 @@ const getActiveOffersCount = asyncHandler(async (req, res) => {
 });
 
 /* =========================
+   GET RECENT OFFERS
+   (active + expired within 30 days)
+========================= */
+const getRecentOffers = asyncHandler(async (req, res) => {
+  const data = await offerService.getRecentOffers();
+  const message =
+    data.length > 0
+      ? 'Recent offers fetched successfully.'
+      : 'No offers found.';
+  return successResponse(res, message, data);
+});
+
+/* =========================
    EXPORTS
 ========================= */
 module.exports = {
@@ -97,4 +110,5 @@ module.exports = {
   applyOffer,
   createOffer,
   getActiveOffersCount,
+  getRecentOffers,
 };
