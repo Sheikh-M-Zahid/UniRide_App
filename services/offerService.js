@@ -66,6 +66,26 @@ const getActiveOffersCount = async () => {
   return result.rows[0].count;
 };
 
+const getRecentOffers = async () => {
+  const result = await rideDb.query(
+    `SELECT
+        offer_name,
+        offer_type,
+        reward_percentage,
+        eligible_user,
+        start_date,
+        end_date,
+        promo_code,
+        conditions
+     FROM offers
+     WHERE end_date >= (CURRENT_DATE - INTERVAL '30 days')
+     ORDER BY
+        CASE WHEN end_date >= CURRENT_DATE THEN 0 ELSE 1 END,
+        end_date ASC`
+  );
+  return result.rows;
+};
+
 const createOffer = async (payload) => {
   const {
     offer_name,
@@ -205,4 +225,5 @@ module.exports = {
   getActiveOffersCount,
   createOffer,
   listOffers,
+  getRecentOffers,
 };
