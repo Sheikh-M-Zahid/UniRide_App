@@ -241,7 +241,8 @@ const searchRides = async (payload) => {
      FROM rides r
      JOIN users u ON r.rider_id = u.user_id
      LEFT JOIN vehicles v ON r.vehicle_id = v.vehicle_id
-     WHERE r.status = 'Active'
+     WHERE r.status IN ('assigned', 'ongoing')
+       AND r.available_seats > 0
      ORDER BY r.created_at DESC`
   );
 
