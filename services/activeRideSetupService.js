@@ -313,7 +313,14 @@ const activateRide = async ({ userId, body }) => {
   const totalDistanceKm = Number(distanceKmRaw.toFixed(2));
   const perKmRate = await getPerKmRate(vehicle.vehicle_type);
   const totalFare = Number((totalDistanceKm * perKmRate).toFixed(2));
-  const availableSeats = Math.max(Number(vehicle.total_seats || 1), 1);
+  const requestedSeats = body.availableSeats ? Number(body.availableSeats) : null;
+  const maxSeats = Number(vehicle.total_seats || 1);
+  const vehicleTypeLower = String(vehicle.vehicle_type || '').trim().toLowerCase();
+  const availableSeats = vehicleTypeLower === 'bike'
+    ? 1
+    : requestedSeats
+      ? Math.min(Math.max(requestedSeats, 1), maxSeats)
+      : maxSeats;
 
   const client = await rideDb.connect();
 
