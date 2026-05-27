@@ -126,7 +126,7 @@ const getRideOptions = async ({ body }) => {
       ORDER BY updated_at DESC
       LIMIT 1
     ) ll ON TRUE
-    WHERE r.status IN ('active', 'scheduled', 'assigned')
+    WHERE r.status IN ('assigned', 'ongoing')
       AND r.available_seats > 0
       AND (r.travel_date IS NULL OR r.travel_date >= CURRENT_DATE)
     ORDER BY r.created_at DESC
