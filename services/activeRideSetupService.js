@@ -191,16 +191,22 @@ const getActiveRideSetupData = async (userId) => {
 
   const rider = userRes.rows[0];
 
-  const vehicles = vehiclesRes.rows.map((vehicle) => ({
-    vehicleId: vehicle.vehicle_id,
-    vehicleType: vehicle.vehicle_type,
-    vehicleTypeLabel: normalizeVehicleTypeLabel(vehicle.vehicle_type),
-    company: vehicle.company || '',
-    model: vehicle.model || '',
-    vehicleNumber: vehicle.number_plate || '',
-    totalSeats: Number(vehicle.total_seats || 0),
-    verified: Boolean(vehicle.verified),
-  }));
+  const vehicles = vehiclesRes.rows.map((vehicle) => {
+    const vType = String(vehicle.vehicle_type || '').trim().toLowerCase();
+    const rawSeats = Number(vehicle.total_seats || 0);
+    const totalSeats = vType === 'bike' ? 1 : (rawSeats > 0 ? rawSeats : 4);
+
+    return {
+      vehicleId: vehicle.vehicle_id,
+      vehicleType: vehicle.vehicle_type,
+      vehicleTypeLabel: normalizeVehicleTypeLabel(vehicle.vehicle_type),
+      company: vehicle.company || '',
+      model: vehicle.model || '',
+      vehicleNumber: vehicle.number_plate || '',
+      totalSeats,
+      verified: Boolean(vehicle.verified),
+    };
+  });
 
   return {
     riderName: `${rider.first_name || ''} ${rider.last_name || ''}`.trim(),
