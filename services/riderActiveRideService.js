@@ -194,6 +194,16 @@ const acceptRideRequest = async ({ riderId, requestId, io }) => {
     const vehicle = vehicleRes.rows[0];
     if (!vehicle) throw new Error('Vehicle not found.');
 
+   // Rider এর active ride থেকে seat কমাও
+    await client.query(
+      `UPDATE rides
+       SET available_seats = available_seats - 1
+       WHERE rider_id = $1
+         AND status IN ('assigned', 'ongoing')
+         AND available_seats > 0`,
+      [riderId]
+    );
+
     const rideRes = await client.query(
       `INSERT INTO rides (
           rider_id, vehicle_id, start_location, destination,
