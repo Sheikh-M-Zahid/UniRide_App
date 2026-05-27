@@ -64,7 +64,7 @@ const createRideRequest = async ({ passengerId, body, io }) => {
         start_longitude
      FROM rides
      WHERE rider_id = $1
-       AND status IN ('active', 'assigned', 'ongoing')
+       AND status IN ('assigned', 'ongoing')
      ORDER BY created_at DESC
      LIMIT 1`,
     [riderId]
