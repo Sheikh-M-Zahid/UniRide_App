@@ -1,10 +1,10 @@
 const { haversineDistanceKm, isValidCoordinates } = require('./geo');
 
-const MAX_PICKUP_DISTANCE_KM = 2.5;
-const MAX_DEST_DISTANCE_KM = 3.0;
-const MAX_ROUTE_START_DISTANCE_KM = 2.5;
-const MAX_ROUTE_END_DISTANCE_KM = 3.5;
-const MIN_DIRECTION_SCORE = 0.55;
+const MAX_PICKUP_DISTANCE_KM = 5.0;
+const MAX_DEST_DISTANCE_KM = 6.0;
+const MAX_ROUTE_START_DISTANCE_KM = 5.0;
+const MAX_ROUTE_END_DISTANCE_KM = 6.0;
+const MIN_DIRECTION_SCORE = 0.3;
 
 const toRadians = (deg) => (deg * Math.PI) / 180;
 
@@ -39,12 +39,17 @@ const isRouteMatch = ({
   reqDestLng,
 }) => {
   if (
-    !isValidCoordinates(riderStartLat, riderStartLng) ||
-    !isValidCoordinates(riderDestLat, riderDestLng) ||
     !isValidCoordinates(reqPickupLat, reqPickupLng) ||
     !isValidCoordinates(reqDestLat, reqDestLng)
   ) {
     return false;
+  }
+
+  if (
+    !isValidCoordinates(riderStartLat, riderStartLng) ||
+    !isValidCoordinates(riderDestLat, riderDestLng)
+  ) {
+    return true;
   }
 
   const pickupNearRouteStart = haversineDistanceKm(
