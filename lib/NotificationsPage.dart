@@ -147,6 +147,8 @@ NotificationType _notificationTypeFromString(String value) {
       return NotificationType.safety;
     case 'booking':
       return NotificationType.booking;
+    case 'ride_available':
+      return NotificationType.booking;
     default:
       return NotificationType.general;
   }
@@ -486,6 +488,14 @@ class _NotificationsPageState extends State<NotificationsPage> {
         context,
         MaterialPageRoute(builder: (_) => const MapPage()),
       );
+      return;
+    }
+
+    if (item.type == NotificationType.general &&
+        item.relatedId != null &&
+        item.relatedId!.isNotEmpty) {
+      // ride_available notification — UserHome এ ফিরে যাও
+      Navigator.popUntil(context, (route) => route.isFirst);
       return;
     }
 

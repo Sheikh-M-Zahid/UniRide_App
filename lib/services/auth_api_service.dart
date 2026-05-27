@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -2252,19 +2253,12 @@ class AuthApiService {
   }
 
   Future<void> logout() async {
-    final prefs = await SharedPreferences.getInstance();
-
-    await prefs.remove('token');
-    await prefs.remove('user_email');
-    await prefs.remove('user_id');
-    await prefs.remove('user_name');
-
-    await prefs.remove('is_logged_in');
-    await prefs.remove('is_admin');
-
-    // ✅ ADD
-    await prefs.remove('last_role');
-    await prefs.remove('last_login_at');
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.clear();
+    } catch (e) {
+      debugPrint("Logout prefs clear error: $e");
+    }
   }
 
   //ConfirmationPage.dart
@@ -3614,6 +3608,7 @@ class AuthApiService {
     String? note,
     String? travelDate,
     String? travelTime,
+    int availableSeats = 1,
   }) async {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('token');
@@ -3638,6 +3633,7 @@ class AuthApiService {
         'note': note,
         'travelDate': travelDate,
         'travelTime': travelTime,
+        'availableSeats': availableSeats,
       }),
     );
 
@@ -4936,10 +4932,10 @@ class AuthApiService {
     );
 
     final data = jsonDecode(response.body);
-    if (response.statusCode == 200 && data['success'] == true) {
+    if (response.statusCode == 200) {
       return data;
     }
-    throw Exception(data['message'] ?? 'Fare settings লোড করতে সমস্যা হয়েছে।');
+    throw Exception(data['message'] ?? 'Failed to load fare settings.');
   }
 
   // ── Fare সেটিংস আপডেট করা ──
@@ -4956,10 +4952,10 @@ class AuthApiService {
     );
 
     final data = jsonDecode(response.body);
-    if (response.statusCode == 200 && data['success'] == true) {
+    if (response.statusCode == 200) {
       return data;
     }
-    throw Exception(data['message'] ?? 'Fare আপডেট করতে সমস্যা হয়েছে।');
+    throw Exception(data['message'] ?? 'Failed to update fare settings.');
   }
 
   // RiderOffersPage.dart
@@ -4971,6 +4967,28 @@ class AuthApiService {
       headers: {
         'Content-Type': 'application/json',
         'Authorization': 'Bearer $token',
+      },
+    );
+
+    final data = jsonDecode(response.body);
+
+    if (response.statusCode == 200) {
+      return data;
+    } else {
+      throw Exception(data['message'] ?? 'Failed to load offers');
+    }
+  }
+
+  // Passenger Offers — UserOffer.dart
+  Future<Map<String, dynamic>> getPassengerOffers() async {
+    final token = await _getToken();
+
+    final response = await http.get(
+      Uri.parse('$baseUrl/offers/recent'),
+      headers: {
+        'Content-Type': 'application/json',
+        if (token != null && token.isNotEmpty)
+          'Authorization': 'Bearer $token',
       },
     );
 

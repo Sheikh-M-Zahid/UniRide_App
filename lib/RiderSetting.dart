@@ -17,6 +17,7 @@ import 'help_support_page.dart';
 import 'report_problem_page.dart';
 import 'RideSelection.dart';
 import 'RegisteredVehicles.dart';
+import 'logout_helper.dart';
 
 class AppColors {
   static const Color primary = Color(0xFF14B8A6);
@@ -63,7 +64,9 @@ class _RiderSettingsPageState extends State<RiderSettingsPage> {
   Future<void> _initializeGoogleSignIn() async {
     try {
       await GoogleSignIn.instance.initialize();
-    } catch (_) {}
+    } catch (e) {
+      debugPrint("GoogleSignIn init error: $e");
+    }
   }
 
   Future<void> _loadUserData() async {
@@ -130,26 +133,7 @@ class _RiderSettingsPageState extends State<RiderSettingsPage> {
   }
 
   Future<void> _logout() async {
-    try {
-      await _authApiService.logout();
-    } catch (_) {}
-
-    try {
-      await AppStorage.clearSession();
-    } catch (_) {}
-
-    try {
-      await GoogleSignIn.instance.signOut();
-    } catch (_) {}
-
-    if (!mounted) return;
-
-    Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(
-        builder: (_) => const UniRideLogin(),
-      ),
-          (route) => false,
-    );
+    await LogoutHelper.logout(context);
   }
 
 

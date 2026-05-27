@@ -2,7 +2,6 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:google_sign_in/google_sign_in.dart';
-import 'package:uni_ride/LogIn.dart';
 
 import 'UserProfile.dart';
 import 'app_storage.dart';
@@ -12,6 +11,7 @@ import 'WalletPage.dart';
 import 'help_support_page.dart';
 import 'report_problem_page.dart';
 import 'services/auth_api_service.dart';
+import 'logout_helper.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 class AppColors {
@@ -155,39 +155,7 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   Future<void> _logout() async {
-    setState(() {
-      _isLoading = true;
-    });
-
-    try {
-      // ✅ Backend logout (optional)
-      try {
-        await _authApiService.logout();
-      } catch (e) {
-        print("Backend logout failed: $e");
-      }
-
-      // ✅ Clear local session (MAIN)
-      await AppStorage.clearSession();
-
-      if (!mounted) return;
-
-      // ✅ Navigate (force reset)
-      Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(
-          builder: (_) => const UniRideLogin(),
-        ),
-            (route) => false,
-      );
-    } catch (e) {
-      print("Logout error: $e");
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
-    }
+    await LogoutHelper.logoutWithConfirm(context);
   }
 
   Future<void> _openSavedPlaces() async {
@@ -513,7 +481,9 @@ class _SettingsPageState extends State<SettingsPage> {
                 border: Border.all(color: AppColors.border),
               ),
               child: ListTile(
-                onTap: _logout,
+                onTap: () async {
+                  await _logout();
+                },
                 leading: const Icon(Icons.logout, color: Colors.red),
                 title: const Text(
                   'Sign out',

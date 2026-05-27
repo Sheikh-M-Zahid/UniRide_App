@@ -6,6 +6,7 @@ import 'services/auth_api_service.dart';
 import 'LogIn.dart';
 import 'UserProfile.dart';
 import 'RiderProfile.dart';
+import 'logout_helper.dart';
 
 class AdminProfilePage extends StatefulWidget {
   const AdminProfilePage({super.key});
@@ -465,22 +466,7 @@ class _AdminProfilePageState extends State<AdminProfilePage> {
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton.icon(
-                      onPressed: () async {
-                        final prefs = await SharedPreferences.getInstance();
-                        await prefs.remove('token');
-                        await prefs.remove('is_logged_in');
-                        await prefs.remove('is_admin');
-
-                        if (!mounted) return;
-
-                        Navigator.pushAndRemoveUntil(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const UniRideLogin(),
-                          ),
-                              (route) => false,
-                        );
-                      },
+                      onPressed: () => LogoutHelper.logoutWithConfirm(context),
                       icon: const Icon(Icons.logout),
                       label: const Text(
                         "Logout",

@@ -52,6 +52,7 @@ class _RiderDashboardState extends State<RiderDashboard> {
     _loadDashboard();
     _startAutoRefresh();
     _startAdAutoSlide();
+    RideRequestService.setupRealtime();
   }
 
   @override

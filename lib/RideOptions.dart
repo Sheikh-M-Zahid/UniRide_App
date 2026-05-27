@@ -60,7 +60,7 @@ class _RideOptionsPageState extends State<RideOptionsPage> {
   }
 
   void _startLiveRefresh() {
-    _refreshTimer = Timer.periodic(const Duration(seconds: 15), (_) {
+    _refreshTimer = Timer.periodic(const Duration(seconds: 10), (_) {
       _fetchLiveRides();
     });
   }
@@ -866,19 +866,45 @@ class _RideOptionsPageState extends State<RideOptionsPage> {
         children: [
           Row(
             children: [
-              CircleAvatar(
-                radius: 24,
-                backgroundColor: AppColors.softPrimary,
-                child: Text(
-                  ride.driverName.isNotEmpty
-                      ? ride.driverName[0].toUpperCase()
-                      : "D",
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.secondary,
+              Stack(
+                children: [
+                  CircleAvatar(
+                    radius: 24,
+                    backgroundColor: AppColors.softPrimary,
+                    child: Text(
+                      ride.driverName.isNotEmpty
+                          ? ride.driverName[0].toUpperCase()
+                          : "D",
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.secondary,
+                      ),
+                    ),
                   ),
-                ),
+                  Positioned(
+                    top: 0,
+                    right: 0,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 4, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: AppColors.secondary,
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        ride.userType.isNotEmpty
+                            ? ride.userType[0].toUpperCase()
+                            : 'S',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 9,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
               const SizedBox(width: 12),
               Expanded(

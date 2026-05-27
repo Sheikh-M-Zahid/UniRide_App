@@ -7,9 +7,11 @@ import 'LogIn.dart';
 import 'UserHome.dart';
 import 'RiderDashboard.dart';
 import 'AdminHome.dart';
+import 'RideRequestService.dart';
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  RideRequestService.initialize(navigatorKey);
   runApp(const MyApp());
 }
 
@@ -20,14 +22,17 @@ class AppColors {
   static const Color text = Color(0xFF1F2937);
 }
 
+final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return const MaterialApp(
+    return MaterialApp(
       debugShowCheckedModeBanner: false,
-      home: SplashScreen(),
+      navigatorKey: navigatorKey,
+      home: const SplashScreen(),
     );
   }
 }

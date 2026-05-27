@@ -25,6 +25,8 @@ class _ActiveRidesPageState extends State<ActiveRidesPage> {
 
   String vehicleModel = "";
   String vehicleNumber = "";
+  int selectedSeats = 1;
+  bool isBike = false;
 
   String currentLocation = "Detecting location...";
   String destination = "Select destination";
@@ -139,7 +141,10 @@ class _ActiveRidesPageState extends State<ActiveRidesPage> {
         selectedVehicle = vehicles.first;
         vehicleModel = (selectedVehicle?['model'] ?? '').toString();
         vehicleNumber = (selectedVehicle?['vehicleNumber'] ?? '').toString();
-      } else {
+        isBike = (selectedVehicle?['vehicleType'] ?? '').toString().toLowerCase() == 'bike';
+        selectedSeats = isBike ? 1 : (selectedVehicle?['totalSeats'] as int? ?? 1);
+      }
+      else {
         selectedVehicle = null;
         vehicleModel = "No verified vehicle found";
         vehicleNumber = "";
@@ -309,6 +314,7 @@ class _ActiveRidesPageState extends State<ActiveRidesPage> {
         currentLat: currentLat!,
         currentLng: currentLng!,
         currentLocationText: currentLocation,
+        availableSeats: selectedSeats,
         travelDate:
         "${today.year.toString().padLeft(4, '0')}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}",
         travelTime:
@@ -553,10 +559,10 @@ class _ActiveRidesPageState extends State<ActiveRidesPage> {
 
                       setState(() {
                         selectedVehicle = matched.first;
-                        vehicleModel =
-                            (selectedVehicle?['model'] ?? '').toString();
-                        vehicleNumber =
-                            (selectedVehicle?['vehicleNumber'] ?? '').toString();
+                        vehicleModel = (selectedVehicle?['model'] ?? '').toString();
+                        vehicleNumber = (selectedVehicle?['vehicleNumber'] ?? '').toString();
+                        isBike = (selectedVehicle?['vehicleType'] ?? '').toString().toLowerCase() == 'bike';
+                        selectedSeats = isBike ? 1 : (selectedVehicle?['totalSeats'] as int? ?? 1);
                       });
                     },
                   ),
@@ -581,6 +587,64 @@ class _ActiveRidesPageState extends State<ActiveRidesPage> {
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                   ),
+                  if (!isBike) ...[
+                    const SizedBox(height: 14),
+                    const Text(
+                      "Available seats",
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Color(0xFF6B7280),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        IconButton(
+                          onPressed: selectedSeats > 1
+                              ? () => setState(() => selectedSeats--)
+                              : null,
+                          icon: const Icon(Icons.remove_circle_outline),
+                          color: const Color(0xFF14B8A6),
+                        ),
+                        Container(
+                          width: 40,
+                          alignment: Alignment.center,
+                          child: Text(
+                            '$selectedSeats',
+                            style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF1F2937),
+                            ),
+                          ),
+                        ),
+                        IconButton(
+                          onPressed: () {
+                            final totalSeats = selectedVehicle?['totalSeats'];
+                            final maxSeats = (totalSeats is int && totalSeats > 0) ? totalSeats : 4;
+                            if (selectedSeats < maxSeats) {
+                              setState(() => selectedSeats++);
+                            }
+                          },
+                          icon: const Icon(Icons.add_circle_outline),
+                          color: const Color(0xFF14B8A6),
+                        ),
+                        Builder(
+                          builder: (_) {
+                            final totalSeats = selectedVehicle?['totalSeats'];
+                            final maxSeats = (totalSeats is int && totalSeats > 0) ? totalSeats : 4;
+                            return Text(
+                              '/ $maxSeats max',
+                              style: const TextStyle(
+                                fontSize: 13,
+                                color: Color(0xFF6B7280),
+                              ),
+                            );
+                          },
+                        ),
+                      ],
+                    ),
+                  ],
                 ],
               ),
             ),
