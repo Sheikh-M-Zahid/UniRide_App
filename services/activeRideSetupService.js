@@ -9,7 +9,7 @@ const {
 const DEFAULT_BIKE_RATE = 20;
 const DEFAULT_CAR_RATE = 35;
 
-const BLOCKING_RIDE_STATUSES = ['active', 'assigned', 'accepted', 'ongoing'];
+const BLOCKING_RIDE_STATUSES = ['assigned', 'ongoing'];
 
 const isValidNumber = (value) =>
   typeof value === 'number' && !Number.isNaN(value);
