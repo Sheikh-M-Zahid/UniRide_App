@@ -60,7 +60,7 @@ const acceptRideRequest = async (req, res) => {
       io,
     });
 
-    return successResponse(res, data.message, data);
+    return successResponse(res, 'Request accepted successfully.', data);
   } catch (error) {
     return errorResponse(res, error.message || 'Failed to accept ride request.', 400);
   }
@@ -78,7 +78,7 @@ const rejectRideRequest = async (req, res) => {
       io,
     });
 
-    return successResponse(res, data.message, data);
+    return successResponse(res, 'Request rejected successfully.', data);
   } catch (error) {
     return errorResponse(res, error.message || 'Failed to reject ride request.', 400);
   }
@@ -98,7 +98,7 @@ const cancelConfirmedRide = async (req, res) => {
       io,
     });
 
-    return successResponse(res, data.message, data);
+    return successResponse(res, 'Request rejected successfully.', data);
   } catch (error) {
     return errorResponse(res, error.message || 'Failed to cancel confirmed ride.', 400);
   }
