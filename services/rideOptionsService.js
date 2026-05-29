@@ -5,6 +5,25 @@ const { computeRoute, computeRouteMatrix } = require('./googleMapsService');
 
 const DEFAULT_BIKE_RATE = 20;
 const DEFAULT_CAR_RATE = 35;
+
+const getActiveRatesFromDb = async () => {
+  const result = await rideDb.query(`
+    SELECT DISTINCT ON (vehicle_type)
+      vehicle_type, per_km_rate, base_fare
+    FROM vehicle_rates
+    WHERE is_active = TRUE
+    ORDER BY vehicle_type, effective_from DESC
+  `);
+
+  const rates = { bike: null, car: null };
+  for (const row of result.rows) {
+    rates[row.vehicle_type] = {
+      perKm: parseFloat(row.per_km_rate),
+      baseFare: parseFloat(row.base_fare || 0),
+    };
+  }
+  return rates;
+};
 const MAX_MATCH_DISTANCE_KM = 10;
 
 const normalizeGenderFilter = (value) => {
@@ -50,12 +69,6 @@ const mapOccupation = (occupation) => {
   return 'User';
 };
 
-const getVehicleRate = (vehicleType) => {
-  const type = String(vehicleType || '').trim().toLowerCase();
-  if (type === 'bike') return DEFAULT_BIKE_RATE;
-  return DEFAULT_CAR_RATE;
-};
-
 const getRideOptions = async ({ body }) => {
   const {
     pickupAddress,
@@ -90,6 +103,21 @@ const getRideOptions = async ({ body }) => {
     destinationLat,
     destinationLng,
   });
+
+  const dbRates = await getActiveRatesFromDb();
+
+  const getRate = (vehicleType) => {
+    const type = String(vehicleType || '').trim().toLowerCase();
+    if (type === 'bike') {
+      return dbRates.bike ?? { perKm: DEFAULT_BIKE_RATE, baseFare: 0 };
+    }
+    return dbRates.car ?? { perKm: DEFAULT_CAR_RATE, baseFare: 0 };
+  };
+
+  const calcFare = (distanceKm, vehicleType) => {
+    const rate = getRate(vehicleType);
+    return Math.round(rate.baseFare + distanceKm * rate.perKm);
+  };
 
   const ridesRes = await rideDb.query(`
     SELECT
@@ -140,7 +168,7 @@ const getRideOptions = async ({ body }) => {
       routeSummary: {
         routeDistanceKm: route.distanceKm,
         estimatedTravelMinutes: route.durationMinutes,
-        totalCost: Math.round(route.distanceKm * DEFAULT_CAR_RATE),
+        totalCost: calcFare(route.distanceKm, 'car'),
         polyline: route.polyline,
       },
       availableRides: [],
@@ -210,9 +238,7 @@ const getRideOptions = async ({ body }) => {
         matrix?.distanceKm ??
         (fallbackDistance !== null ? Number(fallbackDistance.toFixed(2)) : null);
 
-      const estimatedFare = Math.round(
-        route.distanceKm * getVehicleRate(resolvedVehicleType)
-      );
+      const estimatedFare = calcFare(route.distanceKm, resolvedVehicleType);
 
       const mappedUserType = mapOccupation(
         occupationMap.get(ride.university_email) || null
@@ -290,7 +316,7 @@ const getRideOptions = async ({ body }) => {
     routeSummary: {
       routeDistanceKm: route.distanceKm,
       estimatedTravelMinutes: route.durationMinutes,
-      totalCost: Math.round(route.distanceKm * DEFAULT_CAR_RATE),
+      totalCost: calcFare(route.distanceKm, 'car'),
       polyline: route.polyline,
     },
     availableRides,
