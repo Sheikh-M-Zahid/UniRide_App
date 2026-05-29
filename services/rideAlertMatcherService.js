@@ -142,7 +142,33 @@ const getRideAlertMatchesForRide = async ({ ride }) => {
 const notifyUsersForRide = async ({ ride }) => {
   const matches = await getRideAlertMatchesForRide({ ride });
 
+  // একই user কে একবারই notify করবো — duplicate বাদ দাও
+  const notifiedUserIds = new Set();
+
   for (const match of matches) {
+    const userId = match.alert.user_id;
+
+    // এই ride এর জন্য এই user কে আগেই notify করা হয়েছে কিনা check করো
+    if (notifiedUserIds.has(userId)) {
+      continue;
+    }
+
+    // DB তেও check করো — আগে থেকে এই ride এর notification আছে কিনা
+    const existingNotif = await rideDb.query(
+      `SELECT notification_id
+       FROM notifications
+       WHERE user_id = $1
+         AND related_id = $2
+         AND type = 'ride_available'
+       LIMIT 1`,
+      [userId, ride.ride_id]
+    );
+
+    if (existingNotif.rows.length > 0) {
+      notifiedUserIds.add(userId);
+      continue;
+    }
+
     const title = 'Ride Available';
     const message = `A matching ride is now available from ${ride.start_location} to ${ride.destination}.`;
 
@@ -157,13 +183,7 @@ const notifyUsersForRide = async ({ ride }) => {
         created_at
       )
       VALUES ($1, $2, $3, $4, FALSE, $5, CURRENT_TIMESTAMP)`,
-      [
-        match.alert.user_id,
-        title,
-        message,
-        'ride_available',
-        ride.ride_id,
-      ]
+      [userId, title, message, 'ride_available', ride.ride_id]
     );
 
     await rideDb.query(
@@ -174,7 +194,7 @@ const notifyUsersForRide = async ({ ride }) => {
     );
 
     emitRideAvailabilityFound({
-      userId: match.alert.user_id,
+      userId,
       payload: {
         rideId: ride.ride_id,
         pickupLocation: ride.start_location,
@@ -183,9 +203,11 @@ const notifyUsersForRide = async ({ ride }) => {
         emptySeats: ride.available_seats,
       },
     });
+
+    notifiedUserIds.add(userId);
   }
 
-  return matches.length;
+  return notifiedUserIds.size;
 };
 
 module.exports = {
