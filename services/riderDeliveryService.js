@@ -15,10 +15,14 @@ const rejectedRequestsByRider = new Map();
 ========================= */
 const mapDelivery = (row) => ({
   deliveryId: row.s_id,
+  id: row.s_id,
   senderName: row.sender_name || '',
   senderPhone: row.sender_phone || '',
-  receiverName: row.receiver_name || '',
-  receiverPhone: row.receiver_phone || '',
+  receiverName: row.receiver_name || row.receiver_first_name
+    ? `${row.receiver_first_name || ''} ${row.receiver_last_name || ''}`.trim()
+    : '',
+  receiverPhone: row.receiver_phone || row.receiver_user_phone || '',
+  receiverEmail: row.receiver_email || '',
   pickup: row.pickup_location || '',
   drop: row.drop_location || '',
   item: row.item_type || '',
@@ -195,14 +199,16 @@ const getDashboard = async ({ riderId }) => {
   const earnings = earningsRes.rows[0];
 
   const activeRes = await rideDb.query(
-    `
-    SELECT *
-    FROM send_items
-    WHERE rider_id = $1
-      AND status IN ('accepted', 'picked_up', 'on_the_way')
-    ORDER BY accepted_at DESC NULLS LAST, created_at DESC
-    LIMIT 1
-  `,
+    `SELECT s.*,
+            u.first_name AS receiver_first_name,
+            u.last_name  AS receiver_last_name,
+            u.phone      AS receiver_user_phone
+     FROM send_items s
+     LEFT JOIN users u ON s.receiver_id = u.user_id
+     WHERE s.rider_id = $1
+       AND s.status IN ('accepted', 'picked_up', 'on_the_way')
+     ORDER BY s.accepted_at DESC NULLS LAST, s.created_at DESC
+     LIMIT 1`,
     [riderId]
   );
 
