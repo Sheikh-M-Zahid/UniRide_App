@@ -346,6 +346,42 @@ const markDelivered = async ({ riderId, id, io }) => {
 
   await sendDeliveryDeliveredNotifications({ delivery, rider });
 
+  // Rider earning transaction + ৳5 wallet bonus
+  try {
+    const deliveryFee = Number(delivery.delivery_fee || 0);
+    const bonusAmount = 5;
+    const referenceId = `delivery_earn_${delivery.s_id}`;
+    const bonusReferenceId = `delivery_bonus_${delivery.s_id}`;
+
+    // Delivery fee earning record
+    await rideDb.query(
+      `INSERT INTO transactions
+       (user_id, amount, type, method, reference_id, status)
+       VALUES ($1, $2, 'credit', 'delivery', $3, 'completed')
+       ON CONFLICT (reference_id) DO NOTHING`,
+      [riderId, deliveryFee, referenceId]
+    );
+
+    // ৳5 bonus wallet credit + due_balance কমাও
+    await rideDb.query(
+      `INSERT INTO transactions
+       (user_id, amount, type, method, reference_id, status)
+       VALUES ($1, $2, 'credit', 'delivery_bonus', $3, 'completed')
+       ON CONFLICT (reference_id) DO NOTHING`,
+      [riderId, bonusAmount, bonusReferenceId]
+    );
+
+    await rideDb.query(
+      `UPDATE users
+       SET due_balance = GREATEST(due_balance - $1, 0)
+       WHERE user_id = $2`,
+      [bonusAmount, riderId]
+    );
+
+  } catch (earnErr) {
+    console.error('Earning record error:', earnErr.message);
+  }
+
    // Send delivery completed emails
   try {
     const rideDb2 = require('../config/rideDb');
