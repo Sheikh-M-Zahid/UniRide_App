@@ -332,7 +332,7 @@ const markDelivered = async ({ riderId, id, io }) => {
         delivered_at = CURRENT_TIMESTAMP
     WHERE s_id = $1
       AND rider_id = $2
-      AND status IN ('accepted', 'on_the_way')
+      AND status IN ('accepted', 'picked_up')
     RETURNING *
   `,
     [id, riderId]
