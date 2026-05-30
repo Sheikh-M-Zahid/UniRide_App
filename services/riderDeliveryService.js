@@ -1,4 +1,11 @@
 const rideDb = require('../config/rideDb');
+
+const {
+  sendPickupEmail,
+  sendDeliveryCompletedEmailToSender,
+  sendDeliveryCompletedEmailToReceiver,
+} = require('./emailService');
+
 const { createNotification } = require('./notificationService');
 
 const rejectedRequestsByRider = new Map();
@@ -339,6 +346,40 @@ const markDelivered = async ({ riderId, id, io }) => {
 
   await sendDeliveryDeliveredNotifications({ delivery, rider });
 
+   // Send delivery completed emails
+  try {
+    const rideDb2 = require('../config/rideDb');
+
+    // Get sender email
+    if (delivery.sender_id) {
+      const senderRes = await rideDb2.query(
+        `SELECT university_email, first_name, last_name FROM users WHERE user_id = $1 LIMIT 1`,
+        [delivery.sender_id]
+      );
+      if (senderRes.rows.length) {
+        const sender = senderRes.rows[0];
+        const senderName = `${sender.first_name || ''} ${sender.last_name || ''}`.trim() || 'Sender';
+        const receiverName = delivery.receiver_name || delivery.receiver_email || 'Receiver';
+        await sendDeliveryCompletedEmailToSender({
+          senderEmail: sender.university_email,
+          senderName,
+          receiverName,
+          itemType: delivery.item_type || 'Item',
+        });
+      }
+    }
+
+    // Send email to receiver
+    if (delivery.receiver_email) {
+      await sendDeliveryCompletedEmailToReceiver({
+        receiverEmail: delivery.receiver_email,
+        itemType: delivery.item_type || 'Item',
+      });
+    }
+  } catch (emailErr) {
+    console.error('Delivery completed email error:', emailErr.message);
+  }
+
   if (io) {
     // ✅ FIX
     io.to(`rider_${riderId}`).emit('delivery:updated', {
@@ -402,11 +443,31 @@ const markPickedUp = async ({ riderId, id, io }) => {
     [id, riderId]
   );
 
-  if (!result.rows.length) {
+if (!result.rows.length) {
     throw new Error('Delivery not found or not yours.');
   }
 
   const delivery = result.rows[0];
+
+  // Send pickup email to receiver
+  try {
+    if (delivery.receiver_email) {
+      const riderName = `${rider.first_name || ''} ${rider.last_name || ''}`.trim() || 'Rider';
+      const trackingUrl = `${process.env.BASE_URL}/api/track/send-item/${delivery.s_id}`;
+
+      await sendPickupEmail({
+        receiverEmail: delivery.receiver_email,
+        senderName: delivery.sender_name || 'Sender',
+        itemType: delivery.item_type || 'Item',
+        riderName,
+        riderPhone: rider.phone || 'N/A',
+        pickedUpAt: new Date(),
+        trackingUrl,
+      });
+    }
+  } catch (emailErr) {
+    console.error('Pickup email error:', emailErr.message);
+  }
 
   if (delivery.sender_id) {
     await createNotification({
