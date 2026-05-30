@@ -80,6 +80,37 @@ app.get('/', (req, res) => {
   });
 });
 
+app.get('/api/track/send-item/:sId', (req, res) => {
+  const { sId } = req.params;
+  res.status(200).send(`
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>Track Delivery — UniRide</title>
+      <style>
+        body { font-family: Arial, sans-serif; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; background: #f9fafb; }
+        .card { background: white; border-radius: 16px; padding: 40px 32px; max-width: 400px; width: 90%; text-align: center; box-shadow: 0 4px 20px rgba(0,0,0,0.08); }
+        h2 { color: #14B8A6; margin-bottom: 8px; }
+        p { color: #6b7280; line-height: 1.6; }
+        .badge { background: #e6fffa; color: #0f766e; padding: 6px 14px; border-radius: 20px; font-size: 13px; font-weight: 600; display: inline-block; margin-bottom: 20px; }
+        .id { background: #f3f4f6; padding: 10px 16px; border-radius: 8px; font-family: monospace; color: #374151; font-size: 13px; margin: 16px 0; word-break: break-all; }
+      </style>
+    </head>
+    <body>
+      <div class="card">
+        <div class="badge">📦 Live Tracking</div>
+        <h2>UniRide Delivery</h2>
+        <p>To track your delivery in real-time, please open the <strong>UniRide app</strong>.</p>
+        <div class="id">Tracking ID: ${sId}</div>
+        <p style="font-size: 13px; color: #9ca3af;">Open the app → My Deliveries → Enter tracking ID</p>
+      </div>
+    </body>
+    </html>
+  `);
+});
+
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/rides', rideRoutes);
