@@ -10,22 +10,52 @@ const getWalletSummary = async (userId) => {
   );
 
   const latestPayment = await rideDb.query(
-    `
-    SELECT status
-    FROM transactions
-    WHERE user_id = $1 AND type = 'credit'
-    ORDER BY created_at DESC
-    LIMIT 1
-  `,
+    `SELECT status
+     FROM transactions
+     WHERE user_id = $1 AND type = 'credit'
+     ORDER BY created_at DESC
+     LIMIT 1`,
     [userId]
   );
 
+  // Total delivery earnings
+  const deliveryEarnings = await rideDb.query(
+    `SELECT COALESCE(SUM(amount), 0) AS total
+     FROM transactions
+     WHERE user_id = $1
+       AND method = 'delivery'
+       AND type = 'credit'
+       AND status = 'completed'`,
+    [userId]
+  );
+
+  // Total bonus earned
+  const bonusEarnings = await rideDb.query(
+    `SELECT COALESCE(SUM(amount), 0) AS total
+     FROM transactions
+     WHERE user_id = $1
+       AND method = 'delivery_bonus'
+       AND type = 'credit'
+       AND status = 'completed'`,
+    [userId]
+  );
+
+  // Active offers count
+  const offersRes = await rideDb.query(
+    `SELECT COUNT(*) AS count
+     FROM offers
+     WHERE start_date <= CURRENT_DATE
+       AND end_date >= CURRENT_DATE`,
+  );
+
   return {
-    dueAmount: Number(userRes.rows[0].due_balance || 0),
-    activePromotionsCount: 0,
+    dueAmount: Number(userRes.rows[0]?.due_balance || 0),
+    activePromotionsCount: Number(offersRes.rows[0]?.count || 0),
     bkashNumber: '01962857678',
     nagadNumber: '01962857678',
     latestPaymentStatus: latestPayment.rows[0]?.status || null,
+    totalDeliveryEarnings: Number(deliveryEarnings.rows[0]?.total || 0),
+    totalBonusEarnings: Number(bonusEarnings.rows[0]?.total || 0),
   };
 };
 
