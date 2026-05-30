@@ -3,11 +3,9 @@ const { isValidUniversityEmail } = require('./validators');
 const calculateDeliveryFee = (weight) => {
   const w = Number(weight);
 
-  if (!w || w <= 0) return 40;
-  if (w <= 1) return 40;
-  if (w <= 3) return 60;
-  if (w <= 5) return 80;
-  return 100;
+  if (!w || w <= 0) return 50;
+  if (w <= 2) return 50;
+  return 50 + Math.ceil(w - 2) * 10;
 };
 
 const normalizeEmail = (email) => String(email || '').trim().toLowerCase();
