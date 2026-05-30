@@ -49,19 +49,21 @@ const getRiderDashboard = async ({ riderId }) => {
   `;
 
   const upcomingReservedRideQuery = `
-    SELECT
-      start_location,
-      destination,
-      travel_date,
-      travel_time
-    FROM rides
-    WHERE rider_id = $1
-      AND status = 'assigned'
-      AND travel_date IS NOT NULL
-      AND travel_date >= CURRENT_DATE
-    ORDER BY travel_date ASC, travel_time ASC
-    LIMIT 1
-  `;
+  SELECT
+    res.pickup_location,
+    res.destination_location,
+    res.travel_date,
+    res.travel_time
+  FROM reserves res
+  INNER JOIN reserve_rider_matches rrm
+    ON rrm.reserve_id = res.reserve_id
+  WHERE rrm.rider_id = $1
+    AND rrm.is_selected = TRUE
+    AND res.status IN ('confirmed', 'ongoing')
+    AND res.travel_date >= CURRENT_DATE
+  ORDER BY res.travel_date ASC, res.travel_time ASC
+  LIMIT 1
+`;
 
   const [
     onlineStatusResult,
@@ -98,14 +100,16 @@ const getRiderDashboard = async ({ riderId }) => {
 
   let upcomingReservedRide = null;
   if (upcomingReservedRideResult.rows.length > 0) {
-    const row = upcomingReservedRideResult.rows[0];
-    upcomingReservedRide = {
-      date: row.travel_date,
-      time: row.travel_time,
-      pickup: row.start_location,
-      destination: row.destination,
-    };
-  }
+  const row = upcomingReservedRideResult.rows[0];
+  upcomingReservedRide = {
+    date: row.travel_date instanceof Date
+      ? row.travel_date.toISOString().split('T')[0]
+      : row.travel_date,
+    time: row.travel_time,
+    pickup: row.pickup_location,
+    destination: row.destination_location,
+  };
+}
 
   return {
     isOnline,
