@@ -10,6 +10,15 @@ const transporter = nodemailer.createTransport({
   },
 });
 
+// Verify connection on startup
+transporter.verify((error) => {
+  if (error) {
+    console.error('Email transporter error:', error.message);
+  } else {
+    console.log('✅ Email service ready');
+  }
+});
+
 const sendPickupEmail = async ({ receiverEmail, senderName, itemType, riderName, riderPhone, pickedUpAt, trackingUrl }) => {
   const formattedTime = new Date(pickedUpAt).toLocaleString('en-US', {
     timeZone: 'Asia/Dhaka',
