@@ -198,10 +198,10 @@ const getFallbackSummaryFromRides = async (userId) => {
         END
       ), 0)::numeric(10,2) AS month_earnings,
 
-      COUNT(DISTINCT r.id)::int AS completed_rides
+    COUNT(DISTINCT r.ride_id)::int AS completed_rides
     FROM rides r
     LEFT JOIN ride_participants rp
-      ON rp.ride_id = r.id
+      ON rp.ride_id = r.ride_id
     WHERE r.rider_id = $1
       AND r.status = 'completed';
   `;
@@ -221,7 +221,7 @@ const getFallbackTodayChart = async (userId) => {
         SUM(rp.fare)::numeric(10,2) AS earning
       FROM rides r
       LEFT JOIN ride_participants rp
-        ON rp.ride_id = r.id
+        ON rp.ride_id = r.ride_id
       WHERE r.rider_id = $1
         AND r.status = 'completed'
         AND r.created_at >= CURRENT_DATE
@@ -255,7 +255,7 @@ const getFallbackWeeklyChart = async (userId) => {
         SUM(rp.fare)::numeric(10,2) AS earning
       FROM rides r
       LEFT JOIN ride_participants rp
-        ON rp.ride_id = r.id
+        ON rp.ride_id = r.ride_id
       WHERE r.rider_id = $1
         AND r.status = 'completed'
         AND r.created_at >= CURRENT_DATE - INTERVAL '6 days'
@@ -289,7 +289,7 @@ const getFallbackMonthlyChart = async (userId) => {
         SUM(rp.fare)::numeric(10,2) AS earning
       FROM rides r
       LEFT JOIN ride_participants rp
-        ON rp.ride_id = r.id
+        ON rp.ride_id = r.ride_id
       WHERE r.rider_id = $1
         AND r.status = 'completed'
         AND r.created_at >= DATE_TRUNC('month', CURRENT_DATE)
