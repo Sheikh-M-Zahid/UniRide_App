@@ -158,7 +158,9 @@ const confirmParticipant = async (rideId, riderId, participantId) => {
 const changeRideStatus = async (rideId, riderId, status) => {
   const result = await rideDb.query(
     `UPDATE rides
-     SET status = $1
+     SET status = $1,
+         completed_at = CASE WHEN $1 = 'completed' THEN CURRENT_TIMESTAMP ELSE completed_at END,
+         cancelled_at = CASE WHEN $1 = 'cancelled' THEN CURRENT_TIMESTAMP ELSE cancelled_at END
      WHERE ride_id = $2 AND rider_id = $3
      RETURNING *`,
     [status, rideId, riderId]
@@ -168,9 +170,54 @@ const changeRideStatus = async (rideId, riderId, status) => {
     throw new Error('Ride not found or unauthorized.');
   }
 
-  return result.rows[0];
-};
+  const ride = result.rows[0];
 
+  // শুধু completed হলে transaction logic চলবে
+  if (status === 'completed') {
+    const participantsRes = await rideDb.query(
+      `SELECT passenger_id, fare
+       FROM ride_participants
+       WHERE ride_id = $1`,
+      [rideId]
+    );
+
+    for (const participant of participantsRes.rows) {
+      const fare = Number(participant.fare || 0);
+      if (fare <= 0) continue;
+
+      const passengerDueRef = `ride_due_${rideId}_${participant.passenger_id}`;
+      const riderEarnRef = `ride_earn_${rideId}_${participant.passenger_id}`;
+
+      // Duplicate check — একই ride এর জন্য দুইবার যেন না হয়
+      const alreadyDone = await rideDb.query(
+        `SELECT 1 FROM transactions WHERE reference_id = $1 LIMIT 1`,
+        [riderEarnRef]
+      );
+      if (alreadyDone.rowCount > 0) continue;
+
+      // Passenger এর due বাড়াও
+      await rideDb.query(
+        `UPDATE users SET due_balance = due_balance + $1 WHERE user_id = $2`,
+        [fare, participant.passenger_id]
+      );
+
+      await rideDb.query(
+        `INSERT INTO transactions (user_id, amount, type, method, reference_id, status)
+         VALUES ($1, $2, 'debit', 'ride_fare', $3, 'completed')`,
+        [participant.passenger_id, fare, passengerDueRef]
+      );
+
+      // Rider এর earning add করো
+      await rideDb.query(
+        `INSERT INTO transactions (user_id, amount, type, method, reference_id, status)
+         VALUES ($1, $2, 'credit', 'ride_income', $3, 'completed')`,
+        [riderId, fare, riderEarnRef]
+      );
+    }
+  }
+
+  return ride;
+};
 const listMyCreatedRides = async (riderId) => {
   const result = await rideDb.query(
     `SELECT *
