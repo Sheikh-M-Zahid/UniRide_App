@@ -3,44 +3,48 @@ const ewuAdminDb = require('../config/ewuAdminDb');
 const { safeDistanceKm, calculateETA } = require('../utils/geo');
 const { computeRoute, computeRouteMatrix } = require('./googleMapsService');
 
-const DEFAULT_BIKE_RATE = 20;
-const DEFAULT_CAR_RATE = 35;
+// ❌ আগে এগুলো hardcode ছিল:
+// const DEFAULT_BIKE_RATE = 20;
+// const DEFAULT_CAR_RATE = 35;
 
-const getActiveRatesFromDb = async () => {
+const MAX_MATCH_DISTANCE_KM = 10;
+
+// ✅ নতুন: DB থেকে active rates fetch করা
+const fetchVehicleRates = async () => {
   const result = await rideDb.query(`
     SELECT DISTINCT ON (vehicle_type)
-      vehicle_type, per_km_rate, base_fare
+      vehicle_type,
+      per_km_rate,
+      base_fare
     FROM vehicle_rates
     WHERE is_active = TRUE
     ORDER BY vehicle_type, effective_from DESC
   `);
 
-  const rates = { bike: null, car: null };
+  const rateMap = { bike: { per_km_rate: 20, base_fare: 0 }, car: { per_km_rate: 35, base_fare: 0 } };
+
   for (const row of result.rows) {
-    rates[row.vehicle_type] = {
-      perKm: parseFloat(row.per_km_rate),
-      baseFare: parseFloat(row.base_fare || 0),
+    rateMap[row.vehicle_type] = {
+      per_km_rate: Number(row.per_km_rate),
+      base_fare: Number(row.base_fare || 0),
     };
   }
-  return rates;
+
+  return rateMap;
 };
-const MAX_MATCH_DISTANCE_KM = 10;
 
 const normalizeGenderFilter = (value) => {
   if (!value) return 'any';
   const normalized = String(value).trim().toLowerCase();
-
   if (normalized === 'male only') return 'male';
   if (normalized === 'female only') return 'female';
   if (['male', 'female', 'any'].includes(normalized)) return normalized;
-
   return 'any';
 };
 
 const normalizeVehicleFilter = (value) => {
   if (!value) return 'all';
   const normalized = String(value).trim().toLowerCase();
-
   if (['all', 'bike', 'car'].includes(normalized)) return normalized;
   return 'all';
 };
@@ -48,25 +52,25 @@ const normalizeVehicleFilter = (value) => {
 const normalizeUserTypeFilter = (value) => {
   if (!value) return 'all';
   const normalized = String(value).trim().toLowerCase();
-
   if (normalized === 'teacher') return 'faculty';
-  if (['all', 'student', 'faculty', 'staff'].includes(normalized)) {
-    return normalized;
-  }
-
+  if (['all', 'student', 'faculty', 'staff'].includes(normalized)) return normalized;
   return 'all';
 };
 
 const mapOccupation = (occupation) => {
   if (!occupation) return 'User';
-
   const value = String(occupation).trim().toLowerCase();
-
   if (value === 'student') return 'Student';
   if (value === 'faculty') return 'Teacher';
   if (value === 'staff') return 'Staff';
-
   return 'User';
+};
+
+// ✅ নতুন: vehicle type অনুযায়ী rate বের করা
+const getVehicleRate = (vehicleType, rateMap) => {
+  const type = String(vehicleType || '').trim().toLowerCase();
+  if (type === 'bike') return rateMap.bike;
+  return rateMap.car;
 };
 
 const getRideOptions = async ({ body }) => {
@@ -97,27 +101,22 @@ const getRideOptions = async ({ body }) => {
   const normalizedVehicleType = normalizeVehicleFilter(vehicleType);
   const normalizedUserType = normalizeUserTypeFilter(userType);
 
-  const route = await computeRoute({
-    originLat: pickupLat,
-    originLng: pickupLng,
-    destinationLat,
-    destinationLng,
-  });
+  // ✅ Route + Rates একসাথে parallel fetch — performance ভালো থাকবে
+  const [route, rateMap] = await Promise.all([
+    computeRoute({
+      originLat: pickupLat,
+      originLng: pickupLng,
+      destinationLat,
+      destinationLng,
+    }),
+    fetchVehicleRates(),
+  ]);
 
-  const dbRates = await getActiveRatesFromDb();
-
-  const getRate = (vehicleType) => {
-    const type = String(vehicleType || '').trim().toLowerCase();
-    if (type === 'bike') {
-      return dbRates.bike ?? { perKm: DEFAULT_BIKE_RATE, baseFare: 0 };
-    }
-    return dbRates.car ?? { perKm: DEFAULT_CAR_RATE, baseFare: 0 };
-  };
-
-  const calcFare = (distanceKm, vehicleType) => {
-    const rate = getRate(vehicleType);
-    return Math.round(rate.baseFare + distanceKm * rate.perKm);
-  };
+  // routeSummary এর জন্য car rate use করব (default)
+  const carRate = rateMap.car;
+  const routeTotalCost = Math.round(
+    carRate.base_fare + route.distanceKm * carRate.per_km_rate
+  );
 
   const ridesRes = await rideDb.query(`
     SELECT
@@ -154,7 +153,7 @@ const getRideOptions = async ({ body }) => {
       ORDER BY updated_at DESC
       LIMIT 1
     ) ll ON TRUE
-    WHERE r.status IN ('assigned', 'ongoing')
+    WHERE r.status IN ('active', 'scheduled', 'assigned')
       AND r.available_seats > 0
       AND (r.travel_date IS NULL OR r.travel_date >= CURRENT_DATE)
     ORDER BY r.created_at DESC
@@ -168,7 +167,7 @@ const getRideOptions = async ({ body }) => {
       routeSummary: {
         routeDistanceKm: route.distanceKm,
         estimatedTravelMinutes: route.durationMinutes,
-        totalCost: calcFare(route.distanceKm, 'car'),
+        totalCost: routeTotalCost,
         polyline: route.polyline,
       },
       availableRides: [],
@@ -180,14 +179,11 @@ const getRideOptions = async ({ body }) => {
 
   if (emails.length) {
     const occRes = await ewuAdminDb.query(
-      `
-      SELECT university_email, occupation
-      FROM ewu_users
-      WHERE university_email = ANY($1::text[])
-      `,
+      `SELECT university_email, occupation
+       FROM ewu_users
+       WHERE university_email = ANY($1::text[])`,
       [emails]
     );
-
     occupationMap = new Map(
       occRes.rows.map((row) => [row.university_email, row.occupation])
     );
@@ -238,7 +234,9 @@ const getRideOptions = async ({ body }) => {
         matrix?.distanceKm ??
         (fallbackDistance !== null ? Number(fallbackDistance.toFixed(2)) : null);
 
-      const estimatedFare = calcFare(route.distanceKm, resolvedVehicleType);
+      // ✅ এখানে vehicle type অনুযায়ী আলাদা rate ব্যবহার হচ্ছে
+      const { per_km_rate, base_fare } = getVehicleRate(resolvedVehicleType, rateMap);
+      const estimatedFare = Math.round(base_fare + route.distanceKm * per_km_rate);
 
       const mappedUserType = mapOccupation(
         occupationMap.get(ride.university_email) || null
@@ -316,7 +314,7 @@ const getRideOptions = async ({ body }) => {
     routeSummary: {
       routeDistanceKm: route.distanceKm,
       estimatedTravelMinutes: route.durationMinutes,
-      totalCost: calcFare(route.distanceKm, 'car'),
+      totalCost: routeTotalCost,
       polyline: route.polyline,
     },
     availableRides,
