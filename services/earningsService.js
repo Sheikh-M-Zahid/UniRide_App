@@ -11,7 +11,10 @@ const getSummaryQuery = () => `
     FROM transactions t
     WHERE t.user_id = $1
       AND t.status = 'completed'
-      AND t.type IN ('ride_income', 'earning', 'rider_credit')
+      AND (
+  t.type IN ('ride_income', 'earning', 'rider_credit')
+  OR (t.type = 'credit' AND t.method IN ('delivery', 'delivery_bonus'))
+)
   ),
   fallback_completed_rides AS (
     SELECT
@@ -73,7 +76,10 @@ const getTodayChartQuery = () => `
     FROM transactions t
     WHERE t.user_id = $1
       AND t.status = 'completed'
-      AND t.type IN ('ride_income', 'earning', 'rider_credit')
+      AND (
+  t.type IN ('ride_income', 'earning', 'rider_credit')
+  OR (t.type = 'credit' AND t.method IN ('delivery', 'delivery_bonus'))
+)
       AND t.created_at >= CURRENT_DATE
       AND t.created_at < CURRENT_DATE + INTERVAL '1 day'
     GROUP BY EXTRACT(HOUR FROM t.created_at)
@@ -102,7 +108,10 @@ const getWeeklyChartQuery = () => `
     FROM transactions t
     WHERE t.user_id = $1
       AND t.status = 'completed'
-      AND t.type IN ('ride_income', 'earning', 'rider_credit')
+      AND (
+  t.type IN ('ride_income', 'earning', 'rider_credit')
+  OR (t.type = 'credit' AND t.method IN ('delivery', 'delivery_bonus'))
+)
       AND t.created_at >= CURRENT_DATE - INTERVAL '6 days'
       AND t.created_at < CURRENT_DATE + INTERVAL '1 day'
     GROUP BY DATE(t.created_at)
@@ -131,7 +140,10 @@ const getMonthlyChartQuery = () => `
     FROM transactions t
     WHERE t.user_id = $1
       AND t.status = 'completed'
-      AND t.type IN ('ride_income', 'earning', 'rider_credit')
+      AND (
+  t.type IN ('ride_income', 'earning', 'rider_credit')
+  OR (t.type = 'credit' AND t.method IN ('delivery', 'delivery_bonus'))
+)
       AND t.created_at >= DATE_TRUNC('month', CURRENT_DATE)
       AND t.created_at < DATE_TRUNC('month', CURRENT_DATE) + INTERVAL '1 month'
     GROUP BY DATE(t.created_at)
