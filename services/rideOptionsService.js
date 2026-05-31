@@ -3,13 +3,8 @@ const ewuAdminDb = require('../config/ewuAdminDb');
 const { safeDistanceKm, calculateETA } = require('../utils/geo');
 const { computeRoute, computeRouteMatrix } = require('./googleMapsService');
 
-// ❌ আগে এগুলো hardcode ছিল:
-// const DEFAULT_BIKE_RATE = 20;
-// const DEFAULT_CAR_RATE = 35;
-
 const MAX_MATCH_DISTANCE_KM = 10;
 
-// ✅ নতুন: DB থেকে active rates fetch করা
 const fetchVehicleRates = async () => {
   const result = await rideDb.query(`
     SELECT DISTINCT ON (vehicle_type)
@@ -66,7 +61,6 @@ const mapOccupation = (occupation) => {
   return 'User';
 };
 
-// ✅ নতুন: vehicle type অনুযায়ী rate বের করা
 const getVehicleRate = (vehicleType, rateMap) => {
   const type = String(vehicleType || '').trim().toLowerCase();
   if (type === 'bike') return rateMap.bike;
@@ -101,7 +95,6 @@ const getRideOptions = async ({ body }) => {
   const normalizedVehicleType = normalizeVehicleFilter(vehicleType);
   const normalizedUserType = normalizeUserTypeFilter(userType);
 
-  // ✅ Route + Rates একসাথে parallel fetch — performance ভালো থাকবে
   const [route, rateMap] = await Promise.all([
     computeRoute({
       originLat: pickupLat,
