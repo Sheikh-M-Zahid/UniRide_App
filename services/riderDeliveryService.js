@@ -18,10 +18,11 @@ const mapDelivery = (row) => ({
   id: row.s_id,
   senderName: row.sender_name || '',
   senderPhone: row.sender_phone || '',
-  receiverName: row.receiver_name || row.receiver_first_name
-    ? `${row.receiver_first_name || ''} ${row.receiver_last_name || ''}`.trim()
-    : '',
-  receiverPhone: row.receiver_phone || row.receiver_user_phone || '',
+  receiverName: (`${row.receiver_first_name || ''} ${row.receiver_last_name || ''}`).trim()
+    || row.receiver_name
+    || row.receiver_email
+    || 'Receiver',
+  receiverPhone: row.receiver_user_phone || row.receiver_phone || '',
   receiverEmail: row.receiver_email || '',
   pickup: row.pickup_location || '',
   drop: row.drop_location || '',
@@ -213,14 +214,16 @@ const getDashboard = async ({ riderId }) => {
   );
 
   const requestsRes = await rideDb.query(
-    `
-    SELECT *
-    FROM send_items
-    WHERE status = 'pending'
-      AND rider_id IS NULL
-    ORDER BY created_at DESC
-    LIMIT 20
-  `
+    `SELECT s.*,
+            u.first_name AS receiver_first_name,
+            u.last_name  AS receiver_last_name,
+            u.phone      AS receiver_user_phone
+     FROM send_items s
+     LEFT JOIN users u ON s.receiver_id = u.user_id
+     WHERE s.status = 'pending'
+       AND s.rider_id IS NULL
+     ORDER BY s.created_at DESC
+     LIMIT 20`
   );
 
   const filteredRequests = requestsRes.rows.filter(
@@ -267,6 +270,32 @@ const acceptRequest = async ({ riderId, requestId, io }) => {
   rejectedSet.delete(String(requestId));
 
   await sendDeliveryAcceptedNotifications({ delivery, rider });
+
+  // Sender কে email পাঠাও
+  try {
+    const { sendRiderAcceptedEmailToSender } = require('./emailService');
+    const senderRes = await rideDb.query(
+      `SELECT university_email, first_name, last_name FROM users WHERE user_id = $1 LIMIT 1`,
+      [delivery.sender_id]
+    );
+    if (senderRes.rows.length) {
+      const sender = senderRes.rows[0];
+      const senderName = `${sender.first_name || ''} ${sender.last_name || ''}`.trim() || 'Sender';
+      const riderName = `${rider.first_name || ''} ${rider.last_name || ''}`.trim() || 'Rider';
+      await sendRiderAcceptedEmailToSender({
+        senderEmail: sender.university_email,
+        senderName,
+        riderName,
+        riderPhone: rider.phone || 'N/A',
+        itemType: delivery.item_type || 'Item',
+        pickupLocation: delivery.pickup_location || '',
+        dropLocation: delivery.drop_location || '',
+        deliveryFee: delivery.delivery_fee || 0,
+      });
+    }
+  } catch (emailErr) {
+    console.error('Rider accepted email error:', emailErr.message);
+  }
 
   if (io) {
     io.emit('delivery:removed', { requestId: String(requestId) });
