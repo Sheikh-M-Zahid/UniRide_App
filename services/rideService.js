@@ -120,11 +120,11 @@ const joinRide = async (rideId, passengerId, fare) => {
 
   const result = await rideDb.query(
     `INSERT INTO ride_participants (
-      ride_id, passenger_id, fare, rider_payment, confirmed
-    )
-    VALUES ($1, $2, $3, 'Unpaid', FALSE)
-    RETURNING *`,
-    [rideId, passengerId, fare]
+  ride_id, passenger_id, fare, confirmed
+)
+VALUES ($1, $2, $3, FALSE)
+RETURNING *`,
+[rideId, passengerId, fare]
   );
 
   return result.rows[0];
