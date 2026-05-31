@@ -147,7 +147,10 @@ const createSendItemRequest = async (userId, payload) => {
 
   const createdItem = result.rows[0];
 
-  await notifySendItemCreated(createdItem);
+  const { getIO } = require('../config/socket');
+  let io;
+  try { io = getIO(); } catch (_) {}
+  await notifySendItemCreated(createdItem, io);
 
   return createdItem;
 };
@@ -405,6 +408,24 @@ const acceptItemRequest = async (sId, riderId) => {
   };
 
   await notifySendItemAccepted(acceptedItem);
+
+  // অন্য রাইডারদের জানাও যে এই request আর available না
+  const { getMatchingRiderIds } = require('./sendItemNotificationService');
+  let io;
+  try {
+    const { getIO } = require('../config/socket');
+    io = getIO();
+  } catch (_) {}
+  
+  if (io) {
+    // সব রাইডারকে জানাও এই request নেওয়া হয়ে গেছে
+    io.emit('send_item:request_taken', {
+      s_id: acceptedItem.s_id,
+      rider_name: acceptedItem.rider_name,
+      message: `This delivery request has already been accepted by ${acceptedItem.rider_name || 'another rider'}.`,
+    });
+  }
+
 
   return {
     s_id: acceptedItem.s_id,
