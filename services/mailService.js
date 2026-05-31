@@ -56,6 +56,7 @@ const sendSignupOtpEmail = async (email, otpCode) => {
 };
 
 module.exports = {
+  sendMail,
   sendPasswordRecoveryOtpEmail,
   sendSignupOtpEmail,
 };
