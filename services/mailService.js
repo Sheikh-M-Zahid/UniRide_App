@@ -1,31 +1,24 @@
-const nodemailer = require('nodemailer');
 require('dotenv').config();
-
-const transporter = nodemailer.createTransport({
-  host: process.env.MAIL_HOST,
-  port: Number(process.env.MAIL_PORT) || 587,
-  secure: false,
-  auth: {
-    user: process.env.MAIL_USER,
-    pass: process.env.MAIL_PASS,
-  },
-  tls: {
-    rejectUnauthorized: false,
-  },
-  connectionTimeout: 15000,
-  greetingTimeout: 15000,
-  socketTimeout: 20000,
-});
+const axios = require('axios');
 
 const sendMail = async ({ to, subject, text, html }) => {
-  const mailOptions = {
-    from: process.env.MAIL_FROM || process.env.MAIL_USER,
-    to,
-    subject,
-    text,
-    html,
-  };
-  return transporter.sendMail(mailOptions);
+  const response = await axios.post(
+    'https://api.brevo.com/v3/smtp/email',
+    {
+      sender: { name: 'UniRide', email: 'uniride.support@gmail.com' },
+      to: [{ email: to }],
+      subject,
+      textContent: text,
+      htmlContent: html,
+    },
+    {
+      headers: {
+        'api-key': process.env.BREVO_API_KEY,
+        'Content-Type': 'application/json',
+      },
+    }
+  );
+  return response.data;
 };
 
 const sendPasswordRecoveryOtpEmail = async (email, otp) => {
@@ -45,8 +38,7 @@ const sendPasswordRecoveryOtpEmail = async (email, otp) => {
 };
 
 const sendSignupOtpEmail = async (email, otpCode) => {
-  await transporter.sendMail({
-    from: process.env.MAIL_FROM || process.env.MAIL_USER,
+  return sendMail({
     to: email,
     subject: 'Your UniRide signup OTP',
     html: `
