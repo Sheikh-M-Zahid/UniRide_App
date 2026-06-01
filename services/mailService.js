@@ -3,8 +3,8 @@ require('dotenv').config();
 
 const transporter = nodemailer.createTransport({
   host: process.env.MAIL_HOST,
-  port: 587,
-  secure: false,
+  port: 465,
+  secure: true,
   auth: {
     user: process.env.MAIL_USER,
     pass: process.env.MAIL_PASS,
@@ -12,7 +12,6 @@ const transporter = nodemailer.createTransport({
   tls: {
     rejectUnauthorized: false,
   },
-  requireTLS: true,
   connectionTimeout: 10000,
   greetingTimeout: 10000,
   socketTimeout: 15000,
@@ -48,7 +47,7 @@ const sendPasswordRecoveryOtpEmail = async (email, otp) => {
 
 const sendSignupOtpEmail = async (email, otpCode) => {
   await transporter.sendMail({
-    from: process.env.MAIL_FROM || process.env.EMAIL_USER,
+    from: process.env.MAIL_FROM || process.env.MAIL_USER,
     to: email,
     subject: 'Your UniRide signup OTP',
     html: `
