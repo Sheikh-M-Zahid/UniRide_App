@@ -9,8 +9,6 @@ const {
 const { createNotification } = require('./notificationService');
 
 const rejectedRequestsByRider = new Map();
-// OTP সাময়িকভাবে মেমরিতে রাখার জন্য
-const deliveryOTPs = new Map(); 
 
 /* =========================
    HELPERS
@@ -273,6 +271,7 @@ const acceptRequest = async ({ riderId, requestId, io }) => {
 
   await sendDeliveryAcceptedNotifications({ delivery, rider });
 
+  // Sender কে email পাঠাও
   try {
     const { sendRiderAcceptedEmailToSender } = require('./emailService');
     const senderRes = await rideDb.query(
@@ -300,6 +299,8 @@ const acceptRequest = async ({ riderId, requestId, io }) => {
 
   if (io) {
     io.emit('delivery:removed', { requestId: String(requestId) });
+
+    // ✅ FIX
     io.to(`rider_${riderId}`).emit('delivery:accepted', mapped);
 
     if (delivery.sender_id) {
@@ -344,6 +345,7 @@ const rejectRequest = async ({ riderId, requestId, io }) => {
   rejectedSet.add(String(requestId));
 
   if (io) {
+    // ✅ FIX
     io.to(`rider_${riderId}`).emit('delivery:reject-ui', {
       requestId: String(requestId),
     });
@@ -353,81 +355,95 @@ const rejectRequest = async ({ riderId, requestId, io }) => {
 };
 
 /* =========================
-   SEND DELIVERY OTP
+   MARK AS DELIVERED
 ========================= */
-const sendDeliveryOTP = async ({ riderId, id }) => {
-  const res = await rideDb.query(
-    `SELECT s.*, u.university_email as receiver_user_email 
+// In-memory OTP store
+const deliveryOtpStore = new Map();
+
+const sendDeliveryOtp = async ({ riderId, id }) => {
+  const rider = await getRiderBasicInfo(riderId);
+
+  // Delivery টা valid কিনা চেক করো
+  const checkRes = await rideDb.query(
+    `SELECT s.*, u.university_email AS receiver_email_from_user
      FROM send_items s
      LEFT JOIN users u ON s.receiver_id = u.user_id
-     WHERE s.s_id = $1 AND s.rider_id = $2 AND s.status = 'picked_up' LIMIT 1`,
+     WHERE s.s_id = $1 AND s.rider_id = $2 AND s.status IN ('accepted', 'picked_up')
+     LIMIT 1`,
     [id, riderId]
   );
 
-  if (!res.rows.length) {
-    throw new Error('Delivery not found, not assigned to you, or not picked up yet.');
+  if (!checkRes.rows.length) {
+    throw new Error('Delivery not found or not yours.');
   }
 
-  const delivery = res.rows[0];
-  const targetEmail = delivery.receiver_email || delivery.receiver_user_email;
+  const delivery = checkRes.rows[0];
+  const receiverEmail = delivery.receiver_email_from_user || delivery.receiver_email;
 
-  if (!targetEmail) {
-    throw new Error('Receiver email not found to send OTP.');
+  if (!receiverEmail) {
+    throw new Error('Receiver email not found. Cannot send OTP.');
   }
 
-  const otp = Math.floor(1000 + Math.random() * 9000).toString();
-  const expiresAt = Date.now() + 2.5 * 60 * 1000; // ২.৫ মিনিট ভ্যালিডিটি
+  // OTP generate করো (6 digit)
+  const otp = Math.floor(100000 + Math.random() * 900000).toString();
+  const expiresAt = Date.now() + 2.5 * 60 * 1000; // ২.৫ মিনিট
 
-  deliveryOTPs.set(String(id), { otp, expiresAt });
+  // Store করো
+  deliveryOtpStore.set(String(id), { otp, expiresAt, riderId: String(riderId) });
 
-  const { sendMail } = require('./emailService');
-  try {
-    await sendMail({
-      to: targetEmail,
-      subject: `UniRide: OTP for Receiving Your ${delivery.item_type || 'Item'} 🔑`,
-      html: `
-        <div style="font-family: Arial, sans-serif; max-width: 500px; margin: auto; border: 1px solid #e5e7eb; border-radius: 12px; overflow: hidden;">
-          <div style="background: #14B8A6; padding: 20px; text-align: center; color: white;">
-            <h2 style="margin: 0;">UniRide Secure Delivery</h2>
-          </div>
-          <div style="padding: 24px; text-align: center;">
-            <p style="font-size: 16px; color: #374151;">Please provide the following OTP to the rider to collect your item:</p>
-            <div style="background: #f3f4f6; letter-spacing: 6px; font-size: 32px; font-weight: bold; padding: 14px; margin: 20px 0; border-radius: 8px; color: #111827;">
-              ${otp}
-            </div>
-            <p style="color: #ef4444; font-size: 13px; font-weight: 500;">⚠️ This OTP is valid for exactly 2.5 minutes.</p>
-          </div>
+  // Email পাঠাও
+  const { sendMail } = require('./mailService');
+  await sendMail({
+    to: receiverEmail,
+    subject: `UniRide: Your Delivery OTP — ${otp}`,
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; border: 1px solid #e5e7eb; border-radius: 12px; overflow: hidden;">
+        <div style="background: #14B8A6; padding: 24px; text-align: center;">
+          <h1 style="color: white; margin: 0; font-size: 22px;">UniRide Delivery</h1>
+          <p style="color: rgba(255,255,255,0.85); margin: 8px 0 0 0;">Delivery Confirmation OTP</p>
         </div>
-      `
-    });
-  } catch (err) {
-    console.error('Failed to send OTP email:', err.message);
-    throw new Error('Failed to send OTP email. Please try again.');
-  }
+        <div style="padding: 28px; text-align: center;">
+          <p style="font-size: 16px; color: #1F2937;">Your rider is here to deliver your item.</p>
+          <p style="color: #374151;">Please share this OTP with the rider to confirm delivery:</p>
+          <div style="background: #f0fdf4; border: 2px dashed #14B8A6; border-radius: 12px; padding: 24px; margin: 24px 0; display: inline-block; width: 80%;">
+            <h2 style="color: #0f766e; font-size: 42px; letter-spacing: 10px; margin: 0;">${otp}</h2>
+          </div>
+          <p style="color: #ef4444; font-weight: bold;">⏱️ This OTP is valid for 2 minutes 30 seconds only.</p>
+          <p style="color: #6b7280; font-size: 13px;">Do NOT share this OTP with anyone other than your UniRide delivery rider.</p>
+        </div>
+        <div style="background: #f9fafb; padding: 16px; text-align: center; border-top: 1px solid #e5e7eb;">
+          <p style="color: #9ca3af; font-size: 12px; margin: 0;">UniRide — East West University Campus Delivery</p>
+        </div>
+      </div>
+    `,
+  });
 
-  return { success: true, message: 'OTP sent to receiver email.' };
+  return { message: 'OTP sent to receiver email.', expiresIn: 150 };
 };
 
-/* =========================
-   MARK AS DELIVERED (WITH OTP)
-========================= */
 const markDelivered = async ({ riderId, id, otp, io }) => {
-  const otpData = deliveryOTPs.get(String(id));
-  
-  if (!otpData) {
-    throw new Error('No OTP requested or OTP expired. Please resend OTP.');
+  // OTP check
+  const storedOtp = deliveryOtpStore.get(String(id));
+
+  if (!storedOtp) {
+    throw new Error('OTP not found. Please request a new OTP.');
   }
 
-  if (Date.now() > otpData.expiresAt) {
-    deliveryOTPs.delete(String(id));
-    throw new Error('OTP has expired (2.5 min limit). Please request a new OTP.');
+  if (Date.now() > storedOtp.expiresAt) {
+    deliveryOtpStore.delete(String(id));
+    throw new Error('OTP has expired. Please request a new OTP.');
   }
 
-  if (otpData.otp !== String(otp).trim()) {
-    throw new Error('Invalid OTP code. Please check and try again.');
+  if (storedOtp.otp !== String(otp)) {
+    throw new Error('Invalid OTP. Please check and try again.');
   }
 
-  deliveryOTPs.delete(String(id));
+  if (storedOtp.riderId !== String(riderId)) {
+    throw new Error('Unauthorized.');
+  }
+
+  // OTP delete করো (একবারই ব্যবহার হবে)
+  deliveryOtpStore.delete(String(id));
 
   const rider = await getRiderBasicInfo(riderId);
 
@@ -452,6 +468,7 @@ const markDelivered = async ({ riderId, id, otp, io }) => {
 
   await sendDeliveryDeliveredNotifications({ delivery, rider });
 
+  // Rider earning transaction + ৳5 wallet bonus
   try {
     const deliveryFee = Number(delivery.delivery_fee || 0);
     const bonusAmount = 5;
@@ -480,11 +497,11 @@ const markDelivered = async ({ riderId, id, otp, io }) => {
        WHERE user_id = $2`,
       [bonusAmount, riderId]
     );
-
   } catch (earnErr) {
     console.error('Earning record error:', earnErr.message);
   }
 
+  // Send delivery completed emails
   try {
     const rideDb2 = require('../config/rideDb');
 
@@ -517,6 +534,123 @@ const markDelivered = async ({ riderId, id, otp, io }) => {
   }
 
   if (io) {
+    io.to(`rider_${riderId}`).emit('delivery:updated', {
+      deliveryId: id,
+      status: 'delivered',
+    });
+
+    const earningsRes = await rideDb.query(
+      `SELECT
+        SUM(CASE WHEN DATE(delivered_at) = CURRENT_DATE THEN delivery_fee ELSE 0 END) AS today,
+        SUM(CASE WHEN DATE(delivered_at) >= date_trunc('week', CURRENT_DATE) THEN delivery_fee ELSE 0 END) AS week
+      FROM send_items
+      WHERE rider_id = $1 AND status = 'delivered'`,
+      [riderId]
+    );
+
+    io.to(`rider_${riderId}`).emit('delivery:earnings-updated', {
+      todayDeliveryEarnings: Number(earningsRes.rows[0].today || 0),
+      weekDeliveryEarnings: Number(earningsRes.rows[0].week || 0),
+    });
+
+    if (delivery.sender_id) {
+      io.to(`user_${delivery.sender_id}`).emit('delivery:status-changed', {
+        deliveryId: delivery.s_id,
+        status: 'delivered',
+      });
+    }
+
+    if (delivery.receiver_id) {
+      io.to(`user_${delivery.receiver_id}`).emit('delivery:status-changed', {
+        deliveryId: delivery.s_id,
+        status: 'delivered',
+      });
+    }
+  }
+
+  return { deliveryId: id, status: 'delivered' };
+};
+
+  if (!result.rows.length) {
+    throw new Error('Delivery not found or not yours.');
+  }
+
+  const delivery = result.rows[0];
+
+  await sendDeliveryDeliveredNotifications({ delivery, rider });
+
+  // Rider earning transaction + ৳5 wallet bonus
+  try {
+    const deliveryFee = Number(delivery.delivery_fee || 0);
+    const bonusAmount = 5;
+    const referenceId = `delivery_earn_${delivery.s_id}`;
+    const bonusReferenceId = `delivery_bonus_${delivery.s_id}`;
+
+    // Delivery fee earning record
+    await rideDb.query(
+      `INSERT INTO transactions
+       (user_id, amount, type, method, reference_id, status)
+       VALUES ($1, $2, 'credit', 'delivery', $3, 'completed')
+       ON CONFLICT (reference_id) DO NOTHING`,
+      [riderId, deliveryFee, referenceId]
+    );
+
+    // ৳5 bonus wallet credit + due_balance কমাও
+    await rideDb.query(
+      `INSERT INTO transactions
+       (user_id, amount, type, method, reference_id, status)
+       VALUES ($1, $2, 'credit', 'delivery_bonus', $3, 'completed')
+       ON CONFLICT (reference_id) DO NOTHING`,
+      [riderId, bonusAmount, bonusReferenceId]
+    );
+
+    await rideDb.query(
+      `UPDATE users
+       SET due_balance = GREATEST(due_balance - $1, 0)
+       WHERE user_id = $2`,
+      [bonusAmount, riderId]
+    );
+
+  } catch (earnErr) {
+    console.error('Earning record error:', earnErr.message);
+  }
+
+   // Send delivery completed emails
+  try {
+    const rideDb2 = require('../config/rideDb');
+
+    // Get sender email
+    if (delivery.sender_id) {
+      const senderRes = await rideDb2.query(
+        `SELECT university_email, first_name, last_name FROM users WHERE user_id = $1 LIMIT 1`,
+        [delivery.sender_id]
+      );
+      if (senderRes.rows.length) {
+        const sender = senderRes.rows[0];
+        const senderName = `${sender.first_name || ''} ${sender.last_name || ''}`.trim() || 'Sender';
+        const receiverName = delivery.receiver_name || delivery.receiver_email || 'Receiver';
+        await sendDeliveryCompletedEmailToSender({
+          senderEmail: sender.university_email,
+          senderName,
+          receiverName,
+          itemType: delivery.item_type || 'Item',
+        });
+      }
+    }
+
+    // Send email to receiver
+    if (delivery.receiver_email) {
+      await sendDeliveryCompletedEmailToReceiver({
+        receiverEmail: delivery.receiver_email,
+        itemType: delivery.item_type || 'Item',
+      });
+    }
+  } catch (emailErr) {
+    console.error('Delivery completed email error:', emailErr.message);
+  }
+
+  if (io) {
+    // ✅ FIX
     io.to(`rider_${riderId}`).emit('delivery:updated', {
       deliveryId: id,
       status: 'delivered',
@@ -578,12 +712,13 @@ const markPickedUp = async ({ riderId, id, io }) => {
     [id, riderId]
   );
 
-  if (!result.rows.length) {
+if (!result.rows.length) {
     throw new Error('Delivery not found or not yours.');
   }
 
   const delivery = result.rows[0];
 
+  // Send pickup email to receiver
   try {
     if (delivery.receiver_email) {
       const riderName = `${rider.first_name || ''} ${rider.last_name || ''}`.trim() || 'Rider';
@@ -664,11 +799,12 @@ const markPickedUp = async ({ riderId, id, io }) => {
   };
 };
 
+
 module.exports = {
   getDashboard,
   acceptRequest,
   rejectRequest,
-  sendDeliveryOTP, 
   markDelivered,
   markPickedUp,
+  sendDeliveryOtp,
 };
