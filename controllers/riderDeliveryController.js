@@ -86,9 +86,9 @@ const rejectRequest = async (req, res) => {
 };
 
 // =========================
-// SEND DELIVERY OTP
+// MARK DELIVERY AS DELIVERED
 // =========================
-const sendDeliveryOTP = async (req, res) => {
+const sendDeliveryOtp = async (req, res) => {
   try {
     const riderId = req.user?.userId;
     const deliveryId = req.params?.id;
@@ -97,26 +97,27 @@ const sendDeliveryOTP = async (req, res) => {
       return errorResponse(res, 'Invalid request data', 400);
     }
 
-    const data = await service.sendDeliveryOTP({ riderId, id: deliveryId });
-    return successResponse(res, 'OTP sent successfully to receiver email.', data);
+    const data = await service.sendDeliveryOtp({ riderId, id: deliveryId });
+    return successResponse(res, 'OTP sent to receiver.', data);
   } catch (err) {
-    console.error('sendDeliveryOTP error:', err);
+    console.error('sendDeliveryOtp error:', err);
     return errorResponse(res, err.message || 'Failed to send OTP', 400);
   }
 };
 
-// =========================
-// MARK DELIVERY AS DELIVERED
-// =========================
 const markDelivered = async (req, res) => {
   try {
     const riderId = req.user?.userId;
     const deliveryId = req.params?.id;
-    const { otp } = req.body; 
+    const otp = req.body?.otp;
     const io = req.app.get('io');
 
-    if (!riderId || !deliveryId || !otp) {
-      return errorResponse(res, 'Missing required fields (Rider ID, Delivery ID or OTP)', 400);
+    if (!riderId || !deliveryId) {
+      return errorResponse(res, 'Invalid request data', 400);
+    }
+
+    if (!otp) {
+      return errorResponse(res, 'OTP is required', 400);
     }
 
     const data = await service.markDelivered({
@@ -171,7 +172,7 @@ module.exports = {
   getDashboard,
   acceptRequest,
   rejectRequest,
-  sendDeliveryOTP, 
+  sendDeliveryOtp,
   markDelivered,
   markPickedUp,
 };
