@@ -571,7 +571,7 @@ const markDelivered = async ({ riderId, id, otp, io }) => {
   return { deliveryId: id, status: 'delivered' };
 };
 
-  if (!result.rows.length) {
+  /*if (!result.rows.length) {
     throw new Error('Delivery not found or not yours.');
   }
 
@@ -692,7 +692,7 @@ const markDelivered = async ({ riderId, id, otp, io }) => {
     deliveryId: id,
     status: 'delivered',
   };
-};
+};*/
 
 /* =========================
    MARK AS PICKED UP
