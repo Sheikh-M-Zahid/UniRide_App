@@ -9,6 +9,8 @@ const {
 const { createNotification } = require('./notificationService');
 
 const rejectedRequestsByRider = new Map();
+// OTP সাময়িকভাবে মেমরিতে রাখার জন্য
+const deliveryOTPs = new Map(); 
 
 /* =========================
    HELPERS
@@ -271,7 +273,6 @@ const acceptRequest = async ({ riderId, requestId, io }) => {
 
   await sendDeliveryAcceptedNotifications({ delivery, rider });
 
-  // Sender কে email পাঠাও
   try {
     const { sendRiderAcceptedEmailToSender } = require('./emailService');
     const senderRes = await rideDb.query(
@@ -299,8 +300,6 @@ const acceptRequest = async ({ riderId, requestId, io }) => {
 
   if (io) {
     io.emit('delivery:removed', { requestId: String(requestId) });
-
-    // ✅ FIX
     io.to(`rider_${riderId}`).emit('delivery:accepted', mapped);
 
     if (delivery.sender_id) {
@@ -345,7 +344,6 @@ const rejectRequest = async ({ riderId, requestId, io }) => {
   rejectedSet.add(String(requestId));
 
   if (io) {
-    // ✅ FIX
     io.to(`rider_${riderId}`).emit('delivery:reject-ui', {
       requestId: String(requestId),
     });
@@ -355,9 +353,82 @@ const rejectRequest = async ({ riderId, requestId, io }) => {
 };
 
 /* =========================
-   MARK AS DELIVERED
+   SEND DELIVERY OTP
 ========================= */
-const markDelivered = async ({ riderId, id, io }) => {
+const sendDeliveryOTP = async ({ riderId, id }) => {
+  const res = await rideDb.query(
+    `SELECT s.*, u.university_email as receiver_user_email 
+     FROM send_items s
+     LEFT JOIN users u ON s.receiver_id = u.user_id
+     WHERE s.s_id = $1 AND s.rider_id = $2 AND s.status = 'picked_up' LIMIT 1`,
+    [id, riderId]
+  );
+
+  if (!res.rows.length) {
+    throw new Error('Delivery not found, not assigned to you, or not picked up yet.');
+  }
+
+  const delivery = res.rows[0];
+  const targetEmail = delivery.receiver_email || delivery.receiver_user_email;
+
+  if (!targetEmail) {
+    throw new Error('Receiver email not found to send OTP.');
+  }
+
+  const otp = Math.floor(1000 + Math.random() * 9000).toString();
+  const expiresAt = Date.now() + 2.5 * 60 * 1000; // ২.৫ মিনিট ভ্যালিডিটি
+
+  deliveryOTPs.set(String(id), { otp, expiresAt });
+
+  const { sendMail } = require('./emailService');
+  try {
+    await sendMail({
+      to: targetEmail,
+      subject: `UniRide: OTP for Receiving Your ${delivery.item_type || 'Item'} 🔑`,
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 500px; margin: auto; border: 1px solid #e5e7eb; border-radius: 12px; overflow: hidden;">
+          <div style="background: #14B8A6; padding: 20px; text-align: center; color: white;">
+            <h2 style="margin: 0;">UniRide Secure Delivery</h2>
+          </div>
+          <div style="padding: 24px; text-align: center;">
+            <p style="font-size: 16px; color: #374151;">Please provide the following OTP to the rider to collect your item:</p>
+            <div style="background: #f3f4f6; letter-spacing: 6px; font-size: 32px; font-weight: bold; padding: 14px; margin: 20px 0; border-radius: 8px; color: #111827;">
+              ${otp}
+            </div>
+            <p style="color: #ef4444; font-size: 13px; font-weight: 500;">⚠️ This OTP is valid for exactly 2.5 minutes.</p>
+          </div>
+        </div>
+      `
+    });
+  } catch (err) {
+    console.error('Failed to send OTP email:', err.message);
+    throw new Error('Failed to send OTP email. Please try again.');
+  }
+
+  return { success: true, message: 'OTP sent to receiver email.' };
+};
+
+/* =========================
+   MARK AS DELIVERED (WITH OTP)
+========================= */
+const markDelivered = async ({ riderId, id, otp, io }) => {
+  const otpData = deliveryOTPs.get(String(id));
+  
+  if (!otpData) {
+    throw new Error('No OTP requested or OTP expired. Please resend OTP.');
+  }
+
+  if (Date.now() > otpData.expiresAt) {
+    deliveryOTPs.delete(String(id));
+    throw new Error('OTP has expired (2.5 min limit). Please request a new OTP.');
+  }
+
+  if (otpData.otp !== String(otp).trim()) {
+    throw new Error('Invalid OTP code. Please check and try again.');
+  }
+
+  deliveryOTPs.delete(String(id));
+
   const rider = await getRiderBasicInfo(riderId);
 
   const result = await rideDb.query(
@@ -381,14 +452,12 @@ const markDelivered = async ({ riderId, id, io }) => {
 
   await sendDeliveryDeliveredNotifications({ delivery, rider });
 
-  // Rider earning transaction + ৳5 wallet bonus
   try {
     const deliveryFee = Number(delivery.delivery_fee || 0);
     const bonusAmount = 5;
     const referenceId = `delivery_earn_${delivery.s_id}`;
     const bonusReferenceId = `delivery_bonus_${delivery.s_id}`;
 
-    // Delivery fee earning record
     await rideDb.query(
       `INSERT INTO transactions
        (user_id, amount, type, method, reference_id, status)
@@ -397,7 +466,6 @@ const markDelivered = async ({ riderId, id, io }) => {
       [riderId, deliveryFee, referenceId]
     );
 
-    // ৳5 bonus wallet credit + due_balance কমাও
     await rideDb.query(
       `INSERT INTO transactions
        (user_id, amount, type, method, reference_id, status)
@@ -417,11 +485,9 @@ const markDelivered = async ({ riderId, id, io }) => {
     console.error('Earning record error:', earnErr.message);
   }
 
-   // Send delivery completed emails
   try {
     const rideDb2 = require('../config/rideDb');
 
-    // Get sender email
     if (delivery.sender_id) {
       const senderRes = await rideDb2.query(
         `SELECT university_email, first_name, last_name FROM users WHERE user_id = $1 LIMIT 1`,
@@ -440,7 +506,6 @@ const markDelivered = async ({ riderId, id, io }) => {
       }
     }
 
-    // Send email to receiver
     if (delivery.receiver_email) {
       await sendDeliveryCompletedEmailToReceiver({
         receiverEmail: delivery.receiver_email,
@@ -452,7 +517,6 @@ const markDelivered = async ({ riderId, id, io }) => {
   }
 
   if (io) {
-    // ✅ FIX
     io.to(`rider_${riderId}`).emit('delivery:updated', {
       deliveryId: id,
       status: 'delivered',
@@ -514,13 +578,12 @@ const markPickedUp = async ({ riderId, id, io }) => {
     [id, riderId]
   );
 
-if (!result.rows.length) {
+  if (!result.rows.length) {
     throw new Error('Delivery not found or not yours.');
   }
 
   const delivery = result.rows[0];
 
-  // Send pickup email to receiver
   try {
     if (delivery.receiver_email) {
       const riderName = `${rider.first_name || ''} ${rider.last_name || ''}`.trim() || 'Rider';
@@ -601,11 +664,11 @@ if (!result.rows.length) {
   };
 };
 
-
 module.exports = {
   getDashboard,
   acceptRequest,
   rejectRequest,
+  sendDeliveryOTP, 
   markDelivered,
   markPickedUp,
 };
