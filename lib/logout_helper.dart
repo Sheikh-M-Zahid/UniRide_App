@@ -1,9 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-// ignore: avoid_web_libraries_in_flutter
-import 'dart:html' as html;
 import 'LogIn.dart';
 
 class LogoutHelper {
@@ -40,7 +37,6 @@ class LogoutHelper {
   }
 
   static Future<void> _doLogout() async {
-    // ১. Prefs clear
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.clear();
@@ -48,23 +44,17 @@ class LogoutHelper {
       debugPrint("Prefs clear error: $e");
     }
 
-    // ২. Google sign out
     try {
       await GoogleSignIn.instance.signOut();
     } catch (e) {
       debugPrint("Google signOut error: $e");
     }
 
-    // ৩. Web হলে page reload, Mobile হলে runApp
-    if (kIsWeb) {
-      html.window.location.reload();
-    } else {
-      runApp(
-        const MaterialApp(
-          debugShowCheckedModeBanner: false,
-          home: UniRideLogin(),
-        ),
-      );
-    }
+    runApp(
+      const MaterialApp(
+        debugShowCheckedModeBanner: false,
+        home: UniRideLogin(),
+      ),
+    );
   }
 }

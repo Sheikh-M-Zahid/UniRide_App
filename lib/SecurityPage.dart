@@ -49,10 +49,13 @@ class _SecurityPageState extends State<SecurityPage> {
 
   late Future<SecurityData> securityData;
 
-  static const Color primary = Color(0xFF14B8A6);
-  static const Color secondary = Color(0xFF0F766E);
+  static const Color primary    = Color(0xFF14B8A6);
+  static const Color secondary  = Color(0xFF0F766E);
   static const Color background = Color(0xFFF9FAFB);
-  static const Color text = Color(0xFF1F2937);
+  static const Color text       = Color(0xFF1F2937);
+  static const Color inputFill  = Color(0xFFF1F5F9);
+  static const Color border     = Color(0xFFD1D5DB);
+  static const Color mutedText  = Color(0xFF6B7280);
 
   @override
   void initState() {
@@ -68,7 +71,6 @@ class _SecurityPageState extends State<SecurityPage> {
 
   @override
   Widget build(BuildContext context) {
-
     return Scaffold(
       backgroundColor: background,
 
@@ -153,44 +155,33 @@ class _SecurityPageState extends State<SecurityPage> {
                 title: "Report Security Issue",
                 subtitle: "Report suspicious or unsafe activity",
                 onTap: () {
-
                   Navigator.push(
                     context,
                     MaterialPageRoute(
                       builder: (_) => const ReportProblemPage(),
                     ),
                   );
-
                 },
               ),
 
               const SizedBox(height: 25),
 
               if (data.hasDuePayment)
-
                 Container(
                   padding: const EdgeInsets.all(18),
-
                   decoration: BoxDecoration(
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(color: Colors.red.shade300),
                   ),
-
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
 
                       const Row(
                         children: [
-
-                          Icon(
-                            Icons.warning_amber_rounded,
-                            color: Colors.red,
-                          ),
-
+                          Icon(Icons.warning_amber_rounded, color: Colors.red),
                           SizedBox(width: 10),
-
                           Text(
                             "Payment Reminder",
                             style: TextStyle(
@@ -198,7 +189,6 @@ class _SecurityPageState extends State<SecurityPage> {
                               color: text,
                             ),
                           ),
-
                         ],
                       ),
 
@@ -215,9 +205,7 @@ class _SecurityPageState extends State<SecurityPage> {
                         style: ElevatedButton.styleFrom(
                           backgroundColor: primary,
                         ),
-
                         onPressed: () {
-
                           Navigator.push(
                             context,
                             MaterialPageRoute(
@@ -226,9 +214,7 @@ class _SecurityPageState extends State<SecurityPage> {
                               ),
                             ),
                           );
-
                         },
-
                         child: const Text("Pay Now"),
                       ),
                     ],
@@ -255,7 +241,6 @@ class _SecurityPageState extends State<SecurityPage> {
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
       ),
-
       child: ListTile(
         leading: Icon(icon, color: primary),
         title: Text(
@@ -272,6 +257,258 @@ class _SecurityPageState extends State<SecurityPage> {
     );
   }
 
+  /* ================= INPUT DECORATION HELPER ================= */
+
+  InputDecoration _inputDecoration({
+    required String label,
+    Widget? suffixIcon,
+  }) {
+    return InputDecoration(
+      labelText: label,
+      labelStyle: const TextStyle(color: mutedText),
+      filled: true,
+      fillColor: inputFill,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(10),
+        borderSide: const BorderSide(color: border),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(10),
+        borderSide: const BorderSide(color: border),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(10),
+        borderSide: const BorderSide(color: primary, width: 2),
+      ),
+      suffixIcon: suffixIcon,
+    );
+  }
+
+  /* ================= DIALOG STYLE HELPER ================= */
+
+  AlertDialog _styledDialog({
+    required String title,
+    required Widget content,
+    required List<Widget> actions,
+  }) {
+    return AlertDialog(
+      backgroundColor: background,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+      ),
+      titlePadding: const EdgeInsets.fromLTRB(24, 24, 24, 8),
+      contentPadding: const EdgeInsets.fromLTRB(24, 12, 24, 0),
+      actionsPadding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+      title: Text(
+        title,
+        style: const TextStyle(
+          color: text,
+          fontWeight: FontWeight.bold,
+          fontSize: 18,
+        ),
+      ),
+      content: content,
+      actions: actions,
+    );
+  }
+
+  /* ================= BUTTON HELPERS ================= */
+
+  Widget _cancelButton({required bool isSaving, required VoidCallback onTap}) {
+    return TextButton(
+      onPressed: isSaving ? null : onTap,
+      child: const Text(
+        "Cancel",
+        style: TextStyle(color: mutedText),
+      ),
+    );
+  }
+
+  Widget _saveButton({
+    required bool isSaving,
+    required VoidCallback onPressed,
+  }) {
+    return ElevatedButton(
+      style: ElevatedButton.styleFrom(
+        backgroundColor: primary,
+        foregroundColor: Colors.white,
+        elevation: 0,
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(10),
+        ),
+      ),
+      onPressed: isSaving ? null : onPressed,
+      child: isSaving
+          ? const SizedBox(
+        width: 18,
+        height: 18,
+        child: CircularProgressIndicator(
+          strokeWidth: 2,
+          color: Colors.white,
+        ),
+      )
+          : const Text(
+        "Save",
+        style: TextStyle(fontWeight: FontWeight.w600),
+      ),
+    );
+  }
+
+  /* ================= CHANGE PASSWORD ================= */
+
+  void _changePassword() {
+    final currentPassController = TextEditingController();
+    final newPassController     = TextEditingController();
+    final confirmPassController = TextEditingController();
+
+    bool isSaving      = false;
+    bool showCurrent   = false;
+    bool showNew       = false;
+    bool showConfirm   = false;
+
+    showDialog(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) {
+
+          void toggleCurrent()  => setDialogState(() => showCurrent  = !showCurrent);
+          void toggleNew()      => setDialogState(() => showNew      = !showNew);
+          void toggleConfirm()  => setDialogState(() => showConfirm  = !showConfirm);
+
+          return _styledDialog(
+            title: "Change Password",
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+
+                // Current Password
+                TextField(
+                  controller: currentPassController,
+                  obscureText: !showCurrent,
+                  style: const TextStyle(color: text),
+                  decoration: _inputDecoration(
+                    label: "Current Password",
+                    suffixIcon: IconButton(
+                      icon: Icon(
+                        showCurrent ? Icons.visibility : Icons.visibility_off,
+                        color: mutedText,
+                        size: 20,
+                      ),
+                      onPressed: toggleCurrent,
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 14),
+
+                // New Password
+                TextField(
+                  controller: newPassController,
+                  obscureText: !showNew,
+                  style: const TextStyle(color: text),
+                  decoration: _inputDecoration(
+                    label: "New Password",
+                    suffixIcon: IconButton(
+                      icon: Icon(
+                        showNew ? Icons.visibility : Icons.visibility_off,
+                        color: mutedText,
+                        size: 20,
+                      ),
+                      onPressed: toggleNew,
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 14),
+
+                // Confirm Password
+                TextField(
+                  controller: confirmPassController,
+                  obscureText: !showConfirm,
+                  style: const TextStyle(color: text),
+                  decoration: _inputDecoration(
+                    label: "Confirm Password",
+                    suffixIcon: IconButton(
+                      icon: Icon(
+                        showConfirm ? Icons.visibility : Icons.visibility_off,
+                        color: mutedText,
+                        size: 20,
+                      ),
+                      onPressed: toggleConfirm,
+                    ),
+                  ),
+                ),
+
+              ],
+            ),
+            actions: [
+              _cancelButton(
+                isSaving: isSaving,
+                onTap: () => Navigator.pop(dialogContext),
+              ),
+              _saveButton(
+                isSaving: isSaving,
+                onPressed: () async {
+                  final currentPassword = currentPassController.text.trim();
+                  final newPassword     = newPassController.text.trim();
+                  final confirmPassword = confirmPassController.text.trim();
+
+                  if (currentPassword.isEmpty ||
+                      newPassword.isEmpty ||
+                      confirmPassword.isEmpty) {
+                    ScaffoldMessenger.of(this.context).showSnackBar(
+                      const SnackBar(content: Text("All fields are required")),
+                    );
+                    return;
+                  }
+
+                  if (newPassword != confirmPassword) {
+                    ScaffoldMessenger.of(this.context).showSnackBar(
+                      const SnackBar(
+                        content: Text("New passwords do not match"),
+                      ),
+                    );
+                    return;
+                  }
+
+                  try {
+                    setDialogState(() => isSaving = true);
+
+                    await _api.changeSecurityPassword(
+                      currentPassword: currentPassword,
+                      newPassword: newPassword,
+                    );
+
+                    if (!mounted) return;
+                    Navigator.pop(dialogContext);
+
+                    ScaffoldMessenger.of(this.context).showSnackBar(
+                      const SnackBar(
+                        content: Text("Password changed successfully"),
+                      ),
+                    );
+                  } catch (e) {
+                    if (!mounted) return;
+                    setDialogState(() => isSaving = false);
+                    ScaffoldMessenger.of(this.context).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          e.toString().replaceFirst('Exception: ', ''),
+                        ),
+                      ),
+                    );
+                  }
+                },
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
   /* ================= EMERGENCY CONTACT ================= */
 
   void _addEmergencyContact() {
@@ -281,50 +518,33 @@ class _SecurityPageState extends State<SecurityPage> {
     showDialog(
       context: context,
       builder: (dialogContext) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          title: const Text("Emergency Contact"),
+        builder: (context, setDialogState) => _styledDialog(
+          title: "Emergency Contact",
           content: TextField(
             controller: controller,
             keyboardType: TextInputType.phone,
-            decoration: const InputDecoration(
-              labelText: "Enter phone number",
-            ),
+            style: const TextStyle(color: text),
+            decoration: _inputDecoration(label: "Enter phone number"),
           ),
           actions: [
-            TextButton(
-              child: const Text("Cancel"),
-              onPressed: isSaving
-                  ? null
-                  : () {
-                Navigator.pop(dialogContext);
-              },
+            _cancelButton(
+              isSaving: isSaving,
+              onTap: () => Navigator.pop(dialogContext),
             ),
-            ElevatedButton(
-              child: isSaving
-                  ? const SizedBox(
-                width: 18,
-                height: 18,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              )
-                  : const Text("Save"),
-              onPressed: isSaving
-                  ? null
-                  : () async {
+            _saveButton(
+              isSaving: isSaving,
+              onPressed: () async {
                 final phone = controller.text.trim();
 
                 if (phone.isEmpty) {
                   ScaffoldMessenger.of(this.context).showSnackBar(
-                    const SnackBar(
-                      content: Text("Phone number is required"),
-                    ),
+                    const SnackBar(content: Text("Phone number is required")),
                   );
                   return;
                 }
 
                 try {
-                  setDialogState(() {
-                    isSaving = true;
-                  });
+                  setDialogState(() => isSaving = true);
 
                   await _api.updateEmergencyContact(phone: phone);
 
@@ -342,11 +562,7 @@ class _SecurityPageState extends State<SecurityPage> {
                   );
                 } catch (e) {
                   if (!mounted) return;
-
-                  setDialogState(() {
-                    isSaving = false;
-                  });
-
+                  setDialogState(() => isSaving = false);
                   ScaffoldMessenger.of(this.context).showSnackBar(
                     SnackBar(
                       content: Text(
@@ -356,109 +572,6 @@ class _SecurityPageState extends State<SecurityPage> {
                   );
                 }
               },
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-  void _changePassword() {
-    final currentPasswordController = TextEditingController();
-    final newPasswordController = TextEditingController();
-    bool isSaving = false;
-
-    showDialog(
-      context: context,
-      builder: (dialogContext) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          title: const Text("Change Password"),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: currentPasswordController,
-                obscureText: true,
-                decoration: const InputDecoration(
-                  labelText: "Current Password",
-                ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: newPasswordController,
-                obscureText: true,
-                decoration: const InputDecoration(
-                  labelText: "New Password",
-                ),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: isSaving
-                  ? null
-                  : () {
-                Navigator.pop(dialogContext);
-              },
-              child: const Text("Cancel"),
-            ),
-            ElevatedButton(
-              onPressed: isSaving
-                  ? null
-                  : () async {
-                final currentPassword =
-                currentPasswordController.text.trim();
-                final newPassword = newPasswordController.text.trim();
-
-                if (currentPassword.isEmpty || newPassword.isEmpty) {
-                  ScaffoldMessenger.of(this.context).showSnackBar(
-                    const SnackBar(
-                      content: Text("Both passwords are required"),
-                    ),
-                  );
-                  return;
-                }
-
-                try {
-                  setDialogState(() {
-                    isSaving = true;
-                  });
-
-                  await _api.changeSecurityPassword(
-                    currentPassword: currentPassword,
-                    newPassword: newPassword,
-                  );
-
-                  if (!mounted) return;
-                  Navigator.pop(dialogContext);
-
-                  ScaffoldMessenger.of(this.context).showSnackBar(
-                    const SnackBar(
-                      content: Text("Password changed successfully"),
-                    ),
-                  );
-                } catch (e) {
-                  if (!mounted) return;
-
-                  setDialogState(() {
-                    isSaving = false;
-                  });
-
-                  ScaffoldMessenger.of(this.context).showSnackBar(
-                    SnackBar(
-                      content: Text(
-                        e.toString().replaceFirst('Exception: ', ''),
-                      ),
-                    ),
-                  );
-                }
-              },
-              child: isSaving
-                  ? const SizedBox(
-                width: 18,
-                height: 18,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              )
-                  : const Text("Save"),
             ),
           ],
         ),

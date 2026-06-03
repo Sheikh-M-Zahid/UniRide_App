@@ -323,6 +323,9 @@ class AuthApiService {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('token');
 
+    final ext = imageFile.path.split('.').last.toLowerCase();
+    final mimeType = ext == 'png' ? 'png' : 'jpeg';
+
     final request = http.MultipartRequest(
       'PATCH',
       Uri.parse('$baseUrl/profile/image'),
@@ -330,11 +333,20 @@ class AuthApiService {
 
     request.headers['Authorization'] = 'Bearer $token';
     request.files.add(
-      await http.MultipartFile.fromPath('profile_picture', imageFile.path),
+      await http.MultipartFile.fromPath(
+        'profile_picture',
+        imageFile.path,
+        contentType: MediaType('image', mimeType),
+      ),
     );
 
     final streamedResponse = await request.send();
     final response = await http.Response.fromStream(streamedResponse);
+
+    if (response.body.isEmpty) {
+      throw Exception('Empty response from server');
+    }
+
     final data = jsonDecode(response.body);
 
     if (response.statusCode == 200) {
@@ -1610,8 +1622,34 @@ class AuthApiService {
     }
   }
 
+  Future<Map<String, dynamic>> sendDeliveryOtp({
+    required String deliveryId,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+
+    final url = Uri.parse('$baseUrl/rider/delivery/$deliveryId/send-delivery-otp');
+
+    final response = await http.post(
+      url,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    );
+
+    final data = jsonDecode(response.body);
+
+    if (response.statusCode == 200) {
+      return data;
+    } else {
+      throw Exception(data['message'] ?? 'Failed to send OTP');
+    }
+  }
+
   Future<Map<String, dynamic>> markDeliveryAsDelivered({
     required String deliveryId,
+    required String otp,
   }) async {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('token');
@@ -1624,6 +1662,7 @@ class AuthApiService {
         'Content-Type': 'application/json',
         'Authorization': 'Bearer $token',
       },
+      body: jsonEncode({'otp': otp}),
     );
 
     final data = jsonDecode(response.body);
@@ -2108,15 +2147,20 @@ class AuthApiService {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('token');
 
-    final url = Uri.parse('$baseUrl/rider/ride-requests/$requestId/accept');
+    final url = Uri.parse('$baseUrl/ride-requests/$requestId/accept');
 
-    final response = await http.post(
+    final response = await http.patch(
       url,
       headers: {
         'Content-Type': 'application/json',
         'Authorization': 'Bearer $token',
       },
     );
+
+    final contentType = response.headers['content-type'] ?? '';
+    if (!contentType.contains('application/json')) {
+      throw Exception('Server error (${response.statusCode}). Route not found.');
+    }
 
     final data = jsonDecode(response.body);
 
@@ -2133,15 +2177,20 @@ class AuthApiService {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('token');
 
-    final url = Uri.parse('$baseUrl/rider/ride-requests/$requestId/reject');
+    final url = Uri.parse('$baseUrl/ride-requests/$requestId/reject');
 
-    final response = await http.post(
+    final response = await http.patch(
       url,
       headers: {
         'Content-Type': 'application/json',
         'Authorization': 'Bearer $token',
       },
     );
+
+    final contentType = response.headers['content-type'] ?? '';
+    if (!contentType.contains('application/json')) {
+      throw Exception('Server error (${response.statusCode}). Route not found.');
+    }
 
     final data = jsonDecode(response.body);
 
@@ -3440,7 +3489,7 @@ class AuthApiService {
       throw Exception(data['message'] ?? 'Failed to reject ride request');
     }
   }
-  
+
 
   Future<Map<String, dynamic>> updateRideAvailability({
     required bool isActive,
@@ -4076,6 +4125,11 @@ class AuthApiService {
         'Authorization': 'Bearer $token',
       },
     );
+
+    final contentType = response.headers['content-type'] ?? '';
+    if (!contentType.contains('application/json')) {
+      throw Exception('Server error: ${response.statusCode}. Check backend deployment.');
+    }
 
     final data = jsonDecode(response.body);
 

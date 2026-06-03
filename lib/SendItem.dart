@@ -124,6 +124,32 @@ class _SendItemFormState extends State<SendItemForm> {
     }
   }
 
+  Widget _feeRow(String label, String fee) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 3),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 12,
+              color: Color(0xFF374151),
+            ),
+          ),
+          Text(
+            fee,
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: Color(0xFF0F766E),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   void dispose() {
     senderNameController.dispose();
@@ -147,11 +173,12 @@ class _SendItemFormState extends State<SendItemForm> {
         ),
         iconTheme: const IconThemeData(color: Colors.white),
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Form(
-          key: _formKey,
+      body: Form(
+        key: _formKey,
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(16.0),
           child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               TextFormField(
                 controller: senderNameController,
@@ -255,13 +282,60 @@ class _SendItemFormState extends State<SendItemForm> {
                   return null;
                 },
               ),
-              const Spacer(),
+              const SizedBox(height: 15),
+
+              // ── Delivery Fee Chart ──
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE6FFFA),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFF99F6E4)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Row(
+                      children: [
+                        Icon(
+                          Icons.info_outline,
+                          size: 16,
+                          color: Color(0xFF0F766E),
+                        ),
+                        SizedBox(width: 6),
+                        Text(
+                          "Delivery Fee Structure",
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF0F766E),
+                            fontSize: 13,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    _feeRow("Up to 2 kg", "৳50"),
+                    _feeRow("2 – 3 kg", "৳60"),
+                    _feeRow("3 – 4 kg", "৳70"),
+                    _feeRow("4 – 5 kg", "৳80"),
+                    _feeRow("Each extra 1 kg", "+৳10"),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 24),
+
+              // ── Next Button ──
               SizedBox(
                 width: double.infinity,
                 height: 55,
                 child: ElevatedButton(
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF14B8A6),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
                   ),
                   onPressed: isCheckingReceiver ? null : goToLocationPage,
                   child: isCheckingReceiver
@@ -270,7 +344,8 @@ class _SendItemFormState extends State<SendItemForm> {
                     width: 22,
                     child: CircularProgressIndicator(
                       strokeWidth: 2.4,
-                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                      valueColor:
+                      AlwaysStoppedAnimation<Color>(Colors.white),
                     ),
                   )
                       : const Text(
@@ -281,7 +356,9 @@ class _SendItemFormState extends State<SendItemForm> {
                     ),
                   ),
                 ),
-              )
+              ),
+
+              const SizedBox(height: 16),
             ],
           ),
         ),

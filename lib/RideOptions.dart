@@ -94,7 +94,7 @@ class _RideOptionsPageState extends State<RideOptionsPage> {
           departureTime: (map['travel_time'] ?? 'Now').toString(),
           genderPreference: (map['gender_preference'] ?? 'Any').toString(),
           distanceAwayKm: double.tryParse('${map['total_distance_km'] ?? 0}') ?? 0,
-          estimatedFare: double.tryParse('${map['total_fare'] ?? 0}') ?? 0,
+          estimatedFare: double.tryParse('${map['estimatedFare'] ?? 0}') ?? 0,
           isAvailable: (int.tryParse('${map['available_seats'] ?? 0}') ?? 0) > 0,
         );
       }).toList();

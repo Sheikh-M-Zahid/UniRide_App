@@ -213,73 +213,31 @@ class _ActivityPageState extends State<ActivityPage> {
             padding: const EdgeInsets.all(16),
             child: Column(
               children: [
-                /// Summary cards
+                /// Summary cards - full width, auto size
                 Row(
                   children: [
-                    Expanded(
-                      child: _SummaryCard(
-                        title: "Total",
-                        value: totalCount.toString(),
-                        icon: Icons.list_alt,
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: _SummaryCard(
-                        title: "Completed",
-                        value: completedCount.toString(),
-                        icon: Icons.check_circle_outline,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 10),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _SummaryCard(
-                        title: "Cancelled",
-                        value: cancelledCount.toString(),
-                        icon: Icons.cancel_outlined,
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: _SummaryCard(
-                        title: "Earnings",
-                        value: "৳${totalEarnings.toStringAsFixed(0)}",
-                        icon: Icons.account_balance_wallet_outlined,
-                      ),
-                    ),
+                    Expanded(child: _SummaryCard(title: "Total", value: totalCount.toString(), icon: Icons.list_alt)),
+                    const SizedBox(width: 8),
+                    Expanded(child: _SummaryCard(title: "Completed", value: completedCount.toString(), icon: Icons.check_circle_outline)),
+                    const SizedBox(width: 8),
+                    Expanded(child: _SummaryCard(title: "Cancelled", value: cancelledCount.toString(), icon: Icons.cancel_outlined)),
+                    const SizedBox(width: 8),
+                    Expanded(child: _SummaryCard(title: "Earnings", value: "৳${totalEarnings.toStringAsFixed(0)}", icon: Icons.account_balance_wallet_outlined)),
                   ],
                 ),
 
                 const SizedBox(height: 16),
 
-                /// Type filter
-                SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Row(
-                    children: [
-                      _filterChip("All"),
-                      _filterChip("Completed"),
-                      _filterChip("Cancelled"),
-                      _filterChip("Reserved"),
-                      _filterChip("Send Item"),
-                    ],
-                  ),
-                ),
-
-                const SizedBox(height: 12),
-
-                /// Time filter
+                /// Type filter - full width
                 Row(
                   children: [
-                    Expanded(child: _timeButton("Today")),
-                    const SizedBox(width: 10),
-                    Expanded(child: _timeButton("This Week")),
-                    const SizedBox(width: 10),
-                    Expanded(child: _timeButton("This Month")),
+                    Expanded(child: _filterChip("All")),
+                    Expanded(child: _filterChip("Completed")),
+                    Expanded(child: _filterChip("Cancelled")),
+                    Expanded(child: _filterChip("Reserved")),
+                    Expanded(child: _filterChip("Send Item")),
+                    const SizedBox(width: 8),
+                    _filterButton(),
                   ],
                 ),
 
@@ -391,7 +349,7 @@ class _ActivityPageState extends State<ActivityPage> {
     final bool isSelected = selectedType == title;
 
     return Padding(
-      padding: const EdgeInsets.only(right: 8),
+      padding: const EdgeInsets.only(right: 4),
       child: InkWell(
         onTap: () async {
           setState(() {
@@ -401,7 +359,8 @@ class _ActivityPageState extends State<ActivityPage> {
         },
         borderRadius: BorderRadius.circular(20),
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 10),
           decoration: BoxDecoration(
             color: isSelected ? const Color(0xFF14B8A6) : Colors.white,
             borderRadius: BorderRadius.circular(20),
@@ -413,9 +372,11 @@ class _ActivityPageState extends State<ActivityPage> {
           ),
           child: Text(
             title,
+            textAlign: TextAlign.center,
             style: TextStyle(
               color: isSelected ? Colors.white : const Color(0xFF1F2937),
               fontWeight: FontWeight.w600,
+              fontSize: 11,
             ),
           ),
         ),
@@ -456,6 +417,75 @@ class _ActivityPageState extends State<ActivityPage> {
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _filterButton() {
+    return PopupMenuButton<String>(
+      onSelected: (value) async {
+        setState(() {
+          selectedTime = value;
+        });
+        await _loadActivity(reset: true);
+      },
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      offset: const Offset(0, 44),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: const Color(0xFFE5E7EB)),
+          boxShadow: const [
+            BoxShadow(blurRadius: 4, color: Colors.black12, offset: Offset(0, 1)),
+          ],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.tune_rounded, size: 16, color: Color(0xFF374151)),
+            const SizedBox(width: 6),
+            Text(
+              selectedTime,
+              style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF374151),
+              ),
+            ),
+          ],
+        ),
+      ),
+      itemBuilder: (context) => [
+        _popupItem("Today"),
+        _popupItem("This Week"),
+        _popupItem("This Month"),
+      ],
+    );
+  }
+
+  PopupMenuItem<String> _popupItem(String value) {
+    final bool isSelected = selectedTime == value;
+    return PopupMenuItem<String>(
+      value: value,
+      child: Row(
+        children: [
+          if (isSelected)
+            const Icon(Icons.check, size: 16, color: Color(0xFF14B8A6))
+          else
+            const SizedBox(width: 16),
+          const SizedBox(width: 8),
+          Text(
+            value,
+            style: TextStyle(
+              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+              color: isSelected
+                  ? const Color(0xFF14B8A6)
+                  : const Color(0xFF1F2937),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -504,8 +534,7 @@ class _SummaryCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 92,
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(15),
@@ -519,33 +548,32 @@ class _SummaryCard extends StatelessWidget {
         ],
       ),
       child: Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 26, color: const Color(0xFF0F766E)),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontSize: 13,
-                    color: Color(0xFF6B7280),
-                    fontWeight: FontWeight.w500,
-                  ),
+          Icon(icon, size: 16, color: const Color(0xFF0F766E)),
+          const SizedBox(width: 8),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 10,
+                  color: Color(0xFF6B7280),
+                  fontWeight: FontWeight.w500,
                 ),
-                const SizedBox(height: 6),
-                Text(
-                  value,
-                  style: const TextStyle(
-                    fontSize: 17,
-                    color: Color(0xFF1F2937),
-                    fontWeight: FontWeight.bold,
-                  ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                value,
+                style: const TextStyle(
+                  fontSize: 13,
+                  color: Color(0xFF1F2937),
+                  fontWeight: FontWeight.bold,
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ],
       ),

@@ -180,7 +180,7 @@ class HelpSupportPage extends StatelessWidget {
   }
 }
 
-class _HelpExpansionTile extends StatelessWidget {
+class _HelpExpansionTile extends StatefulWidget {
   final _HelpItem item;
 
   const _HelpExpansionTile({
@@ -188,12 +188,21 @@ class _HelpExpansionTile extends StatelessWidget {
   });
 
   @override
+  State<_HelpExpansionTile> createState() => _HelpExpansionTileState();
+}
+
+class _HelpExpansionTileState extends State<_HelpExpansionTile> {
+  bool _isExpanded = false;
+
+  @override
   Widget build(BuildContext context) {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
         color: Colors.white,
-        border: Border.all(color: AppColors.border),
+        border: Border.all(
+          color: _isExpanded ? AppColors.primary : AppColors.border,
+        ),
         borderRadius: BorderRadius.circular(14),
         boxShadow: const [
           BoxShadow(
@@ -210,24 +219,28 @@ class _HelpExpansionTile extends StatelessWidget {
           highlightColor: Colors.transparent,
         ),
         child: ExpansionTile(
+          onExpansionChanged: (expanded) {
+            setState(() {
+              _isExpanded = expanded;
+            });
+          },
           tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-          childrenPadding:
-          const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
           iconColor: AppColors.primary,
           collapsedIconColor: AppColors.mutedText,
           title: Text(
-            item.question,
-            style: const TextStyle(
+            widget.item.question,
+            style: TextStyle(
               fontSize: 15,
               fontWeight: FontWeight.w600,
-              color: AppColors.text,
+              color: _isExpanded ? AppColors.primary : AppColors.text,
             ),
           ),
           children: [
             Align(
               alignment: Alignment.centerLeft,
               child: Text(
-                item.answer,
+                widget.item.answer,
                 style: const TextStyle(
                   fontSize: 14,
                   height: 1.6,

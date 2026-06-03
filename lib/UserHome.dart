@@ -54,6 +54,7 @@ class _UniRideHomePageState extends State<UniRideHomePage> {
   }
 
   int offerCount = 0;
+  int unreadNotificationCount = 0;
   bool isLoadingHome = true;
   static const String _googleApiKey = 'AIzaSyCF5mVtZ2woOu8P1Jwf-7IfzRw_QoPilCI';
 
@@ -65,23 +66,59 @@ class _UniRideHomePageState extends State<UniRideHomePage> {
   }
 
   Future<void> _loadHomeSummary() async {
+    // Summary আর Notification আলাদাভাবে load করুন
+    // একটা fail করলে অন্যটা যেন বন্ধ না হয়
+
+    // Step 1: Summary
     try {
-      final response = await _authApiService.getServicesSummaryPublic();
-      final data = response['data'] ?? {};
-
-      if (!mounted) return;
-
-      setState(() {
-        offerCount = data['hasAdminOffer'] == true ? 1 : 0;
-        isLoadingHome = false;
-      });
+      final summaryResponse = await _authApiService.getServicesSummaryPublic();
+      final data = summaryResponse['data'] ?? {};
+      if (mounted) {
+        setState(() {
+          offerCount = data['hasAdminOffer'] == true ? 1 : 0;
+        });
+      }
     } catch (_) {
-      if (!mounted) return;
+      if (mounted) setState(() => offerCount = 0);
+    }
 
-      setState(() {
-        offerCount = 0;
-        isLoadingHome = false;
-      });
+    // Step 2: Notifications (আলাদা try-catch)
+    try {
+      final notifResponse = await _authApiService.getNotifications();
+
+      // API response এর সব possible structure handle করা
+      dynamic rawData = notifResponse['data'];
+      List rawList = [];
+
+      if (rawData is List) {
+        rawList = rawData;
+      } else if (rawData is Map && rawData['notifications'] is List) {
+        rawList = rawData['notifications'];
+      } else if (rawData is Map && rawData['items'] is List) {
+        rawList = rawData['items'];
+      }
+
+      int unread = 0;
+      for (var item in rawList) {
+        if (item is Map) {
+          // is_read বা isRead দুটোই check করা
+          final isRead = item['isRead'] == true || item['is_read'] == true;
+          if (!isRead) unread++;
+        }
+      }
+
+      if (mounted) {
+        setState(() {
+          unreadNotificationCount = unread;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => unreadNotificationCount = 0);
+    }
+
+    // Step 3: Loading শেষ
+    if (mounted) {
+      setState(() => isLoadingHome = false);
     }
   }
 
@@ -144,53 +181,62 @@ class _UniRideHomePageState extends State<UniRideHomePage> {
         ),
         actions: [
           Padding(
-            padding: const EdgeInsets.only(right: 16),
-            child: Stack(
-              children: [
-                IconButton(
-                  icon: const Icon(
-                    Icons.notifications_none,
-                    color: AppColors.text,
+            padding: const EdgeInsets.only(right: 12),
+            child: GestureDetector(
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const NotificationsPage(
+                      userRole: UserRole.passenger,
+                    ),
                   ),
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const NotificationsPage(
-                          userRole: UserRole.passenger,
+                );
+              },
+              child: SizedBox(
+                width: 40,
+                height: 40,
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    const Center(
+                      child: Icon(
+                        Icons.notifications_none,
+                        color: AppColors.text,
+                        size: 28,
+                      ),
+                    ),
+                    if (!isLoadingHome && unreadNotificationCount > 0)
+                      Positioned(
+                        right: -2,
+                        top: -2,
+                        child: Container(
+                          padding: const EdgeInsets.all(3),
+                          decoration: const BoxDecoration(
+                            color: Colors.red,
+                            shape: BoxShape.circle,
+                          ),
+                          constraints: const BoxConstraints(
+                            minWidth: 18,
+                            minHeight: 18,
+                          ),
+                          child: Center(
+                            child: Text(
+                              unreadNotificationCount > 99
+                                  ? '99+'
+                                  : unreadNotificationCount.toString(),
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
                         ),
                       ),
-                    );
-                  },
+                  ],
                 ),
-                !isLoadingHome && offerCount > 0
-                    ? Positioned(
-                  right: 5,
-                  top: 5,
-                  child: Container(
-                    padding: const EdgeInsets.all(4),
-                    decoration: const BoxDecoration(
-                      color: Colors.red,
-                      shape: BoxShape.circle,
-                    ),
-                    constraints: const BoxConstraints(
-                      minWidth: 18,
-                      minHeight: 18,
-                    ),
-                    child: Center(
-                      child: Text(
-                        offerCount.toString(),
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ),
-                )
-                    : const SizedBox(),
-              ],
+              ),
             ),
           ),
         ],

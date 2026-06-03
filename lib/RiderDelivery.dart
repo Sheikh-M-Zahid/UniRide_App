@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'services/auth_api_service.dart';
+import 'services/socket_service.dart';
 
 class RiderDeliveryPage extends StatefulWidget {
   const RiderDeliveryPage({super.key});
@@ -133,10 +134,20 @@ class _RiderDeliveryPageState extends State<RiderDeliveryPage> {
 
     try {
       await _authApiService.markDeliveryAsPickedUp(deliveryId: deliveryId);
-      await _loadDeliveryDashboard();
 
       if (!mounted) return;
-      setState(() => isActionLoading = false);
+
+      // সাথে সাথে local state update
+      setState(() {
+        activeDelivery = {
+          ...activeDelivery!,
+          'status': 'picked_up',
+        };
+        isActionLoading = false;
+      });
+
+      // Background এ fresh data load
+      _loadDeliveryDashboard();
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Marked as picked up")),
@@ -159,51 +170,284 @@ class _RiderDeliveryPageState extends State<RiderDeliveryPage> {
 
     if (deliveryId.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Delivery ID not found"),
-        ),
+        const SnackBar(content: Text("Delivery ID not found")),
       );
       return;
     }
 
-    setState(() {
-      isActionLoading = true;
-    });
+    // Step 1: OTP পাঠাও
+    setState(() => isActionLoading = true);
 
     try {
-      await _authApiService.markDeliveryAsDelivered(deliveryId: deliveryId);
-      await _loadDeliveryDashboard();
+      await _authApiService.sendDeliveryOtp(deliveryId: deliveryId);
 
       if (!mounted) return;
+      setState(() => isActionLoading = false);
 
-      setState(() {
-        isActionLoading = false;
-      });
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Delivery marked as delivered"),
-        ),
-      );
+      // Step 2: OTP input dialog দেখাও
+      _showOtpDialog(deliveryId);
     } catch (e) {
       if (!mounted) return;
-
-      setState(() {
-        isActionLoading = false;
-      });
-
+      setState(() => isActionLoading = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(e.toString().replaceFirst('Exception: ', '')),
-        ),
+        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
       );
     }
+  }
+
+  void _showOtpDialog(String deliveryId) {
+    final otpController = TextEditingController();
+    int secondsLeft = 150; // ২.৫ মিনিট
+    bool isVerifying = false;
+    bool canResend = false;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            // Countdown timer
+            Future.delayed(const Duration(seconds: 1), () {
+              if (!dialogContext.mounted) return;
+              if (secondsLeft > 0) {
+                setDialogState(() => secondsLeft--);
+                if (secondsLeft == 0) {
+                  setDialogState(() => canResend = true);
+                }
+              }
+            });
+
+            // Recursive countdown
+            void startCountdown() {
+              Future.doWhile(() async {
+                await Future.delayed(const Duration(seconds: 1));
+                if (!dialogContext.mounted) return false;
+                if (secondsLeft <= 0) return false;
+                setDialogState(() {
+                  secondsLeft--;
+                  if (secondsLeft == 0) canResend = true;
+                });
+                return secondsLeft > 0;
+              });
+            }
+
+            if (secondsLeft == 149) startCountdown(); // একবারই চালু করো
+
+            final minutes = secondsLeft ~/ 60;
+            final seconds = secondsLeft % 60;
+            final timeStr =
+                '$minutes:${seconds.toString().padLeft(2, '0')}';
+
+            return AlertDialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+              ),
+              title: const Text(
+                "Enter Delivery OTP",
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF1F2937),
+                ),
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text(
+                    "An OTP has been sent to the receiver's email. Ask the receiver for the OTP to confirm delivery.",
+                    style: TextStyle(
+                      color: Color(0xFF6B7280),
+                      fontSize: 13,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  TextField(
+                    controller: otpController,
+                    keyboardType: TextInputType.number,
+                    maxLength: 6,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontSize: 28,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 8,
+                      color: Color(0xFF0F766E),
+                    ),
+                    decoration: InputDecoration(
+                      counterText: '',
+                      hintText: '______',
+                      hintStyle: TextStyle(
+                        letterSpacing: 8,
+                        color: Colors.grey.shade300,
+                        fontSize: 28,
+                      ),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(
+                          color: Color(0xFF14B8A6),
+                        ),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(
+                          color: Color(0xFF14B8A6),
+                          width: 2,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  if (secondsLeft > 0)
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(
+                          Icons.timer_outlined,
+                          size: 16,
+                          color: Colors.red,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          "OTP expires in $timeStr",
+                          style: const TextStyle(
+                            color: Colors.red,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ],
+                    )
+                  else
+                    const Text(
+                      "OTP expired!",
+                      style: TextStyle(
+                        color: Colors.red,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  if (canResend) ...[
+                    const SizedBox(height: 10),
+                    TextButton.icon(
+                      onPressed: isVerifying
+                          ? null
+                          : () async {
+                        setDialogState(() {
+                          isVerifying = true;
+                          canResend = false;
+                        });
+                        try {
+                          await _authApiService.sendDeliveryOtp(
+                              deliveryId: deliveryId);
+                          setDialogState(() {
+                            secondsLeft = 150;
+                            isVerifying = false;
+                            otpController.clear();
+                          });
+                          startCountdown();
+                          if (!context.mounted) return;
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                                content: Text("New OTP sent!")),
+                          );
+                        } catch (e) {
+                          setDialogState(() => isVerifying = false);
+                        }
+                      },
+                      icon: const Icon(Icons.refresh,
+                          color: Color(0xFF14B8A6)),
+                      label: const Text(
+                        "Resend OTP",
+                        style: TextStyle(color: Color(0xFF14B8A6)),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(),
+                  child: const Text(
+                    "Cancel",
+                    style: TextStyle(color: Colors.red),
+                  ),
+                ),
+                ElevatedButton(
+                  onPressed: (isVerifying || secondsLeft == 0)
+                      ? null
+                      : () async {
+                    final otp = otpController.text.trim();
+                    if (otp.length != 6) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                            content: Text("Please enter 6-digit OTP")),
+                      );
+                      return;
+                    }
+
+                    setDialogState(() => isVerifying = true);
+
+                    try {
+                      await _authApiService.markDeliveryAsDelivered(
+                        deliveryId: deliveryId,
+                        otp: otp,
+                      );
+
+                      if (!dialogContext.mounted) return;
+                      Navigator.of(dialogContext).pop();
+
+                      if (!mounted) return;
+                      setState(() => activeDelivery = null);
+                      _loadDeliveryDashboard();
+
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text("✅ Delivery confirmed successfully!"),
+                          backgroundColor: Colors.green,
+                        ),
+                      );
+                    } catch (e) {
+                      if (!dialogContext.mounted) return;
+                      setDialogState(() => isVerifying = false);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(e
+                              .toString()
+                              .replaceFirst('Exception: ', '')),
+                          backgroundColor: Colors.red,
+                        ),
+                      );
+                    }
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF14B8A6),
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                  child: isVerifying
+                      ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
+                  )
+                      : const Text("Confirm"),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
   }
 
   @override
   void initState() {
     super.initState();
     _loadDeliveryDashboard();
+    _listenToSocketEvents();
   }
 
   String _formatMoney(dynamic value) {
@@ -236,6 +480,70 @@ class _RiderDeliveryPageState extends State<RiderDeliveryPage> {
       default:
         return raw.isEmpty ? 'Unknown' : raw;
     }
+  }
+
+  void _listenToSocketEvents() {
+    // যখন কোনো রাইডার একটা request accept করে,
+    // বাকি রাইডারদের list থেকে সেই request সরে যাবে
+    SocketService.on('send_item:request_taken', (data) {
+      if (!mounted) return;
+
+      final takenId = (data['s_id'] ?? '').toString();
+      final riderName = (data['rider_name'] ?? 'Another rider').toString();
+
+      if (takenId.isEmpty) return;
+
+      setState(() {
+        deliveryRequests.removeWhere(
+              (req) =>
+          (req['deliveryId'] ?? req['id'] ?? '').toString() == takenId,
+        );
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            '$riderName has already accepted this delivery request.',
+          ),
+          backgroundColor: Colors.orange,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    });
+
+    // নতুন delivery request আসলে real-time এ list এ যোগ হবে
+    SocketService.on('send_item:new_request', (data) {
+      if (!mounted) return;
+
+      final newRequest = Map<String, dynamic>.from(data);
+
+      // আগে থেকে আছে কিনা চেক করো (duplicate এড়াতে)
+      final alreadyExists = deliveryRequests.any(
+            (req) =>
+        (req['deliveryId'] ?? req['id'] ?? '').toString() ==
+            (newRequest['s_id'] ?? '').toString(),
+      );
+
+      if (!alreadyExists) {
+        setState(() {
+          deliveryRequests.insert(0, {
+            'deliveryId': newRequest['s_id'],
+            'id': newRequest['s_id'],
+            'item': newRequest['item_type'] ?? '',
+            'pickup': newRequest['pickup_location'] ?? '',
+            'drop': newRequest['drop_location'] ?? '',
+            'fee': newRequest['delivery_fee'] ?? 0,
+            'senderName': newRequest['sender_name'] ?? '',
+            'senderPhone': newRequest['sender_phone'] ?? '',
+            'receiverName': newRequest['receiver_name'] ?? '',
+            'receiverPhone': '',
+            'distance': 0,
+            'time': 0,
+            'status': 'pending',
+          });
+        });
+      }
+    });
   }
 
   Future<void> _loadDeliveryDashboard() async {
@@ -286,6 +594,13 @@ class _RiderDeliveryPageState extends State<RiderDeliveryPage> {
         ),
       );
     }
+  }
+
+  @override
+  void dispose() {
+    SocketService.off('send_item:request_taken');
+    SocketService.off('send_item:new_request');
+    super.dispose();
   }
 
   @override

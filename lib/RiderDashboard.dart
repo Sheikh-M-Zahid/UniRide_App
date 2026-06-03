@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'ActiveRidesPage.dart';
 import 'RideRequestModel.dart';
 import 'RideRequestService.dart';
@@ -61,6 +62,16 @@ class _RiderDashboardState extends State<RiderDashboard> {
     _adTimer?.cancel();
     _adPageController.dispose();
     super.dispose();
+  }
+
+  String _formatDate(String? rawDate) {
+    if (rawDate == null || rawDate.isEmpty) return '';
+    try {
+      final parsed = DateTime.parse(rawDate).toLocal();
+      return DateFormat('dd MMM yyyy').format(parsed);
+    } catch (_) {
+      return rawDate;
+    }
   }
 
   Future<void> _loadDashboard({bool showLoader = true}) async {
@@ -494,7 +505,9 @@ class _RiderDashboardState extends State<RiderDashboard> {
                   if (_dashboardData?['upcomingReservedRide'] != null) ...[
                     _SummaryRow(
                       label: "Date",
-                      value: "${_dashboardData?['upcomingReservedRide']?['date'] ?? ''}",
+                      value: _formatDate(
+                        _dashboardData?['upcomingReservedRide']?['date']?.toString(),
+                      ),
                     ),
                     _SummaryRow(
                       label: "Time",
@@ -610,25 +623,6 @@ class _RiderDashboardState extends State<RiderDashboard> {
                               context,
                               MaterialPageRoute(
                                 builder: (_) => const RiderDeliveryPage(),
-                              ),
-                            );
-                          },
-                        ),
-                      ),
-                    ),
-                    SizedBox(
-                      width: itemWidth,
-                      child: FittedBox(
-                        fit: BoxFit.scaleDown,
-                        alignment: Alignment.center,
-                        child: _DashboardBox(
-                          icon: Icons.account_balance_wallet,
-                          title: "Earnings",
-                          onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => const EarningsPage(),
                               ),
                             );
                           },

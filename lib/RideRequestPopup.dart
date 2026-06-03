@@ -56,8 +56,16 @@ class _RideRequestPopupState extends State<RideRequestPopup> {
         _confirmedPhone = model.phoneNumber;
         _isActing = false;
       });
-    } catch (_) {
-      if (mounted) setState(() => _isActing = false);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isActing = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.toString().replaceFirst('Exception: ', '')),
+          backgroundColor: const Color(0xFFDC2626),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
     }
   }
 
@@ -74,8 +82,16 @@ class _RideRequestPopupState extends State<RideRequestPopup> {
         _actionDone = 'rejected';
         _isActing = false;
       });
-    } catch (_) {
-      if (mounted) setState(() => _isActing = false);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isActing = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.toString().replaceFirst('Exception: ', '')),
+          backgroundColor: const Color(0xFFDC2626),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
     }
   }
 
