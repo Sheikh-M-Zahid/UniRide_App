@@ -1,13 +1,19 @@
 const rideRequestSocket = (io) => {
   io.on('connection', (socket) => {
+    // Flutter passenger join করার জন্য
+    socket.on('join_request_room', ({ requestId }) => {
+      if (requestId) {
+        socket.join(`request_${requestId}`);
+        console.log(`Socket ${socket.id} joined request_${requestId}`);
+      }
+    });
+
     socket.on('join:rider-room', (userId) => {
       socket.join(`rider:${userId}`);
-      console.log(`Socket ${socket.id} joined rider:${userId}`);
     });
 
     socket.on('join:user-room', (userId) => {
       socket.join(`user:${userId}`);
-      console.log(`Socket ${socket.id} joined user:${userId}`);
     });
 
     socket.on('disconnect', () => {
