@@ -12,6 +12,7 @@ const emitToRider = (riderId, payload) => {
 
 const emitToPassenger = (passengerId, payload) => {
   const io = getIO();
+  // user room এ emit (যদি user socket join করে)
   io.to(`user_${passengerId}`).emit('ride_request_passenger_update', payload);
 };
 
