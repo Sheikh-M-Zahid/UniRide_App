@@ -190,10 +190,15 @@ const createRequest = async (passengerId, payload) => {
 
 const getRequestStatus = async (userId, requestId) => {
   const result = await rideDb.query(
-    `SELECT *
-     FROM ride_requests
-     WHERE request_id = $1
-       AND (passenger_id = $2 OR rider_id = $2)
+    `SELECT rr.*,
+            u.first_name,
+            u.last_name,
+            u.university_email AS passenger_email,
+            u.phone            AS passenger_phone
+     FROM ride_requests rr
+     JOIN users u ON rr.passenger_id = u.user_id
+     WHERE rr.request_id = $1
+       AND (rr.passenger_id = $2 OR rr.rider_id = $2)
      LIMIT 1`,
     [requestId, userId]
   );
@@ -202,7 +207,14 @@ const getRequestStatus = async (userId, requestId) => {
     throw new Error('Ride request not found.');
   }
 
-  return mapRequestResponse(result.rows[0]);
+  const row = result.rows[0];
+  return {
+    ...mapRequestResponse(row),
+    passengerName: `${row.first_name || ''} ${row.last_name || ''}`.trim(),
+    passengerEmail: row.passenger_email || '',
+    passengerPhone: row.passenger_phone || '',
+    currentLocation: row.pickup_location || '',
+  };
 };
 
 const cancelRequest = async (passengerId, requestId, cancelReason = null) => {
@@ -324,34 +336,34 @@ const acceptRequest = async (riderId, requestId) => {
       [requestId]
     );
 
-    // এই লাইনের পরে:
     await client.query('COMMIT');
-    
-    // নিচে add করো:
+
+    const acceptedRequest = acceptedRes.rows[0];
+
     const { createNotification } = require('./notificationService');
-    
+
     const passengerInfoRes = await rideDb.query(
       `SELECT first_name, last_name, phone FROM users WHERE user_id = $1`,
       [acceptedRequest.passenger_id]
     );
     const passengerInfo = passengerInfoRes.rows[0] || {};
-    
+
     const riderInfoRes = await rideDb.query(
       `SELECT first_name, last_name, phone FROM users WHERE user_id = $1`,
       [acceptedRequest.rider_id]
     );
     const riderInfo = riderInfoRes.rows[0] || {};
-    
+
     await createNotification({
       userId: acceptedRequest.passenger_id,
       title: 'Ride Confirmed! 🎉',
-      message: `Your ride was confirmed by ${riderInfo.first_name || 'the rider'}. Rider's phone: ${riderInfo.phone || 'N/A'}`,
+      message: `Your ride was confirmed by ${riderInfo.first_name || 'the rider'}. Rider phone: ${riderInfo.phone || 'N/A'}`,
       type: 'booking',
       isImportant: true,
       targetRole: 'passenger',
       relatedId: String(acceptedRequest.request_id),
     });
-    
+
     await createNotification({
       userId: acceptedRequest.rider_id,
       title: 'Ride Confirmed!',
@@ -361,7 +373,6 @@ const acceptRequest = async (riderId, requestId) => {
       targetRole: 'rider',
       relatedId: String(acceptedRequest.request_id),
     });
-    const acceptedRequest = acceptedRes.rows[0];
 
     const payload = {
       requestId: acceptedRequest.request_id,
