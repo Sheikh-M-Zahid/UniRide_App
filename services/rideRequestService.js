@@ -64,10 +64,8 @@ const createRequest = async (passengerId, payload) => {
     throw new Error('Ride not found.');
   }
 
-  
   const ride = rideRes.rows[0];
 
-  // নিচে add করো:
   const passengerRes = await rideDb.query(
     `SELECT first_name, last_name, university_email, phone FROM users WHERE user_id = $1`,
     [passengerId]
@@ -80,9 +78,9 @@ const createRequest = async (passengerId, payload) => {
   }
 
   const rideStatus = String(ride.status).toLowerCase();
-    if (!['active', 'assigned'].includes(rideStatus)) {
-      throw new Error('This ride is not available for request.');
-    }
+  if (!['active', 'assigned'].includes(rideStatus)) {
+    throw new Error('This ride is not available for request.');
+  }
 
   if (Number(ride.available_seats || 0) <= 0) {
     throw new Error('No seats available for this ride.');
@@ -161,7 +159,6 @@ const createRequest = async (passengerId, payload) => {
 
   emitToRider(request.rider_id, riderPayload);
 
-  // নিচে add করো:
   const { createNotification } = require('./notificationService');
   await createNotification({
     userId: ride.rider_id,
@@ -383,10 +380,13 @@ const acceptRequest = async (riderId, requestId) => {
       riderPhone: riderInfo.phone || '',
     };
 
+    // ✅ request room এ emit (passenger socket এখানে join করে)
     emitRideRequestStatusUpdate(acceptedRequest.request_id, payload);
+    // ✅ user room এ emit (backup channel)
     emitToPassenger(acceptedRequest.passenger_id, payload);
 
     return mapRequestResponse(acceptedRequest);
+
   } catch (error) {
     await client.query('ROLLBACK');
     throw error;
@@ -414,10 +414,8 @@ const rejectRequest = async (riderId, requestId, cancelReason = null) => {
     throw new Error('Pending ride request not found or already processed.');
   }
 
-  // এই লাইনের পরে:
   const request = result.rows[0];
-  
-  // নিচে add করো:
+
   const { createNotification } = require('./notificationService');
   await createNotification({
     userId: request.passenger_id,
