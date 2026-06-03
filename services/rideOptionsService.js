@@ -128,6 +128,7 @@ const getRideOptions = async ({ body }) => {
       u.phone,
       u.rating,
       u.university_email,
+      u.gender AS driver_gender,
 
       v.number_plate,
       v.vehicle_type AS db_vehicle_type,
@@ -146,7 +147,7 @@ const getRideOptions = async ({ body }) => {
       ORDER BY updated_at DESC
       LIMIT 1
     ) ll ON TRUE
-    WHERE r.status IN ('active', 'scheduled', 'assigned')
+    WHERE r.status IN ('assigned', 'ongoing')
       AND r.available_seats > 0
       AND (r.travel_date IS NULL OR r.travel_date >= CURRENT_DATE)
     ORDER BY r.created_at DESC
@@ -256,6 +257,7 @@ const getRideOptions = async ({ body }) => {
             : ride.gender_preference === 'female'
             ? 'Female'
             : 'Any',
+        driverGender: ride.driver_gender || '',
         distanceAwayKm,
         estimatedFare,
         isAvailable:
