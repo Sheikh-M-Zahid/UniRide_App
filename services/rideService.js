@@ -252,52 +252,223 @@ const listJoinedRides = async (passengerId) => {
 const searchRides = async (payload) => {
   const { pickup_lat, pickup_lng, destination_lat, destination_lng } = payload;
 
-  const apiKey = process.env.GOOGLE_MAPS_API_KEY; 
-  const url = `https://maps.googleapis.com/maps/api/distancematrix/json?destinations=${destination_lat},${destination_lng}&origins=${pickup_lat},${pickup_lng}&key=${apiKey}`;
+  const apiKey = process.env.GOOGLE_MAPS_API_KEY;
+
+  // ── ১. Passenger এর route distance (ক → খ) ──
+  const url = `https://maps.googleapis.com/maps/api/distancematrix/json` +
+    `?destinations=${destination_lat},${destination_lng}` +
+    `&origins=${pickup_lat},${pickup_lng}` +
+    `&key=${apiKey}`;
 
   let distance_km = 0;
-  let estimated_time = 0; 
+  let estimated_time = 0;
 
   try {
     const mapResponse = await fetch(url);
     const mapData = await mapResponse.json();
 
-    if (mapData.status === 'OK' && mapData.rows[0].elements[0].status === 'OK') {
+    if (
+      mapData.status === 'OK' &&
+      mapData.rows[0].elements[0].status === 'OK'
+    ) {
       const element = mapData.rows[0].elements[0];
       distance_km = element.distance.value / 1000;
       estimated_time = Math.ceil(element.duration.value / 60);
-    } else {
-      console.warn('Google Maps API Warning: Could not calculate precise route.');
     }
   } catch (error) {
-    console.error("Maps API Fetch Error:", error);
+    console.error('Maps API Fetch Error:', error);
     throw new Error('Failed to fetch dynamic distance from map.');
   }
 
-  // আপনার পছন্দমতো রেট পরিবর্তন করে নিতে পারেন
-  const base_fare = 40; 
-  const per_km_rate = 7; 
-  const per_minute_rate = 2; 
-  
-  const estimated_fare = Math.ceil(base_fare + (distance_km * per_km_rate) + (estimated_time * per_minute_rate));
+  // ── ২. Vehicle rates DB থেকে নাও ──
+  const ratesRes = await rideDb.query(`
+    SELECT DISTINCT ON (vehicle_type)
+      vehicle_type, per_km_rate, base_fare
+    FROM vehicle_rates
+    WHERE is_active = TRUE
+    ORDER BY vehicle_type, effective_from DESC
+  `);
 
+  const rateMap = {
+    bike: { per_km_rate: 10, base_fare: 0 },
+    car:  { per_km_rate: 15, base_fare: 0 },
+  };
+
+  for (const row of ratesRes.rows) {
+    rateMap[row.vehicle_type] = {
+      per_km_rate: Number(row.per_km_rate),
+      base_fare:   Number(row.base_fare || 0),
+    };
+  }
+
+  // ── ৩. Active rides + rider info fetch ──
   const result = await rideDb.query(
-    `SELECT r.*, 
-            u.first_name, u.last_name, u.university_email, u.phone, u.rating,
-            v.vehicle_type, v.company, v.model, v.number_plate, v.total_seats
+    `SELECT
+       r.ride_id,
+       r.rider_id,
+       r.available_seats,
+       r.travel_time,
+       r.travel_date,
+       r.gender_preference,
+       r.vehicle_type,
+       r.status,
+       r.destination,
+       r.start_location,
+       u.first_name,
+       u.last_name,
+       u.phone,
+       u.rating,
+       v.company,
+       v.model,
+       v.number_plate,
+       ll.latitude  AS rider_lat,
+       ll.longitude AS rider_lng
      FROM rides r
      JOIN users u ON r.rider_id = u.user_id
      LEFT JOIN vehicles v ON r.vehicle_id = v.vehicle_id
+     LEFT JOIN LATERAL (
+       SELECT latitude, longitude
+       FROM live_locations
+       WHERE user_id = r.rider_id
+       ORDER BY updated_at DESC
+       LIMIT 1
+     ) ll ON TRUE
      WHERE r.status IN ('assigned', 'ongoing')
        AND r.available_seats > 0
      ORDER BY r.created_at DESC`
   );
 
+  const rides = result.rows;
+  if (!rides.length) {
+    return {
+      distance_km: parseFloat(distance_km.toFixed(2)),
+      estimated_time,
+      estimated_fare: 0,
+      availableRides: [],
+    };
+  }
+
+  // ── ৪. Rider থেকে Passenger পর্যন্ত দূরত্ব batch এ নাও ──
+  const validRiders = rides
+    .map((r, i) => ({ i, lat: r.rider_lat, lng: r.rider_lng }))
+    .filter(r => r.lat !== null && r.lng !== null);
+
+  // Google Distance Matrix — একটাই call, সব rider এর জন্য
+  let riderDistances = {}; // index → { distanceKm, withinRoute }
+
+  if (validRiders.length) {
+    const destinations = validRiders
+      .map(r => `${r.lat},${r.lng}`)
+      .join('|');
+
+    const matrixUrl =
+      `https://maps.googleapis.com/maps/api/distancematrix/json` +
+      `?origins=${pickup_lat},${pickup_lng}` +
+      `&destinations=${destinations}` +
+      `&key=${apiKey}`;
+
+    try {
+      const mRes = await fetch(matrixUrl);
+      const mData = await mRes.json();
+
+      if (mData.status === 'OK') {
+        mData.rows[0].elements.forEach((el, idx) => {
+          if (el.status === 'OK') {
+            const dKm = el.distance.value / 1000;
+            riderDistances[validRiders[idx].i] = dKm;
+          }
+        });
+      }
+    } catch (_) { /* fallback: haversine */ }
+  }
+
+  // ── ৫. Haversine fallback ──
+  const haversine = (lat1, lng1, lat2, lng2) => {
+    const R = 6371;
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLng = (lng2 - lng1) * Math.PI / 180;
+    const a =
+      Math.sin(dLat / 2) ** 2 +
+      Math.cos(lat1 * Math.PI / 180) *
+      Math.cos(lat2 * Math.PI / 180) *
+      Math.sin(dLng / 2) ** 2;
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  };
+
+  // ── ৬. প্রতিটা ride এর fare calculate করো ──
+  /*
+   * Fare logic:
+   * base_fare = শুধু তখনই add হবে যখন (distance_km * per_km_rate) < base_fare
+   * অর্থাৎ: fare = max(base_fare, distance_km * per_km_rate)
+   *
+   * Rider surcharge logic:
+   * - Rider যদি passenger এর পথে থাকে (rider_dist ≤ 2km) → অতিরিক্ত ০ টাকা
+   * - Rider যদি উল্টো দিক থেকে আসে (rider_dist > 2km) → +৫ টাকা প্রতি km
+   */
+
+  const DETOUR_THRESHOLD_KM = 2;
+  const DETOUR_RATE_PER_KM  = 5;
+
+  const availableRides = rides.map((ride, i) => {
+    const vType = String(ride.vehicle_type || '').trim().toLowerCase();
+    const rate  = rateMap[vType] ?? rateMap.car;
+
+    // Main route fare
+    const routeFare = distance_km * rate.per_km_rate;
+    const baseFare  = routeFare < rate.base_fare ? rate.base_fare : routeFare;
+
+    // Rider distance থেকে surcharge
+    let riderDistKm = riderDistances[i] ?? null;
+    if (riderDistKm === null && ride.rider_lat !== null) {
+      riderDistKm = haversine(
+        pickup_lat, pickup_lng,
+        Number(ride.rider_lat), Number(ride.rider_lng)
+      );
+    }
+
+    let surcharge = 0;
+    if (riderDistKm !== null && riderDistKm > DETOUR_THRESHOLD_KM) {
+      surcharge = Math.round(riderDistKm * DETOUR_RATE_PER_KM);
+    }
+
+    const estimatedFare = Math.round(baseFare) + surcharge;
+
+    return {
+      ride_id:          ride.ride_id,
+      rider_id:         ride.rider_id,
+      vehicle_type:     vType === 'bike' ? 'Bike' : vType === 'car' ? 'Car' : 'Vehicle',
+      available_seats:  Number(ride.available_seats || 0),
+      travel_time:      ride.travel_time || '',
+      gender_preference: ride.gender_preference || 'any',
+      company:          ride.company || '',
+      model:            ride.model   || '',
+      number_plate:     ride.number_plate || '',
+      total_distance_km: parseFloat(distance_km.toFixed(2)),
+      estimatedFare,
+      riderDistanceKm:  riderDistKm !== null
+                          ? parseFloat(riderDistKm.toFixed(2))
+                          : null,
+      // ── Rider info flat করে দিলাম ──
+      rider: {
+        name:   `${ride.first_name || ''} ${ride.last_name || ''}`.trim(),
+        phone:  ride.phone || '',
+        rating: Number(ride.rating || 5),
+      },
+    };
+  });
+
+  // Route summary fare (car rate দিয়ে)
+  const carRate = rateMap.car;
+  const routeFareCar = distance_km * carRate.per_km_rate;
+  const estimated_fare = Math.round(
+    routeFareCar < carRate.base_fare ? carRate.base_fare : routeFareCar
+  );
+
   return {
-    distance_km: parseFloat(distance_km.toFixed(2)),
-    estimated_time: estimated_time,
-    estimated_fare: estimated_fare,
-    availableRides: result.rows
+    distance_km:    parseFloat(distance_km.toFixed(2)),
+    estimated_time,
+    estimated_fare,
+    availableRides,
   };
 };
 
