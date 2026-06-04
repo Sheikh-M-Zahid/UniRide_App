@@ -80,6 +80,18 @@ const getPassengerActiveRequest = asyncHandler(async (req, res) => {
   }
 });
 
+const getRiderLiveLocation = asyncHandler(async (req, res) => {
+  try {
+    const data = await rideRequestService.getRiderLiveLocation(
+      req.user.userId,
+      req.params.requestId
+    );
+    return successResponse(res, 'Rider location fetched.', data);
+  } catch (error) {
+    return errorResponse(res, error.message || 'Failed.', 400);
+  }
+});
+
 module.exports = {
   createRequest,
   getRequestStatus,
@@ -87,4 +99,5 @@ module.exports = {
   acceptRequest,
   rejectRequest,
   getPassengerActiveRequest,
+  getRiderLiveLocation,
 };
