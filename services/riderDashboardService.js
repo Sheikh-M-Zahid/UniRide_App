@@ -32,6 +32,7 @@ const getRiderDashboard = async ({ riderId }) => {
     SELECT
       u.first_name,
       u.last_name,
+      rr.request_id, 
       rr.pickup_location,
       rr.destination,
       rr.estimated_fare,
@@ -90,6 +91,7 @@ const getRiderDashboard = async ({ riderId }) => {
   if (activeRideResult.rows.length > 0) {
     const row = activeRideResult.rows[0];
     activeRide = {
+      requestId: row.request_id,
       passenger: `${row.first_name || ''} ${row.last_name || ''}`.trim(),
       pickup: row.pickup_location,
       destination: row.destination,
