@@ -69,10 +69,22 @@ const rejectRequest = asyncHandler(async (req, res) => {
   }
 });
 
+const getPassengerActiveRequest = asyncHandler(async (req, res) => {
+  try {
+    const data = await rideRequestService.getPassengerActiveRequest(
+      req.user.userId
+    );
+    return successResponse(res, 'Active request fetched.', data);
+  } catch (error) {
+    return errorResponse(res, error.message || 'Failed.', 400);
+  }
+});
+
 module.exports = {
   createRequest,
   getRequestStatus,
   cancelRequest,
   acceptRequest,
   rejectRequest,
+  getPassengerActiveRequest,
 };
