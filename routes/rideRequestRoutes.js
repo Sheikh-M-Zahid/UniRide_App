@@ -15,5 +15,6 @@ router.patch('/:requestId/cancel', rideRequestController.cancelRequest);
 // rider
 router.patch('/:requestId/accept', rideRequestController.acceptRequest);
 router.patch('/:requestId/reject', rideRequestController.rejectRequest);
+router.get('/:requestId/rider-location', rideRequestController.getRiderLiveLocation);
 
 module.exports = router;
