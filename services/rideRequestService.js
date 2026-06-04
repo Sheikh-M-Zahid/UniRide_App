@@ -471,6 +471,71 @@ const expireRequestIfPending = async (requestId) => {
   return request;
 };
 
+// ফাইলের একদম শেষে module.exports এর আগে যোগ করো
+
+const getPassengerActiveRequest = async (passengerId) => {
+  const result = await rideDb.query(
+    `SELECT 
+        rr.request_id,
+        rr.ride_id,
+        rr.rider_id,
+        rr.pickup_location,
+        rr.destination,
+        rr.estimated_fare,
+        rr.distance_km,
+        rr.estimated_minutes,
+        rr.status,
+        rr.pickup_latitude,
+        rr.pickup_longitude,
+        rr.destination_latitude,
+        rr.destination_longitude,
+        u.first_name AS rider_first_name,
+        u.last_name  AS rider_last_name,
+        u.phone      AS rider_phone,
+        u.profile_picture AS rider_photo,
+        ll.latitude  AS rider_lat,
+        ll.longitude AS rider_lng
+     FROM ride_requests rr
+     JOIN users u ON rr.rider_id = u.user_id
+     LEFT JOIN LATERAL (
+       SELECT latitude, longitude
+       FROM live_locations
+       WHERE user_id = rr.rider_id
+       ORDER BY updated_at DESC
+       LIMIT 1
+     ) ll ON TRUE
+     WHERE rr.passenger_id = $1
+       AND rr.status = 'accepted'
+     ORDER BY rr.confirmed_at DESC
+     LIMIT 1`,
+    [passengerId]
+  );
+
+  if (!result.rows.length) return null;
+
+  const row = result.rows[0];
+  return {
+    requestId: row.request_id,
+    rideId: row.ride_id,
+    riderId: row.rider_id,
+    riderName: `${row.rider_first_name || ''} ${row.rider_last_name || ''}`.trim(),
+    riderPhone: row.rider_phone || '',
+    riderPhoto: row.rider_photo || null,
+    pickupLocation: row.pickup_location,
+    destination: row.destination,
+    fare: Number(row.estimated_fare || 0),
+    distanceKm: Number(row.distance_km || 0),
+    estimatedMinutes: Number(row.estimated_minutes || 0),
+    status: row.status,
+    pickupLat: row.pickup_latitude ? Number(row.pickup_latitude) : null,
+    pickupLng: row.pickup_longitude ? Number(row.pickup_longitude) : null,
+    destinationLat: row.destination_latitude ? Number(row.destination_latitude) : null,
+    destinationLng: row.destination_longitude ? Number(row.destination_longitude) : null,
+    riderLat: row.rider_lat ? Number(row.rider_lat) : null,
+    riderLng: row.rider_lng ? Number(row.rider_lng) : null,
+  };
+};
+
 module.exports = {
   createRequest,
   getRequestStatus,
@@ -478,4 +543,5 @@ module.exports = {
   acceptRequest,
   rejectRequest,
   expireRequestIfPending,
+  getPassengerActiveRequest,
 };
