@@ -7,6 +7,7 @@ const rideRequestController = require('../controllers/rideRequestController');
 router.use(authMiddleware);
 
 // passenger
+router.get('/passenger/active', rideRequestController.getPassengerActiveRequest);
 router.post('/', rideRequestController.createRequest);
 router.get('/:requestId', rideRequestController.getRequestStatus);
 router.patch('/:requestId/cancel', rideRequestController.cancelRequest);
