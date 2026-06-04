@@ -536,6 +536,36 @@ const getPassengerActiveRequest = async (passengerId) => {
   };
 };
 
+const getRiderLiveLocation = async (passengerId, requestId) => {
+  const result = await rideDb.query(
+    `SELECT 
+        ll.latitude,
+        ll.longitude,
+        ll.updated_at
+     FROM ride_requests rr
+     JOIN LATERAL (
+       SELECT latitude, longitude, updated_at
+       FROM live_locations
+       WHERE user_id = rr.rider_id
+       ORDER BY updated_at DESC
+       LIMIT 1
+     ) ll ON TRUE
+     WHERE rr.request_id = $1
+       AND rr.passenger_id = $2
+       AND rr.status = 'accepted'
+     LIMIT 1`,
+    [requestId, passengerId]
+  );
+
+  if (!result.rows.length) return null;
+  const row = result.rows[0];
+  return {
+    lat: row.latitude ? Number(row.latitude) : null,
+    lng: row.longitude ? Number(row.longitude) : null,
+    updatedAt: row.updated_at,
+  };
+};
+
 module.exports = {
   createRequest,
   getRequestStatus,
@@ -544,4 +574,5 @@ module.exports = {
   rejectRequest,
   expireRequestIfPending,
   getPassengerActiveRequest,
+  getRiderLiveLocation,
 };
