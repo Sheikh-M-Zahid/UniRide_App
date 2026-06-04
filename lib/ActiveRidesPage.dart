@@ -143,8 +143,7 @@ class _ActiveRidesPageState extends State<ActiveRidesPage> {
         vehicleNumber = (selectedVehicle?['vehicleNumber'] ?? '').toString();
         isBike = (selectedVehicle?['vehicleType'] ?? '').toString().toLowerCase() == 'bike';
         selectedSeats = isBike ? 1 : (selectedVehicle?['totalSeats'] as int? ?? 1);
-      }
-      else {
+      } else {
         selectedVehicle = null;
         vehicleModel = "No verified vehicle found";
         vehicleNumber = "";
@@ -186,6 +185,20 @@ class _ActiveRidesPageState extends State<ActiveRidesPage> {
       currentLocation =
       "${position.latitude.toStringAsFixed(5)}, ${position.longitude.toStringAsFixed(5)}";
     });
+
+    try {
+      final geoResponse = await _api.mapsReverseGeocode(
+        lat: position.latitude,
+        lng: position.longitude,
+      );
+      final address =
+          geoResponse['data']?['formattedAddress']?.toString().trim() ?? '';
+      if (address.isNotEmpty && mounted) {
+        setState(() {
+          currentLocation = address;
+        });
+      }
+    } catch (_) {}
   }
 
   void _startLocationTracking() {
@@ -206,6 +219,20 @@ class _ActiveRidesPageState extends State<ActiveRidesPage> {
           "${position.latitude.toStringAsFixed(5)}, ${position.longitude.toStringAsFixed(5)}";
         });
       }
+
+      try {
+        final geoResponse = await _api.mapsReverseGeocode(
+          lat: position.latitude,
+          lng: position.longitude,
+        );
+        final address =
+            geoResponse['data']?['formattedAddress']?.toString().trim() ?? '';
+        if (address.isNotEmpty && mounted) {
+          setState(() {
+            currentLocation = address;
+          });
+        }
+      } catch (_) {}
 
       try {
         final response = await _api.updateActiveRideLocation(
@@ -233,7 +260,6 @@ class _ActiveRidesPageState extends State<ActiveRidesPage> {
             ),
           );
         }
-
       } catch (_) {}
     });
   }
@@ -393,7 +419,6 @@ class _ActiveRidesPageState extends State<ActiveRidesPage> {
 
     return Scaffold(
       backgroundColor: const Color(0xFFF9FAFB),
-
       appBar: AppBar(
         backgroundColor: const Color(0xFF14B8A6),
         title: const Text(
@@ -402,10 +427,8 @@ class _ActiveRidesPageState extends State<ActiveRidesPage> {
         ),
         centerTitle: true,
       ),
-
       body: Padding(
         padding: const EdgeInsets.all(16),
-
         child: hasActiveRide
             ? Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -479,7 +502,8 @@ class _ActiveRidesPageState extends State<ActiveRidesPage> {
                   width: 22,
                   child: CircularProgressIndicator(
                     strokeWidth: 2.4,
-                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                    valueColor: AlwaysStoppedAnimation<Color>(
+                        Colors.white),
                   ),
                 )
                     : const Text(
@@ -493,7 +517,6 @@ class _ActiveRidesPageState extends State<ActiveRidesPage> {
             : Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
@@ -522,9 +545,7 @@ class _ActiveRidesPageState extends State<ActiveRidesPage> {
                 ],
               ),
             ),
-
             const SizedBox(height: 20),
-
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
@@ -544,7 +565,8 @@ class _ActiveRidesPageState extends State<ActiveRidesPage> {
                           (vehicle) => DropdownMenuItem<String>(
                         value: vehicle['vehicleId'].toString(),
                         child: Text(
-                          (vehicle['vehicleTypeLabel'] ?? 'Vehicle').toString(),
+                          (vehicle['vehicleTypeLabel'] ?? 'Vehicle')
+                              .toString(),
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
@@ -552,17 +574,27 @@ class _ActiveRidesPageState extends State<ActiveRidesPage> {
                         .toList(),
                     onChanged: (value) {
                       final matched = vehicles.where(
-                            (vehicle) => vehicle['vehicleId'].toString() == value,
+                            (vehicle) =>
+                        vehicle['vehicleId'].toString() == value,
                       );
 
                       if (matched.isEmpty) return;
 
                       setState(() {
                         selectedVehicle = matched.first;
-                        vehicleModel = (selectedVehicle?['model'] ?? '').toString();
-                        vehicleNumber = (selectedVehicle?['vehicleNumber'] ?? '').toString();
-                        isBike = (selectedVehicle?['vehicleType'] ?? '').toString().toLowerCase() == 'bike';
-                        selectedSeats = isBike ? 1 : (selectedVehicle?['totalSeats'] as int? ?? 1);
+                        vehicleModel =
+                            (selectedVehicle?['model'] ?? '').toString();
+                        vehicleNumber =
+                            (selectedVehicle?['vehicleNumber'] ?? '')
+                                .toString();
+                        isBike = (selectedVehicle?['vehicleType'] ?? '')
+                            .toString()
+                            .toLowerCase() ==
+                            'bike';
+                        selectedSeats = isBike
+                            ? 1
+                            : (selectedVehicle?['totalSeats'] as int? ??
+                            1);
                       });
                     },
                   ),
@@ -620,8 +652,12 @@ class _ActiveRidesPageState extends State<ActiveRidesPage> {
                         ),
                         IconButton(
                           onPressed: () {
-                            final totalSeats = selectedVehicle?['totalSeats'];
-                            final maxSeats = (totalSeats is int && totalSeats > 0) ? totalSeats : 4;
+                            final totalSeats =
+                            selectedVehicle?['totalSeats'];
+                            final maxSeats =
+                            (totalSeats is int && totalSeats > 0)
+                                ? totalSeats
+                                : 4;
                             if (selectedSeats < maxSeats) {
                               setState(() => selectedSeats++);
                             }
@@ -631,8 +667,12 @@ class _ActiveRidesPageState extends State<ActiveRidesPage> {
                         ),
                         Builder(
                           builder: (_) {
-                            final totalSeats = selectedVehicle?['totalSeats'];
-                            final maxSeats = (totalSeats is int && totalSeats > 0) ? totalSeats : 4;
+                            final totalSeats =
+                            selectedVehicle?['totalSeats'];
+                            final maxSeats =
+                            (totalSeats is int && totalSeats > 0)
+                                ? totalSeats
+                                : 4;
                             return Text(
                               '/ $maxSeats max',
                               style: const TextStyle(
@@ -648,9 +688,7 @@ class _ActiveRidesPageState extends State<ActiveRidesPage> {
                 ],
               ),
             ),
-
             const SizedBox(height: 20),
-
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
@@ -660,20 +698,20 @@ class _ActiveRidesPageState extends State<ActiveRidesPage> {
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.my_location, color: Color(0xFF0F766E)),
+                  const Icon(Icons.my_location,
+                      color: Color(0xFF0F766E)),
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(
                       currentLocation,
-                      style: const TextStyle(color: Color(0xFF1F2937)),
+                      style:
+                      const TextStyle(color: Color(0xFF1F2937)),
                     ),
                   ),
                 ],
               ),
             ),
-
             const SizedBox(height: 15),
-
             GestureDetector(
               onTap: pickDestination,
               child: Container(
@@ -685,21 +723,21 @@ class _ActiveRidesPageState extends State<ActiveRidesPage> {
                 ),
                 child: Row(
                   children: [
-                    const Icon(Icons.location_on, color: Color(0xFF0F766E)),
+                    const Icon(Icons.location_on,
+                        color: Color(0xFF0F766E)),
                     const SizedBox(width: 10),
                     Expanded(
                       child: Text(
                         destination,
-                        style: const TextStyle(color: Color(0xFF1F2937)),
+                        style: const TextStyle(
+                            color: Color(0xFF1F2937)),
                       ),
                     ),
                   ],
                 ),
               ),
             ),
-
             const Spacer(),
-
             Row(
               children: [
                 Expanded(
@@ -707,7 +745,8 @@ class _ActiveRidesPageState extends State<ActiveRidesPage> {
                     onPressed: () => Navigator.pop(context),
                     style: OutlinedButton.styleFrom(
                       minimumSize: const Size.fromHeight(55),
-                      side: const BorderSide(color: Color(0xFF14B8A6)),
+                      side: const BorderSide(
+                          color: Color(0xFF14B8A6)),
                     ),
                     child: const Text(
                       "Back",
@@ -718,7 +757,8 @@ class _ActiveRidesPageState extends State<ActiveRidesPage> {
                 const SizedBox(width: 15),
                 Expanded(
                   child: ElevatedButton(
-                    onPressed: isConfirming ? null : confirmRide,
+                    onPressed:
+                    isConfirming ? null : confirmRide,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF14B8A6),
                       minimumSize: const Size.fromHeight(55),
@@ -729,12 +769,15 @@ class _ActiveRidesPageState extends State<ActiveRidesPage> {
                       width: 22,
                       child: CircularProgressIndicator(
                         strokeWidth: 2.4,
-                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                        valueColor:
+                        AlwaysStoppedAnimation<Color>(
+                            Colors.white),
                       ),
                     )
                         : const Text(
                       "Confirm",
-                      style: TextStyle(color: Colors.white),
+                      style:
+                      TextStyle(color: Colors.white),
                     ),
                   ),
                 ),

@@ -96,6 +96,7 @@ class _RequestingRidePageState extends State<RequestingRidePage>
   @override
   void dispose() {
     _messageTimer?.cancel();
+    _pollingTimer?.cancel();
     _socket?.dispose();
     _pulseController.dispose();
     super.dispose();
@@ -141,6 +142,8 @@ class _RequestingRidePageState extends State<RequestingRidePage>
     }
   }
 
+  Timer? _pollingTimer;
+
   Future<void> _createRideRequest() async {
     try {
       final response = await _authApiService.createRideRequestV2(
@@ -155,20 +158,67 @@ class _RequestingRidePageState extends State<RequestingRidePage>
       _requestId = (response['data']?['requestId'] ?? '').toString();
 
       if (_requestId != null && _requestId!.isNotEmpty) {
+        // Socket আর Polling দুটো একসাথে চালাও
         await _connectSocket();
+        _startPolling();
       }
     } catch (e) {
       if (!mounted) return;
-
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-            e.toString().replaceFirst('Exception: ', ''),
-          ),
+          content: Text(e.toString().replaceFirst('Exception: ', '')),
         ),
       );
-
       Navigator.pop(context);
+    }
+  }
+
+  void _startPolling() {
+    _pollingTimer = Timer.periodic(const Duration(seconds: 3), (_) async {
+      await _checkRequestStatus();
+    });
+  }
+
+  Future<void> _checkRequestStatus() async {
+    if (_requestId == null || _requestId!.isEmpty || !mounted) return;
+
+    try {
+      final response = await _authApiService.getRideRequestStatus(
+        requestId: _requestId!,
+      );
+
+      final status = (response['data']?['status'] ?? '').toString().toLowerCase();
+
+      if (!mounted) return;
+
+      if (status == 'accepted') {
+        _pollingTimer?.cancel();
+        _socket?.dispose();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Ride request accepted')),
+        );
+        Navigator.pop(context);
+      } else if (status == 'rejected') {
+        _pollingTimer?.cancel();
+        _socket?.dispose();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Ride request rejected')),
+        );
+        Navigator.pop(context);
+      } else if (status == 'expired') {
+        _pollingTimer?.cancel();
+        _socket?.dispose();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Ride request expired')),
+        );
+        Navigator.pop(context);
+      } else if (status == 'cancelled') {
+        _pollingTimer?.cancel();
+        _socket?.dispose();
+        Navigator.pop(context);
+      }
+    } catch (_) {
+      // silent fail — polling চলতে থাকবে
     }
   }
 

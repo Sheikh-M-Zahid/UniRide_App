@@ -5072,4 +5072,53 @@ class AuthApiService {
       throw Exception(data['message'] ?? 'Failed to load vehicle rates');
     }
   }
+
+  // ActiveRideTrackingPage.dart
+  Future<Map<String, dynamic>> getPassengerActiveRideRequest() async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+
+    final url = Uri.parse('$baseUrl/ride-requests/passenger/active');
+
+    final response = await http.get(
+      url,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    );
+
+    final data = jsonDecode(response.body);
+
+    if (response.statusCode == 200) {
+      return data;
+    } else {
+      throw Exception(data['message'] ?? 'Failed to load active ride request');
+    }
+  }
+
+  Future<Map<String, dynamic>> getRiderLiveLocationForPassenger({
+    required String requestId,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+
+    final url = Uri.parse('$baseUrl/ride-requests/$requestId/rider-location');
+
+    final response = await http.get(
+      url,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    );
+
+    final data = jsonDecode(response.body);
+
+    if (response.statusCode == 200) {
+      return data;
+    } else {
+      throw Exception(data['message'] ?? 'Failed to load rider location');
+    }
+  }
 }

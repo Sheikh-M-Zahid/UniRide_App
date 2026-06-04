@@ -1,5 +1,4 @@
 import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'services/auth_api_service.dart';
 
@@ -12,6 +11,7 @@ import 'ReserveRide.dart';
 import 'SendItem.dart';
 import 'SharingCaringPage.dart';
 import 'NotificationsPage.dart';
+import 'ActiveRideTrackingPage.dart';
 
 class AppColors {
   static const Color primary = Color(0xFF14B8A6);
@@ -46,17 +46,13 @@ class _UniRideHomePageState extends State<UniRideHomePage> {
     'images/ADS/Delivery_System.png',
   ];
 
-  @override
-  void dispose() {
-    _adTimer?.cancel();
-    _adPageController.dispose();
-    super.dispose();
-  }
-
   int offerCount = 0;
   int unreadNotificationCount = 0;
   bool isLoadingHome = true;
-  static const String _googleApiKey = 'AIzaSyCF5mVtZ2woOu8P1Jwf-7IfzRw_QoPilCI';
+  Map<String, dynamic>? _activeRideRequest;
+
+  static const String _googleApiKey =
+      'AIzaSyCF5mVtZ2woOu8P1Jwf-7IfzRw_QoPilCI';
 
   @override
   void initState() {
@@ -65,13 +61,18 @@ class _UniRideHomePageState extends State<UniRideHomePage> {
     _startAdAutoSlide();
   }
 
-  Future<void> _loadHomeSummary() async {
-    // Summary আর Notification আলাদাভাবে load করুন
-    // একটা fail করলে অন্যটা যেন বন্ধ না হয়
+  @override
+  void dispose() {
+    _adTimer?.cancel();
+    _adPageController.dispose();
+    super.dispose();
+  }
 
+  Future<void> _loadHomeSummary() async {
     // Step 1: Summary
     try {
-      final summaryResponse = await _authApiService.getServicesSummaryPublic();
+      final summaryResponse =
+      await _authApiService.getServicesSummaryPublic();
       final data = summaryResponse['data'] ?? {};
       if (mounted) {
         setState(() {
@@ -82,11 +83,9 @@ class _UniRideHomePageState extends State<UniRideHomePage> {
       if (mounted) setState(() => offerCount = 0);
     }
 
-    // Step 2: Notifications (আলাদা try-catch)
+    // Step 2: Notifications
     try {
       final notifResponse = await _authApiService.getNotifications();
-
-      // API response এর সব possible structure handle করা
       dynamic rawData = notifResponse['data'];
       List rawList = [];
 
@@ -101,8 +100,8 @@ class _UniRideHomePageState extends State<UniRideHomePage> {
       int unread = 0;
       for (var item in rawList) {
         if (item is Map) {
-          // is_read বা isRead দুটোই check করা
-          final isRead = item['isRead'] == true || item['is_read'] == true;
+          final isRead =
+              item['isRead'] == true || item['is_read'] == true;
           if (!isRead) unread++;
         }
       }
@@ -116,7 +115,24 @@ class _UniRideHomePageState extends State<UniRideHomePage> {
       if (mounted) setState(() => unreadNotificationCount = 0);
     }
 
-    // Step 3: Loading শেষ
+    // Step 3: Active ride request check
+    try {
+      final activeRideRes =
+      await _authApiService.getPassengerActiveRideRequest();
+      final rideData = activeRideRes['data'];
+      if (mounted) {
+        setState(() {
+          _activeRideRequest =
+          (rideData != null && rideData is Map)
+              ? Map<String, dynamic>.from(rideData)
+              : null;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _activeRideRequest = null);
+    }
+
+    // Step 4: Loading শেষ
     if (mounted) {
       setState(() => isLoadingHome = false);
     }
@@ -124,12 +140,12 @@ class _UniRideHomePageState extends State<UniRideHomePage> {
 
   void _startAdAutoSlide() {
     _adTimer?.cancel();
-
     _adTimer = Timer.periodic(const Duration(seconds: 3), (timer) {
-      if (!_showAds || !_adPageController.hasClients || _adImages.isEmpty) return;
+      if (!_showAds ||
+          !_adPageController.hasClients ||
+          _adImages.isEmpty) return;
 
       _currentAdIndex++;
-
       if (_currentAdIndex >= _adImages.length) {
         _currentAdIndex = 0;
       }
@@ -145,7 +161,6 @@ class _UniRideHomePageState extends State<UniRideHomePage> {
   void _closeAds() {
     _adTimer?.cancel();
     if (!mounted) return;
-
     setState(() {
       _showAds = false;
     });
@@ -155,7 +170,6 @@ class _UniRideHomePageState extends State<UniRideHomePage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
-
       appBar: AppBar(
         backgroundColor: AppColors.background,
         elevation: 0,
@@ -164,10 +178,7 @@ class _UniRideHomePageState extends State<UniRideHomePage> {
         title: Row(
           mainAxisSize: MainAxisSize.min,
           children: const [
-            Icon(
-              Icons.directions_car,
-              color: AppColors.primary,
-            ),
+            Icon(Icons.directions_car, color: AppColors.primary),
             SizedBox(width: 8),
             Text(
               "UniRide",
@@ -242,162 +253,292 @@ class _UniRideHomePageState extends State<UniRideHomePage> {
         ],
       ),
 
-      body: SingleChildScrollView(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              GestureDetector(
-                onTap: () {
-                  if (_googleApiKey.isEmpty) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Google Maps API key is missing'),
+      // ── body ──
+      body: Stack(
+        children: [
+          // ── Main scroll content ──
+          SingleChildScrollView(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Search bar
+                  GestureDetector(
+                    onTap: () {
+                      if (_googleApiKey.isEmpty) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content:
+                            Text('Google Maps API key is missing'),
+                          ),
+                        );
+                        return;
+                      }
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => PlanYourRidePage(
+                            googleApiKey: _googleApiKey,
+                          ),
+                        ),
+                      );
+                    },
+                    child: Container(
+                      padding:
+                      const EdgeInsets.symmetric(horizontal: 15),
+                      height: 55,
+                      decoration: BoxDecoration(
+                        color: AppColors.inputFill,
+                        borderRadius: BorderRadius.circular(30),
+                        border: Border.all(color: AppColors.border),
                       ),
-                    );
-                    return;
-                  }
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => PlanYourRidePage(
-                        googleApiKey: 'AIzaSyCF5mVtZ2woOu8P1Jwf-7IfzRw_QoPilCI',
+                      child: const Row(
+                        children: [
+                          Icon(Icons.search, color: AppColors.secondary),
+                          SizedBox(width: 10),
+                          Text(
+                            "Where do you want to go?",
+                            style: TextStyle(
+                              fontSize: 16,
+                              color: AppColors.mutedText,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                  );
-                },
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 15),
-                  height: 55,
-                  decoration: BoxDecoration(
-                    color: AppColors.inputFill,
-                    borderRadius: BorderRadius.circular(30),
-                    border: Border.all(color: AppColors.border),
                   ),
-                  child: const Row(
-                    children: [
-                      Icon(
-                        Icons.search,
-                        color: AppColors.secondary,
-                      ),
-                      SizedBox(width: 10),
-                      Text(
-                        "Where do you want to go?",
-                        style: TextStyle(
-                          fontSize: 16,
-                          color: AppColors.mutedText,
+
+                  const SizedBox(height: 25),
+
+                  const Text(
+                    "Suggestions",
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.text,
+                    ),
+                  ),
+
+                  const SizedBox(height: 15),
+
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: [
+                        GestureDetector(
+                          onTap: () {
+                            if (_googleApiKey.isEmpty) {
+                              ScaffoldMessenger.of(context)
+                                  .showSnackBar(
+                                const SnackBar(
+                                  content: Text(
+                                      'Google Maps API key is missing'),
+                                ),
+                              );
+                              return;
+                            }
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => PlanYourRidePage(
+                                  googleApiKey: _googleApiKey,
+                                ),
+                              ),
+                            );
+                          },
+                          child: const _SuggestionBox(
+                            icon: Icons.directions_car,
+                            title: "Ride",
+                          ),
+                        ),
+                        const SizedBox(width: 15),
+                        GestureDetector(
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) =>
+                                const ReserveRide(),
+                              ),
+                            );
+                          },
+                          child: const _SuggestionBox(
+                            icon: Icons.calendar_today,
+                            title: "Reserve",
+                          ),
+                        ),
+                        const SizedBox(width: 15),
+                        GestureDetector(
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) =>
+                                const SendItemForm(),
+                              ),
+                            );
+                          },
+                          child: const _SuggestionBox(
+                            icon: Icons.inventory,
+                            title: "Send Item",
+                          ),
+                        ),
+                        const SizedBox(width: 15),
+                        GestureDetector(
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) =>
+                                const SharingCaringPage(),
+                              ),
+                            );
+                          },
+                          child: const _SuggestionBox(
+                            icon: Icons.volunteer_activism,
+                            title: "Co Ride",
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 30),
+
+                  if (_showAds)
+                    _HomeAdsSlider(
+                      controller: _adPageController,
+                      adImages: _adImages,
+                      onPageChanged: (index) {
+                        _currentAdIndex = index;
+                        _startAdAutoSlide();
+                      },
+                      onClose: _closeAds,
+                    ),
+
+                  // Active ride bubble এর জন্য নিচে padding
+                  if (!isLoadingHome && _activeRideRequest != null)
+                    const SizedBox(height: 80),
+                ],
+              ),
+            ),
+          ),
+
+          // ── Active Ride Floating Bubble ──
+          if (!isLoadingHome && _activeRideRequest != null)
+            Positioned(
+              bottom: 16,
+              left: 0,
+              right: 0,
+              child: Center(
+                child: GestureDetector(
+                  onTap: () {
+                    final d = _activeRideRequest!;
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => ActiveRideTrackingPage(
+                          requestId:
+                          (d['requestId'] ?? '').toString(),
+                          riderName:
+                          (d['riderName'] ?? 'Rider').toString(),
+                          riderPhone:
+                          (d['riderPhone'] ?? '').toString(),
+                          riderPhoto:
+                          d['riderPhoto']?.toString(),
+                          destination:
+                          (d['destination'] ?? '').toString(),
+                          initialRiderLat: d['riderLat'] != null
+                              ? double.tryParse(
+                              '${d['riderLat']}')
+                              : null,
+                          initialRiderLng: d['riderLng'] != null
+                              ? double.tryParse(
+                              '${d['riderLng']}')
+                              : null,
+                          pickupLat: d['pickupLat'] != null
+                              ? double.tryParse(
+                              '${d['pickupLat']}')
+                              : null,
+                          pickupLng: d['pickupLng'] != null
+                              ? double.tryParse(
+                              '${d['pickupLng']}')
+                              : null,
+                          destinationLat: d['destinationLat'] != null
+                              ? double.tryParse(
+                              '${d['destinationLat']}')
+                              : null,
+                          destinationLng: d['destinationLng'] != null
+                              ? double.tryParse(
+                              '${d['destinationLng']}')
+                              : null,
                         ),
                       ),
-                    ],
+                    ).then((_) => _loadHomeSummary());
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 20, vertical: 13),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF14B8A6),
+                      borderRadius: BorderRadius.circular(30),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFF14B8A6)
+                              .withOpacity(0.45),
+                          blurRadius: 16,
+                          spreadRadius: 2,
+                          offset: const Offset(0, 5),
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          Icons.directions_car_rounded,
+                          color: Colors.white,
+                          size: 22,
+                        ),
+                        const SizedBox(width: 10),
+                        Column(
+                          crossAxisAlignment:
+                          CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Text(
+                              'Ride in progress',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 14,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            Text(
+                              (_activeRideRequest!['riderName'] ??
+                                  'Rider')
+                                  .toString(),
+                              style: const TextStyle(
+                                color: Colors.white70,
+                                fontSize: 11,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(width: 10),
+                        const Icon(
+                          Icons.my_location_rounded,
+                          color: Colors.white70,
+                          size: 18,
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
-
-              const SizedBox(height: 25),
-
-              const Text(
-                "Suggestions",
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.text,
-                ),
-              ),
-
-              const SizedBox(height: 15),
-
-              SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: Row(
-                  children: [
-                    GestureDetector(
-                      onTap: () {
-                        if (_googleApiKey.isEmpty) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Google Maps API key is missing'),
-                            ),
-                          );
-                          return;
-                        }
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => PlanYourRidePage(
-                              googleApiKey: 'AIzaSyCF5mVtZ2woOu8P1Jwf-7IfzRw_QoPilCI',
-                            ),
-                          ),
-                        );
-                      },
-                      child: const _SuggestionBox(
-                        icon: Icons.directions_car,
-                        title: "Ride",
-                      ),
-                    ),
-                    const SizedBox(width: 15),
-                    GestureDetector(
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const ReserveRide(),
-                          ),
-                        );
-                      },
-                      child: const _SuggestionBox(
-                        icon: Icons.calendar_today,
-                        title: "Reserve",
-                      ),
-                    ),
-                    const SizedBox(width: 15),
-                    GestureDetector(
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const SendItemForm(),
-                          ),
-                        );
-                      },
-                      child: const _SuggestionBox(
-                        icon: Icons.inventory,
-                        title: "Send Item",
-                      ),
-                    ),
-                    const SizedBox(width: 15),
-                    GestureDetector(
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const SharingCaringPage(),
-                          ),
-                        );
-                      },
-                      child: const _SuggestionBox(
-                        icon: Icons.volunteer_activism,
-                        title: "Co Ride",
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 30),
-
-              if (_showAds)
-                _HomeAdsSlider(
-                  controller: _adPageController,
-                  adImages: _adImages,
-                  onPageChanged: (index) {
-                    _currentAdIndex = index;
-                    _startAdAutoSlide();
-                  },
-                  onClose: _closeAds,
-                ),
-            ],
-          ),
-        ),
+            ),
+        ],
       ),
 
       bottomNavigationBar: BottomNavigationBar(
@@ -410,13 +551,15 @@ class _UniRideHomePageState extends State<UniRideHomePage> {
           if (index == 1) {
             Navigator.pushReplacement(
               context,
-              MaterialPageRoute(builder: (context) => const ServicesPage()),
+              MaterialPageRoute(
+                  builder: (context) => const ServicesPage()),
             );
           }
           if (index == 2) {
             Navigator.pushReplacement(
               context,
-              MaterialPageRoute(builder: (context) => const ActivityPage()),
+              MaterialPageRoute(
+                  builder: (context) => const ActivityPage()),
             );
           }
           if (index == 4) {
@@ -463,6 +606,7 @@ class _UniRideHomePageState extends State<UniRideHomePage> {
   }
 }
 
+// ── Ads Slider ──
 class _HomeAdsSlider extends StatelessWidget {
   final PageController controller;
   final List<String> adImages;
@@ -516,8 +660,6 @@ class _HomeAdsSlider extends StatelessWidget {
             ),
           ),
         ),
-
-        /// ❌ Close Button
         Positioned(
           top: 8,
           right: 8,
@@ -542,6 +684,7 @@ class _HomeAdsSlider extends StatelessWidget {
   }
 }
 
+// ── Suggestion Box ──
 class _SuggestionBox extends StatelessWidget {
   final IconData icon;
   final String title;
@@ -571,11 +714,7 @@ class _SuggestionBox extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(
-            icon,
-            size: 35,
-            color: AppColors.primary,
-          ),
+          Icon(icon, size: 35, color: AppColors.primary),
           const SizedBox(height: 10),
           Text(
             title,

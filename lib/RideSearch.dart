@@ -368,7 +368,7 @@ class _PlanYourRidePageState extends State<PlanYourRidePage> {
   List<RideOptionModel> _mapRideOptions(List<dynamic> rides) {
     return rides.map((ride) {
       final map = Map<String, dynamic>.from(ride as Map);
-
+      // rider info এখন flat object হিসেবে আসছে
       final rider = Map<String, dynamic>.from(map['rider'] ?? {});
 
       return RideOptionModel(
@@ -380,13 +380,18 @@ class _PlanYourRidePageState extends State<PlanYourRidePage> {
             ? 'Car'
             : (map['vehicle_type'] ?? '').toString(),
         rating: double.tryParse('${rider['rating'] ?? 0}') ?? 0,
-        vehicleNumber: '${map['company'] ?? ''} ${map['model'] ?? ''}'.trim(),
+        vehicleNumber:
+        '${map['company'] ?? ''} ${map['model'] ?? ''} ${map['number_plate'] ?? ''}'
+            .trim(),
         emptySeats: int.tryParse('${map['available_seats'] ?? 0}') ?? 0,
         departureTime: (map['travel_time'] ?? 'Now').toString(),
-        genderPreference: 'Any',
-        distanceAwayKm: double.tryParse('${map['total_distance_km'] ?? 0}') ?? 0,
-        estimatedFare: double.tryParse('${map['total_fare'] ?? 0}') ?? 0,
-        isAvailable: (int.tryParse('${map['available_seats'] ?? 0}') ?? 0) > 0,
+        genderPreference: (map['gender_preference'] ?? 'Any').toString(),
+        distanceAwayKm:
+        double.tryParse('${map['riderDistanceKm'] ?? 0}') ?? 0,
+        estimatedFare:
+        double.tryParse('${map['estimatedFare'] ?? 0}') ?? 0,
+        isAvailable:
+        (int.tryParse('${map['available_seats'] ?? 0}') ?? 0) > 0,
       );
     }).toList();
   }

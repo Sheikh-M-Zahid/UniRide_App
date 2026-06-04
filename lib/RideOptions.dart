@@ -89,13 +89,18 @@ class _RideOptionsPageState extends State<RideOptionsPage> {
               ? 'Car'
               : (map['vehicle_type'] ?? '').toString(),
           rating: double.tryParse('${rider['rating'] ?? 0}') ?? 0,
-          vehicleNumber: '${map['company'] ?? ''} ${map['model'] ?? ''}'.trim(),
+          vehicleNumber:
+          '${map['company'] ?? ''} ${map['model'] ?? ''} ${map['number_plate'] ?? ''}'
+              .trim(),
           emptySeats: int.tryParse('${map['available_seats'] ?? 0}') ?? 0,
           departureTime: (map['travel_time'] ?? 'Now').toString(),
           genderPreference: (map['gender_preference'] ?? 'Any').toString(),
-          distanceAwayKm: double.tryParse('${map['total_distance_km'] ?? 0}') ?? 0,
-          estimatedFare: double.tryParse('${map['estimatedFare'] ?? 0}') ?? 0,
-          isAvailable: (int.tryParse('${map['available_seats'] ?? 0}') ?? 0) > 0,
+          distanceAwayKm:
+          double.tryParse('${map['riderDistanceKm'] ?? 0}') ?? 0,
+          estimatedFare:
+          double.tryParse('${map['estimatedFare'] ?? 0}') ?? 0,
+          isAvailable:
+          (int.tryParse('${map['available_seats'] ?? 0}') ?? 0) > 0,
         );
       }).toList();
       if (!mounted) return;
@@ -121,15 +126,15 @@ class _RideOptionsPageState extends State<RideOptionsPage> {
     final List<RideOptionModel> rides = _liveRides.where((ride) {
       final bool genderMatch = selectedGender == 'Any'
           ? true
-          : ride.genderPreference.toLowerCase() == selectedGender.toLowerCase() ||
-          ride.genderPreference.toLowerCase() == 'any';
+          : ride.driverGender.toLowerCase() ==
+          (selectedGender == 'Male only' ? 'male' : 'female');
 
       final bool userTypeMatch =
       selectedUserType == 'All' ? true : ride.userType == selectedUserType;
 
       final bool vehicleTypeMatch = selectedVehicleType == 'All'
           ? true
-          : ride.vehicleType == selectedVehicleType;
+          : ride.vehicleType.toLowerCase() == selectedVehicleType.toLowerCase();
 
       return ride.isAvailable &&
           genderMatch &&
