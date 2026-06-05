@@ -178,9 +178,29 @@ const startNavigation = async ({ riderId, rideId }) => {
   return { rideId, status: 'ongoing' };
 };
 
+const getRoutePolyline = async ({ originLat, originLng, destinationLat, destinationLng }) => {
+  try {
+    const result = await googleMapsService.computeRoute({
+      originLat: Number(originLat),
+      originLng: Number(originLng),
+      destinationLat: Number(destinationLat),
+      destinationLng: Number(destinationLng),
+      travelMode: 'DRIVE',
+    });
+    return {
+      encodedPolyline: result.polyline ?? null,
+      distanceKm: result.distanceKm,
+      durationMinutes: result.durationMinutes,
+    };
+  } catch (_) {
+    return { encodedPolyline: null, distanceKm: null, durationMinutes: null };
+  }
+};
+
 module.exports = {
   getMapDashboard,
   updateLocation,
   acceptRequest,
   startNavigation,
+  getRoutePolyline,
 };
