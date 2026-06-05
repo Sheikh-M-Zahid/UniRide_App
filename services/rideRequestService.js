@@ -40,6 +40,7 @@ const createRequest = async (passengerId, payload) => {
     fare,
     distanceKm,
     estimatedMinutes,
+    applied_promo_code = null,
   } = payload;
 
   if (!rideId || !pickupAddress || !destinationAddress) {
@@ -113,12 +114,13 @@ const createRequest = async (passengerId, payload) => {
       ride_id,
       distance_km,
       rate_per_km,
-      vehicle_type
+      vehicle_type,
+      applied_promo_code
     )
     VALUES (
       $1, $2, $3, $4, $5, $6, 'pending',
       CURRENT_TIMESTAMP + ($7 || ' seconds')::interval,
-      $8, $9, $10, $11
+      $8, $9, $10, $11, $12
     )
     RETURNING *`,
     [
@@ -133,6 +135,7 @@ const createRequest = async (passengerId, payload) => {
       distanceKm || 0,
       ride.per_km_rate || 0,
       ride.vehicle_type || null,
+      applied_promo_code || null,
     ]
   );
 
@@ -163,7 +166,7 @@ const createRequest = async (passengerId, payload) => {
   await createNotification({
     userId: ride.rider_id,
     title: 'New Ride Request!',
-    message: `${passengerName} wants to ride from ${pickupAddress} to ${destinationAddress}. Fare: ৳${fare || 0}`,
+    message: `${passengerName} wants to ride from ${pickupAddress} to ${destinationAddress}. Fare: ৳${fare || 0}${applied_promo_code ? ` · Offer applied: ${applied_promo_code}` : ''}`,
     type: 'booking',
     isImportant: true,
     targetRole: 'rider',
