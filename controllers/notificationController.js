@@ -23,9 +23,26 @@ const deleteNotification = asyncHandler(async (req, res) => {
   return successResponse(res, 'Notification deleted');
 });
 
+const saveFcmToken = asyncHandler(async (req, res) => {
+  const { fcmToken } = req.body;
+  const userId = req.user.userId;
+
+  if (!fcmToken) {
+    return errorResponse(res, 'fcmToken required', 400);
+  }
+
+  await rideDb.query(
+    `UPDATE users SET fcm_token = $1 WHERE user_id = $2`,
+    [fcmToken, userId]
+  );
+
+  return successResponse(res, 'FCM token saved');
+});
+
 module.exports = {
   getNotifications,
   markAsRead,
   markAllAsRead,
   deleteNotification,
+  saveFcmToken,
 };
