@@ -1,3 +1,4 @@
+const admin = require('../config/firebase');
 const rideDb = require('../config/rideDb');
 const { emitNotification } = require('../utils/notificationEmitter');
 
@@ -102,6 +103,40 @@ const createNotification = async ({
   const notification = mapNotificationRow(result.rows[0]);
 
   emitNotification(userId, notification);
+
+  // FCM push notification
+  try {
+    const tokenResult = await rideDb.query(
+      `SELECT fcm_token FROM users WHERE user_id = $1`,
+      [userId]
+    );
+    const fcmToken = tokenResult.rows[0]?.fcm_token;
+
+    if (fcmToken) {
+      await admin.messaging().send({
+        token: fcmToken,
+        notification: {
+          title: title,
+          body: message,
+        },
+        data: {
+          notificationId: String(notification.id),
+          type: type,
+          relatedId: relatedId ? String(relatedId) : '',
+        },
+        android: {
+          priority: 'high',
+          notification: {
+            channelId: 'uniride_channel',
+            priority: 'high',
+            defaultSound: true,
+          },
+        },
+      });
+    }
+  } catch (err) {
+    console.error('FCM error:', err?.message);
+  }
 
   return notification;
 };
