@@ -1,9 +1,9 @@
 const rideDb = require('../config/rideDb');
 const riderActiveRideService = require('./riderActiveRideService');
 const { isRouteMatch } = require('../utils/routeMatcher');
+const googleMapsService = require('./googleMapsService');
 
 const getMapDashboard = async ({ riderId }) => {
-  // 1. rider location
   const locationRes = await rideDb.query(
     `SELECT latitude, longitude
      FROM live_locations
@@ -15,7 +15,6 @@ const getMapDashboard = async ({ riderId }) => {
 
   const riderLocation = locationRes.rows[0] || { latitude: null, longitude: null };
 
-  // 2. current ride
   const rideRes = await rideDb.query(
     `SELECT
         r.ride_id,
@@ -31,10 +30,12 @@ const getMapDashboard = async ({ riderId }) => {
         r.pickup_latitude,
         r.pickup_longitude,
         r.destination_latitude,
-        r.destination_longitude
+        r.destination_longitude,
+        v.vehicle_type
      FROM rides r
      JOIN ride_participants rp ON rp.ride_id = r.ride_id
      JOIN users u ON u.user_id = rp.passenger_id
+     LEFT JOIN vehicles v ON v.vehicle_id = r.vehicle_id
      WHERE r.rider_id = $1
        AND r.status IN ('assigned','ongoing')
      LIMIT 1`,
@@ -46,6 +47,18 @@ const getMapDashboard = async ({ riderId }) => {
   if (rideRes.rows.length) {
     const row = rideRes.rows[0];
 
+    // Real route from Google Maps
+    let routeData = null;
+    try {
+      routeData = await googleMapsService.computeRoute({
+        originLat: Number(row.pickup_latitude),
+        originLng: Number(row.pickup_longitude),
+        destinationLat: Number(row.destination_latitude),
+        destinationLng: Number(row.destination_longitude),
+        travelMode: 'DRIVE',
+      });
+    } catch (_) {}
+
     currentRide = {
       rideId: row.ride_id,
       passengerName: `${row.first_name} ${row.last_name}`,
@@ -56,14 +69,15 @@ const getMapDashboard = async ({ riderId }) => {
       pickupLng: row.pickup_longitude,
       destinationLat: row.destination_latitude,
       destinationLng: row.destination_longitude,
-      distanceKm: Number(row.total_distance_km),
-      estimatedMinutes: 0,
+      distanceKm: routeData?.distanceKm ?? Number(row.total_distance_km),
+      estimatedMinutes: routeData?.durationMinutes ?? 0,
       fare: Number(row.total_fare),
       status: row.status,
+      vehicleType: row.vehicle_type ?? 'bike',
+      encodedPolyline: routeData?.polyline ?? null,
     };
   }
 
-  // 3. nearby requests
   const requestsRes = await rideDb.query(
     `SELECT
         rr.request_id,
