@@ -1,6 +1,7 @@
 const asyncHandler = require('../utils/asyncHandler');
-const { successResponse } = require('../utils/apiResponse');
+const { successResponse, errorResponse } = require('../utils/apiResponse');
 const service = require('../services/notificationService');
+const rideDb = require('../config/rideDb');
 
 const getNotifications = asyncHandler(async (req, res) => {
   const data = await service.getNotifications(req.user.userId);
