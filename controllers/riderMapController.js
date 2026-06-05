@@ -62,9 +62,28 @@ const startNavigation = async (req, res) => {
   }
 };
 
+const getRoutePolyline = async (req, res) => {
+  try {
+    const { originLat, originLng, destinationLat, destinationLng } = req.query;
+
+    if (!originLat || !originLng || !destinationLat || !destinationLng) {
+      return errorResponse(res, 'originLat, originLng, destinationLat, destinationLng required', 400);
+    }
+
+    const data = await riderMapService.getRoutePolyline({
+      originLat, originLng, destinationLat, destinationLng,
+    });
+
+    return successResponse(res, 'Route fetched', data);
+  } catch (err) {
+    return errorResponse(res, err.message, 500);
+  }
+};
+
 module.exports = {
   getMapDashboard,
   updateLocation,
   acceptRequest,
   startNavigation,
+  getRoutePolyline,
 };
