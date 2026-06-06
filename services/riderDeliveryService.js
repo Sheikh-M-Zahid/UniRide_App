@@ -10,9 +10,7 @@ const { createNotification } = require('./notificationService');
 
 const rejectedRequestsByRider = new Map();
 
-/* =========================
-   HELPERS
-========================= */
+//HELPERS
 const mapDelivery = (row) => ({
   deliveryId: row.s_id,
   id: row.s_id,
@@ -179,9 +177,7 @@ const sendDeliveryDeliveredNotifications = async ({ delivery, rider }) => {
   });
 };
 
-/* =========================
-   DASHBOARD
-========================= */
+//DASHBOARD
 const getDashboard = async ({ riderId }) => {
   const rejectedSet = getRejectedSet(riderId);
 
@@ -238,9 +234,7 @@ const getDashboard = async ({ riderId }) => {
   };
 };
 
-/* =========================
-   ACCEPT REQUEST
-========================= */
+//ACCEPT REQUEST
 const acceptRequest = async ({ riderId, requestId, io }) => {
   const rider = await getRiderBasicInfo(riderId);
 
@@ -300,7 +294,6 @@ const acceptRequest = async ({ riderId, requestId, io }) => {
   if (io) {
     io.emit('delivery:removed', { requestId: String(requestId) });
 
-    // ✅ FIX
     io.to(`rider_${riderId}`).emit('delivery:accepted', mapped);
 
     if (delivery.sender_id) {
@@ -321,9 +314,7 @@ const acceptRequest = async ({ riderId, requestId, io }) => {
   return mapped;
 };
 
-/* =========================
-   REJECT REQUEST
-========================= */
+//REJECT REQUEST
 const rejectRequest = async ({ riderId, requestId, io }) => {
   const checkRes = await rideDb.query(
     `
@@ -345,7 +336,6 @@ const rejectRequest = async ({ riderId, requestId, io }) => {
   rejectedSet.add(String(requestId));
 
   if (io) {
-    // ✅ FIX
     io.to(`rider_${riderId}`).emit('delivery:reject-ui', {
       requestId: String(requestId),
     });
@@ -354,9 +344,7 @@ const rejectRequest = async ({ riderId, requestId, io }) => {
   return { requestId: String(requestId), hiddenForRider: true };
 };
 
-/* =========================
-   MARK AS DELIVERED
-========================= */
+//MARK AS DELIVERED
 // In-memory OTP store
 const deliveryOtpStore = new Map();
 
@@ -650,7 +638,6 @@ const markDelivered = async ({ riderId, id, otp, io }) => {
   }
 
   if (io) {
-    // ✅ FIX
     io.to(`rider_${riderId}`).emit('delivery:updated', {
       deliveryId: id,
       status: 'delivered',
@@ -694,9 +681,7 @@ const markDelivered = async ({ riderId, id, otp, io }) => {
   };
 };*/
 
-/* =========================
-   MARK AS PICKED UP
-========================= */
+//MARK AS PICKED UP
 const markPickedUp = async ({ riderId, id, io }) => {
   const rider = await getRiderBasicInfo(riderId);
 
