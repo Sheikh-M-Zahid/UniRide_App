@@ -1,9 +1,7 @@
 const { successResponse, errorResponse } = require('../utils/apiResponse');
 const service = require('../services/riderDeliveryService');
 
-// =========================
 // GET DELIVERY DASHBOARD
-// =========================
 const getDashboard = async (req, res) => {
   try {
     const riderId = req.user?.userId;
@@ -25,9 +23,7 @@ const getDashboard = async (req, res) => {
   }
 };
 
-// =========================
 // ACCEPT DELIVERY REQUEST
-// =========================
 const acceptRequest = async (req, res) => {
   try {
     const riderId = req.user?.userId;
@@ -55,9 +51,7 @@ const acceptRequest = async (req, res) => {
   }
 };
 
-// =========================
 // REJECT DELIVERY REQUEST
-// =========================
 const rejectRequest = async (req, res) => {
   try {
     const riderId = req.user?.userId;
@@ -85,9 +79,7 @@ const rejectRequest = async (req, res) => {
   }
 };
 
-// =========================
 // MARK DELIVERY AS DELIVERED
-// =========================
 const sendDeliveryOtp = async (req, res) => {
   try {
     const riderId = req.user?.userId;
@@ -138,9 +130,7 @@ const markDelivered = async (req, res) => {
   }
 };
 
-// =========================
 // MARK DELIVERY AS PICKED UP
-// =========================
 const markPickedUp = async (req, res) => {
   try {
     const riderId = req.user?.userId;
