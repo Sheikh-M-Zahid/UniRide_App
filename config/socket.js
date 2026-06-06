@@ -50,10 +50,8 @@ const initSocket = (server) => {
     socket.join(`rider_${userId}`);
     socket.join(`user:${userId}`);
 
-    /* =========================
-       REQUEST / RIDE ROOMS
-    ========================= */
-
+    
+    //REQUEST / RIDE ROOMS
     socket.on('join_request_room', (requestId) => {
       if (!requestId) return;
       socket.join(`request_${requestId}`);
@@ -99,9 +97,7 @@ const initSocket = (server) => {
   return io;
 };
 
-/* =========================
-   REAL-TIME NOTIFICATION
-========================= */
+// REAL-TIME NOTIFICATION
 const emitNotification = (userId, data) => {
   if (!io) return;
 
@@ -115,9 +111,7 @@ const emitNotification = (userId, data) => {
   io.to(`user_${userId}`).emit('notification:new', data);
 };
 
-/* =========================
-   OPTIONAL HELPERS
-========================= */
+//OPTIONAL HELPERS
 const isUserOnline = (userId) => {
   return onlineUsers.has(String(userId));
 };
