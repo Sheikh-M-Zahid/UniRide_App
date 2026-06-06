@@ -2,9 +2,7 @@ const asyncHandler = require('../utils/asyncHandler');
 const { successResponse, errorResponse } = require('../utils/apiResponse');
 const riderOfferService = require('../services/riderOfferServices');
 
-/* =========================
-   GET RIDER OFFERS
-========================= */
+//GET RIDER OFFERS
 const getRiderOffers = asyncHandler(async (req, res) => {
   const data = await riderOfferService.getOffersForRider();
 
