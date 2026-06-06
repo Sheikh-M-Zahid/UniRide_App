@@ -1,17 +1,15 @@
 const { getIO } = require('../config/socket');
 
-/* =========================
-   EMIT HELPERS
-========================= */
 
+//EMIT HELPERS
 // New request → Rider der kache
 const emitNewSendItemToRiders = (payload) => {
   const io = getIO();
 
-  // global riders room (optional)
+// global riders room (optional)
   io.to('riders_global').emit('send_item:new_request', payload);
 
-  // specific rider
+// specific rider
   if (payload?.rider_id) {
     io.to(`rider_${payload.rider_id}`).emit('send_item:new_request', payload);
   }
