@@ -228,7 +228,7 @@ const getRideOptions = async ({ body }) => {
         matrix?.distanceKm ??
         (fallbackDistance !== null ? Number(fallbackDistance.toFixed(2)) : null);
 
-      // ✅ এখানে vehicle type অনুযায়ী আলাদা rate ব্যবহার হচ্ছে
+      // এখানে vehicle type অনুযায়ী আলাদা rate ব্যবহার হচ্ছে
       const { per_km_rate, base_fare } = getVehicleRate(resolvedVehicleType, rateMap);
       const estimatedFare = Math.round(base_fare + route.distanceKm * per_km_rate);
 
