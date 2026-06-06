@@ -8,10 +8,6 @@ const buildPassengerName = (firstName, lastName) => {
   return `${firstName || ''} ${lastName || ''}`.trim();
 };
 
-/**
- * Frontend RideRequestModel exact payload
- * This part must match Flutter RideRequestModel.fromMap(...)
- */
 const mapToRideRequestModelPayload = (row) => {
   return {
     passengerName: buildPassengerName(row.first_name, row.last_name),
@@ -24,10 +20,6 @@ const mapToRideRequestModelPayload = (row) => {
   };
 };
 
-/**
- * Internal metadata for backend lifecycle
- * Frontend can use requestId for accept/reject/cancel actions
- */
 const mapToRideRequestMeta = (row) => {
   return {
     requestId: row.request_id || null,
@@ -45,10 +37,6 @@ const mapToRideRequestMeta = (row) => {
   };
 };
 
-/**
- * Final wrapper payload
- * Best for socket + API response
- */
 const mapToRideRequestPayload = (row) => {
   return {
     request: mapToRideRequestModelPayload(row),
@@ -56,10 +44,6 @@ const mapToRideRequestPayload = (row) => {
   };
 };
 
-/**
- * Optional flat payload version
- * Use only if frontend expects a single flat map
- */
 const mapToFlatRideRequestPayload = (row) => {
   return {
     ...mapToRideRequestModelPayload(row),
