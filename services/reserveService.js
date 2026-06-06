@@ -41,9 +41,7 @@ const formatDisplayText = ({
   return `${from} → ${to} | Fare: ${fareText} | ${status}`;
 };
 
-// -----------------------------------------------
 // Get active vehicle rates from DB
-// -----------------------------------------------
 const getVehicleRates = async () => {
   const result = await rideDb.query(
     `SELECT vehicle_type, per_km_rate
@@ -62,9 +60,7 @@ const getVehicleRates = async () => {
   return rates;
 };
 
-// -----------------------------------------------
 // Helper: fetch per_km_rate for a vehicle type
-// -----------------------------------------------
 const getPerKmRate = async (vehicleType) => {
   const result = await rideDb.query(
     `SELECT per_km_rate
@@ -83,9 +79,7 @@ const getPerKmRate = async (vehicleType) => {
   return Number(result.rows[0].per_km_rate);
 };
 
-// -----------------------------------------------
 // Validate Schedule
-// -----------------------------------------------
 const validateSchedule = async (payload, user = null) => {
   const {
     pickup_location,
@@ -152,9 +146,7 @@ const validateSchedule = async (payload, user = null) => {
   };
 };
 
-// -----------------------------------------------
 // Validate Preferences
-// -----------------------------------------------
 const validatePreferences = async (payload, user = null) => {
   const userId = user?.userId || user?.user_id || null;
 
@@ -238,9 +230,7 @@ const validatePreferences = async (payload, user = null) => {
   };
 };
 
-// -----------------------------------------------
 // Calculate Reserve Ride (uses DB rates)
-// -----------------------------------------------
 const calculateReserveRide = async (payload) => {
   const {
     pickup_lat,
@@ -288,7 +278,6 @@ const calculateReserveRide = async (payload) => {
     roundToNearestInteger((rawDistanceKm / AVERAGE_SPEED_KMH) * 60)
   );
 
-  // vehicle_type দিলে সেই rate আনো, না দিলে car এর rate দিয়ে calculate করো
   const vehicleType = vehicle_type
     ? String(vehicle_type).toLowerCase()
     : 'car';
@@ -308,9 +297,7 @@ const calculateReserveRide = async (payload) => {
   };
 };
 
-// -----------------------------------------------
 // Create Reserve
-// -----------------------------------------------
 const createReserve = async (payload, user = null) => {
   const userId = user?.userId || user?.user_id || null;
 
@@ -436,9 +423,7 @@ const createReserve = async (payload, user = null) => {
   }
 };
 
-// -----------------------------------------------
 // Get Upcoming Reserve
-// -----------------------------------------------
 const getUpcomingReserve = async (userId) => {
   const userResult = await rideDb.query(
     `SELECT user_id, account_status
@@ -506,9 +491,7 @@ const getUpcomingReserve = async (userId) => {
   }));
 };
 
-// -----------------------------------------------
 // Cancel Reserve
-// -----------------------------------------------
 const cancelReserve = async (reserveId, userId) => {
   const result = await rideDb.query(
     `
@@ -529,9 +512,7 @@ const cancelReserve = async (reserveId, userId) => {
   return result.rows[0];
 };
 
-// -----------------------------------------------
 // Get Reserve Activity List
-// -----------------------------------------------
 const getReserveActivityList = async ({
   userId,
   type = 'all',
@@ -635,9 +616,7 @@ const getReserveActivityList = async ({
   };
 };
 
-// -----------------------------------------------
 // Assign Rider To Reserve
-// -----------------------------------------------
 const assignRiderToReserve = async ({ reserveId, riderId }) => {
   const client = await rideDb.connect();
 
