@@ -97,11 +97,12 @@ class _ActivityPageState extends State<ActivityPage> {
       final filters = data['filters'] ?? {};
       final activitiesRaw = data['activities'] as List? ?? [];
 
-      final mappedActivities = activitiesRaw.map<Map<String, dynamic>>((item) {
-        final map = Map<String, dynamic>.from(item as Map);
-        map['uiType'] = _mapApiTypeToUi((map['type'] ?? '').toString());
-        return map;
-      }).toList();
+     final mappedActivities = activitiesRaw.map<Map<String, dynamic>>((item) {
+      final map = Map<String, dynamic>.from(item as Map);
+      final rawType = (map['item_type'] ?? map['type'] ?? '').toString();
+      map['type'] = _mapApiTypeToUi(rawType);
+      return map;
+     }).toList();
 
       setState(() {
         totalCount = (summary['total'] ?? 0) as int;
@@ -325,14 +326,13 @@ class _ActivityPageState extends State<ActivityPage> {
 
                       const SizedBox(height: 14),
 
-                      _activityRow("Passenger", item["name"]),
-                      _activityRow("Phone", item["phone"]),
-                      _activityRow("Pickup", item["pickup"]),
-                      _activityRow("Destination", item["destination"]),
-                      _activityRow("Time", item["time"]),
-                      _activityRow(
-                        "Fare",
-                        "৳${(item["fare"] as double).toStringAsFixed(0)}",
+                      _activityRow("Passenger", item["name"]?.toString() ?? "-"),
+                      _activityRow("Phone", item["phone"]?.toString() ?? "-"),
+                      _activityRow("Pickup", item["pickup"]?.toString() ?? "-"),
+                      _activityRow("Destination", item["destination"]?.toString() ?? "-"),
+                      _activityRow("Time", item["time"]?.toString() ?? "-"),
+                      _activityRow("Fare",
+                      "৳${((item["fare"] ?? 0) as num).toStringAsFixed(0)}",
                       ),
                     ],
                   ),
