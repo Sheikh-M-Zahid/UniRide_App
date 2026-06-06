@@ -164,11 +164,7 @@ const requestDataDownload = async (userId) => {
   }
 
   const user = result.rows[0];
-
-  // practical first version:
-  // generate data instantly from real DB and return confirmation only
-  // later this can become file export / email / queued job
-
+  
   return {
     requested: true,
     generatedAt: new Date().toISOString(),
