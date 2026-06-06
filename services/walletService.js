@@ -1,8 +1,6 @@
 const rideDb = require('../config/rideDb');
 
-/* =========================
-   WALLET SUMMARY
-========================= */
+//WALLET SUMMARY
 const getWalletSummary = async (userId) => {
   const userRes = await rideDb.query(
     `SELECT due_balance FROM users WHERE user_id = $1`,
@@ -59,9 +57,7 @@ const getWalletSummary = async (userId) => {
   };
 };
 
-/* =========================
-   ADD DUE (SYSTEM)
-========================= */
+//ADD DUE (SYSTEM)
 const addDue = async ({ userId, amount, referenceId, method }) => {
   await rideDb.query(
     `
@@ -82,9 +78,7 @@ const addDue = async ({ userId, amount, referenceId, method }) => {
   );
 };
 
-/* =========================
-   USER PAYMENT SUBMIT
-========================= */
+//USER PAYMENT SUBMIT
 const submitPayment = async ({ userId, method, transactionId, amount }) => {
   await rideDb.query(
     `
@@ -103,9 +97,7 @@ const submitPayment = async ({ userId, method, transactionId, amount }) => {
   };
 };
 
-/* =========================
-   ADMIN: GET PENDING
-========================= */
+//ADMIN: GET PENDING
 const getPendingPayments = async () => {
   const res = await rideDb.query(`
     SELECT *
@@ -117,9 +109,7 @@ const getPendingPayments = async () => {
   return res.rows;
 };
 
-/* =========================
-   ADMIN: VERIFY PAYMENT
-========================= */
+//ADMIN: VERIFY PAYMENT
 const verifyPayment = async (transactionId) => {
   const txRes = await rideDb.query(
     `SELECT * FROM transactions WHERE transaction_id = $1`,
@@ -152,9 +142,7 @@ const verifyPayment = async (transactionId) => {
   return { transactionId, status: 'completed' };
 };
 
-/* =========================
-   ADMIN: REJECT PAYMENT
-========================= */
+//ADMIN: REJECT PAYMENT
 const rejectPayment = async (transactionId) => {
   await rideDb.query(
     `
