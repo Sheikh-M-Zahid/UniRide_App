@@ -2,9 +2,7 @@ const asyncHandler = require('../utils/asyncHandler');
 const { successResponse, errorResponse } = require('../utils/apiResponse');
 const offerService = require('../services/offerService');
 
-/* =========================
-   GET ACTIVE OFFERS
-========================= */
+//GET ACTIVE OFFERS
 const getActiveOffers = asyncHandler(async (req, res) => {
   const data = await offerService.getActiveOffers();
 
@@ -16,9 +14,7 @@ const getActiveOffers = asyncHandler(async (req, res) => {
   return successResponse(res, message, data);
 });
 
-/* =========================
-   APPLY PROMO CODE
-========================= */
+//APPLY PROMO CODE
 const applyOffer = asyncHandler(async (req, res) => {
   const { promo_code } = req.body;
 
@@ -35,9 +31,7 @@ const applyOffer = asyncHandler(async (req, res) => {
   }
 });
 
-/* =========================
-   CREATE OFFER (ADMIN)
-========================= */
+//CREATE OFFER (ADMIN)
 const createOffer = asyncHandler(async (req, res) => {
   const {
     offer_name,
@@ -76,9 +70,7 @@ const createOffer = asyncHandler(async (req, res) => {
      return successResponse(res, 'Offer created successfully.', data);
    });
 
-/* =========================
-   GET ACTIVE OFFER COUNT
-========================= */
+//GET ACTIVE OFFER COUNT
 const getActiveOffersCount = asyncHandler(async (req, res) => {
   const count = await offerService.getActiveOffersCount();
 
@@ -89,10 +81,7 @@ const getActiveOffersCount = asyncHandler(async (req, res) => {
   );
 });
 
-/* =========================
-   GET RECENT OFFERS
-   (active + expired within 30 days)
-========================= */
+//GET RECENT OFFERS (active + expired within 30 days)
 const getRecentOffers = asyncHandler(async (req, res) => {
   const data = await offerService.getRecentOffers();
   const message =
@@ -102,9 +91,7 @@ const getRecentOffers = asyncHandler(async (req, res) => {
   return successResponse(res, message, data);
 });
 
-/* =========================
-   EXPORTS
-========================= */
+//EXPORTS
 module.exports = {
   getActiveOffers,
   applyOffer,
