@@ -2,9 +2,7 @@ const asyncHandler = require('../utils/asyncHandler');
 const { successResponse, errorResponse } = require('../utils/apiResponse');
 const activityService = require('../services/activityService');
 
-// ================================
 // GET MY ACTIVITY
-// ================================
 const getMyActivity = asyncHandler(async (req, res) => {
   const sort = req.query.sort || 'new';
 
@@ -21,9 +19,7 @@ const getMyActivity = asyncHandler(async (req, res) => {
   return successResponse(res, message, data);
 });
 
-// ================================
 // ACTIVITY DASHBOARD
-// ================================
 const getActivityDashboard = async (req, res) => {
   try {
     const {
@@ -56,10 +52,6 @@ const getActivityDashboard = async (req, res) => {
     );
   }
 };
-
-// ================================
-// EXPORT
-// ================================
 module.exports = {
   getMyActivity,
   getActivityDashboard,
