@@ -244,17 +244,12 @@ const listJoinedRides = async (passengerId) => {
   return result.rows;
 };
 
-
-// ==========================================
-// নতুন যোগ করা অংশ এখান থেকে শুরু
-// ==========================================
-
 const searchRides = async (payload) => {
   const { pickup_lat, pickup_lng, destination_lat, destination_lng } = payload;
 
   const apiKey = process.env.GOOGLE_MAPS_API_KEY;
 
-  // ── ১. Passenger এর route distance (ক → খ) ──
+  //  Passenger এর route distance (ক → খ) 
   const url = `https://maps.googleapis.com/maps/api/distancematrix/json` +
     `?destinations=${destination_lat},${destination_lng}` +
     `&origins=${pickup_lat},${pickup_lng}` +
@@ -280,7 +275,7 @@ const searchRides = async (payload) => {
     throw new Error('Failed to fetch dynamic distance from map.');
   }
 
-  // ── ২. Vehicle rates DB থেকে নাও ──
+  // Vehicle rates DB থেকে নাও 
   const ratesRes = await rideDb.query(`
     SELECT DISTINCT ON (vehicle_type)
       vehicle_type, per_km_rate, base_fare
@@ -301,7 +296,7 @@ const searchRides = async (payload) => {
     };
   }
 
-  // ── ৩. Active rides + rider info fetch ──
+  //Active rides + rider info fetch 
   const result = await rideDb.query(
     `SELECT
        r.ride_id,
@@ -348,7 +343,7 @@ const searchRides = async (payload) => {
     };
   }
 
-  // ── ৪. Rider থেকে Passenger পর্যন্ত দূরত্ব batch এ নাও ──
+  // Rider থেকে Passenger পর্যন্ত দূরত্ব batch এ নাও 
   const validRiders = rides
     .map((r, i) => ({ i, lat: r.rider_lat, lng: r.rider_lng }))
     .filter(r => r.lat !== null && r.lng !== null);
@@ -382,7 +377,7 @@ const searchRides = async (payload) => {
     } catch (_) { /* fallback: haversine */ }
   }
 
-  // ── ৫. Haversine fallback ──
+  // Haversine fallback 
   const haversine = (lat1, lng1, lat2, lng2) => {
     const R = 6371;
     const dLat = (lat2 - lat1) * Math.PI / 180;
@@ -395,15 +390,15 @@ const searchRides = async (payload) => {
     return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   };
 
-  // ── ৬. প্রতিটা ride এর fare calculate করো ──
+  //  প্রতিটা ride এর fare calculate 
   /*
-   * Fare logic:
-   * base_fare = শুধু তখনই add হবে যখন (distance_km * per_km_rate) < base_fare
-   * অর্থাৎ: fare = max(base_fare, distance_km * per_km_rate)
-   *
+   *Fare logic:
+    base_fare = শুধু তখনই add হবে যখন (distance_km * per_km_rate) < base_fare
+    অর্থাৎ: fare = max(base_fare, distance_km * per_km_rate)
+   
    * Rider surcharge logic:
-   * - Rider যদি passenger এর পথে থাকে (rider_dist ≤ 2km) → অতিরিক্ত ০ টাকা
-   * - Rider যদি উল্টো দিক থেকে আসে (rider_dist > 2km) → +৫ টাকা প্রতি km
+    Rider যদি passenger এর পথে থাকে (rider_dist ≤ 2km) → অতিরিক্ত ০ টাকা
+    Rider যদি উল্টো দিক থেকে আসে (rider_dist > 2km) → +৫ টাকা প্রতি km
    */
 
   const DETOUR_THRESHOLD_KM = 2;
@@ -448,7 +443,7 @@ const searchRides = async (payload) => {
       riderDistanceKm:  riderDistKm !== null
                           ? parseFloat(riderDistKm.toFixed(2))
                           : null,
-      // ── Rider info flat করে দিলাম ──
+      //Rider info flat করে দিলাম 
       rider: {
         name:   `${ride.first_name || ''} ${ride.last_name || ''}`.trim(),
         phone:  ride.phone || '',
@@ -472,11 +467,6 @@ const searchRides = async (payload) => {
   };
 };
 
-// ==========================================
-// নতুন যোগ করা অংশ এখানে শেষ
-// ==========================================
-
-
 module.exports = {
   createRide,
   listActiveRides,
@@ -486,5 +476,5 @@ module.exports = {
   changeRideStatus,
   listMyCreatedRides,
   listJoinedRides,
-  searchRides, // <-- এটি নতুন যোগ করা হয়েছে
+  searchRides, 
 };
