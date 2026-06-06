@@ -1,8 +1,6 @@
 const rideDb = require('../config/rideDb');
 
-/* =========================
-   FILE URL HELPER
-========================= */
+//FILE URL HELPER
 const buildFileUrl = (req, path) => {
   if (!path) return null;
 
@@ -12,9 +10,7 @@ const buildFileUrl = (req, path) => {
   return `${base}${path}`;
 };
 
-/* =========================
-   VEHICLE LIST
-========================= */
+//VEHICLE LIST
 const getMyVehicles = async (userId) => {
   const res = await rideDb.query(
     `
@@ -44,9 +40,7 @@ const getMyVehicles = async (userId) => {
   }));
 };
 
-/* =========================
-   DOCUMENT MAPPER
-========================= */
+//DOCUMENT MAPPER
 const buildDocuments = (vehicle, req) => {
   const status = vehicle.verified ? 'Verified' : 'Pending';
 
@@ -82,9 +76,7 @@ const buildDocuments = (vehicle, req) => {
   return docs.filter(d => d.fileUrl !== null);
 };
 
-/* =========================
-   VEHICLE DOCUMENTS
-========================= */
+//VEHICLE DOCUMENTS
 const getVehicleDocuments = async ({ userId, vehicleId, req }) => {
   const res = await rideDb.query(
     `
@@ -101,7 +93,7 @@ const getVehicleDocuments = async ({ userId, vehicleId, req }) => {
 
   const vehicle = res.rows[0];
 
-  // 🔒 ownership check
+  //  ownership check
   if (vehicle.user_id !== userId) {
     throw new Error('Unauthorized access');
   }
