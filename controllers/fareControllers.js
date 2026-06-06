@@ -1,8 +1,6 @@
 const pool = require('../config/rideDb');
 
-// ─────────────────────────────────────────────────
 // GET /api/fare/settings  (admin only)
-// ─────────────────────────────────────────────────
 const getFareSettings = async (req, res) => {
   try {
     const result = await pool.query(`
@@ -33,10 +31,9 @@ const getFareSettings = async (req, res) => {
   }
 };
 
-// ─────────────────────────────────────────────────
 // PUT /api/fare/settings  (admin only)
 // body: { bike: { baseFare, perKm }, car: { baseFare, perKm } }
-// ─────────────────────────────────────────────────
+
 const updateFareSettings = async (req, res) => {
   const { bike, car } = req.body;
 
@@ -63,19 +60,19 @@ const updateFareSettings = async (req, res) => {
   try {
     await client.query('BEGIN');
 
-    // পুরনো active records deactivate
+    // old active records deactivate
     await client.query(`
       UPDATE vehicle_rates SET is_active = false
       WHERE vehicle_type IN ('bike', 'car') AND is_active = true
     `);
 
-    // নতুন bike rate
+    // new bike rate
     await client.query(`
       INSERT INTO vehicle_rates (vehicle_type, base_fare, per_km_rate, is_active, effective_from)
       VALUES ('bike', $1, $2, true, CURRENT_TIMESTAMP)
     `, [bikeBase, bikePerKm]);
 
-    // নতুন car rate
+    // new car rate
     await client.query(`
       INSERT INTO vehicle_rates (vehicle_type, base_fare, per_km_rate, is_active, effective_from)
       VALUES ('car', $1, $2, true, CURRENT_TIMESTAMP)
@@ -100,9 +97,8 @@ const updateFareSettings = async (req, res) => {
   }
 };
 
-// ─────────────────────────────────────────────────
 // GET /api/fare/active/:vehicleType  (public — passenger/rider)
-// ─────────────────────────────────────────────────
+
 const getActiveFare = async (req, res) => {
   const { vehicleType } = req.params;
 
