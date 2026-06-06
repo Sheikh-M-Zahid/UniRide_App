@@ -1,9 +1,7 @@
 const rideDb = require('../config/rideDb');
 const reserveService = require('./reserveService');
 
-// ==============================
 // GET MY ACTIVITY
-// ==============================
 const getMyActivity = async (userId, sort = 'new') => {
   const order = sort === 'old' ? 'ASC' : 'DESC';
 
@@ -17,14 +15,11 @@ const getMyActivity = async (userId, sort = 'new') => {
   return result.rows;
 };
 
-// ==============================
 // TIME FILTER HELPER
-// ==============================
 const buildTimeCondition = (time, tableAlias = '') => {
   const col = tableAlias ? `${tableAlias}.created_at` : 'created_at';
 
-  // frontend থেকে আসতে পারে: 'today', 'week', 'month'
-  // বা mapped: 'this_week' → 'week', 'this_month' → 'month'
+// frontend থেকে আসতে পারে: 'today', 'week', 'month' so  mapped: 'this_week' → 'week', 'this_month' → 'month'
   const normalized = time?.toLowerCase()?.replace('this_', '') || 'today';
 
   switch (normalized) {
@@ -38,9 +33,7 @@ const buildTimeCondition = (time, tableAlias = '') => {
   }
 };
 
-// ==============================
 // ACTIVITY DASHBOARD
-// ==============================
 const getActivityDashboard = async ({
   userId,
   type = 'all',
@@ -51,7 +44,7 @@ const getActivityDashboard = async ({
   const offset = (page - 1) * limit;
   const timeCondition = buildTimeCondition(time);
 
-  // ── ১. Ride requests (passenger হিসেবে) ──
+  //  Ride requests (passenger হিসেবে) ──
   let rideWhereClause = `WHERE rr.passenger_id = $1`;
 
   if (type !== 'all') {
@@ -68,7 +61,7 @@ const getActivityDashboard = async ({
 
   rideWhereClause += ` ${buildTimeCondition(time, 'rr')}`;
 
-  // ── Summary ──
+  //  Summary
   const rideSummaryQuery = `
     SELECT
       COUNT(*)::int AS total,
@@ -79,7 +72,7 @@ const getActivityDashboard = async ({
     ${rideWhereClause}
   `;
 
-  // ── Ride list ──
+  // Ride list 
   const rideListQuery = `
     SELECT
       rr.request_id AS id,
@@ -109,7 +102,7 @@ const getActivityDashboard = async ({
   const rideSummaryResult = await rideDb.query(rideSummaryQuery, [userId]);
   const rideActivitiesResult = await rideDb.query(rideListQuery, [userId]);
 
-  // ── ২. Send items ──
+  //  Send items 
   const sendItemResult = await rideDb.query(
     `SELECT
        s_id AS id,
@@ -131,14 +124,14 @@ const getActivityDashboard = async ({
     [userId]
   );
 
-  // ── ৩. Reserves ──
+  //  Reserves
   const reserveData = await reserveService.getReserveActivityList({
     userId,
     type,
     time,
   });
 
-  // ── ৪. CoRide — Participant হিসেবে ──
+  // CoRide — Participant
   const coRideParticipantResult = await rideDb.query(
     `SELECT
        css.session_id::text AS id,
@@ -165,7 +158,7 @@ const getActivityDashboard = async ({
     [userId]
   );
 
-  // ── ৫. CoRide — Creator হিসেবে ──
+  // CoRide — Creator
   const coRideCreatorResult = await rideDb.query(
     `SELECT
        css.session_id::text AS id,
@@ -189,20 +182,20 @@ const getActivityDashboard = async ({
     [userId]
   );
 
-  // ── Summary merge ──
+  // Summary merge
   const rideSummaryRow = rideSummaryResult.rows[0] || {};
   const reserveSummary = reserveData.summary || {};
 
   const coRideCount =
     coRideParticipantResult.rowCount + coRideCreatorResult.rowCount;
 
-  // ── type filter এ coride ফিল্টার করা ──
+  //  type filter(coride)
   const shouldShowRide = type === 'all' || type === 'completed' || type === 'cancelled' || type === 'reserved';
   const shouldShowSendItem = type === 'all' || type === 'send_item';
   const shouldShowCoRide = type === 'all' || type === 'coride';
   const shouldShowReserve = type === 'all' || type === 'reserved';
 
-  // ── সব মার্জ ──
+  // সব মার্জ
   const mergedActivities = [
     ...(shouldShowRide ? (rideActivitiesResult.rows || []).map((row) => ({
       ...row,
@@ -261,6 +254,11 @@ const getActivityDashboard = async ({
         Number(reserveSummary.earnings || 0),
     },
     activities: paginatedActivities,
+    filters: {
+      totalPages: Math.ceil(mergedActivities.length / limit),
+      currentPage: page,
+      totalItems: mergedActivities.length,
+    },
     emptyState:
       paginatedActivities.length === 0 ? 'No activity found' : null,
   };
