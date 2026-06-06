@@ -55,9 +55,7 @@ const pickBestReverseGeocodeAddress = (results = []) => {
   return normalizeAddressText(firstWithAddress?.formatted_address || '');
 };
 
-/* =========================
-   AUTOCOMPLETE (Places API New)
-========================= */
+//AUTOCOMPLETE (Places API New)
 const autocomplete = async (input) => {
   ensureApiKey();
 
@@ -98,9 +96,7 @@ const autocomplete = async (input) => {
     });
 };
 
-/* =========================
-   PLACE DETAILS (Places API New)
-========================= */
+//PLACE DETAILS (Places API New)
 const getPlaceDetails = async (placeId) => {
   ensureApiKey();
 
@@ -125,9 +121,7 @@ const getPlaceDetails = async (placeId) => {
   };
 };
 
-/* =========================
-   REVERSE GEOCODE (Geocoding API)
-========================= */
+//REVERSE GEOCODE (Geocoding API)
 const reverseGeocode = async ({ lat, lng }) => {
   ensureApiKey();
   validateLatLng({ lat, lng });
