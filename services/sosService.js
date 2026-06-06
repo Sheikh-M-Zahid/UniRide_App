@@ -1,9 +1,7 @@
 const rideDb = require('../config/rideDb');
 const crypto = require('crypto');
 
-// ─────────────────────────────────────────────
 // SOS token generate + store করা
-// ─────────────────────────────────────────────
 const generateSosToken = async ({ userId, sessionId, rideId, type }) => {
   const token = crypto.randomBytes(24).toString('hex');
   const expiresAt = new Date(Date.now() + 6 * 60 * 60 * 1000); // 6 ঘণ্টা valid
@@ -21,9 +19,7 @@ const generateSosToken = async ({ userId, sessionId, rideId, type }) => {
   return token;
 };
 
-// ─────────────────────────────────────────────
 // CoRide SOS — Host চাপলে
-// ─────────────────────────────────────────────
 const triggerCoRideSosHost = async ({ userId, sessionId, baseUrl }) => {
   // Host এর তথ্য
   const hostRes = await rideDb.query(
@@ -73,9 +69,7 @@ const triggerCoRideSosHost = async ({ userId, sessionId, baseUrl }) => {
   return { success: true, message: 'SOS sent to your emergency contact.' };
 };
 
-// ─────────────────────────────────────────────
 // CoRide SOS — Participant চাপলে
-// ─────────────────────────────────────────────
 const triggerCoRideSosParticipant = async ({ userId, sessionId, baseUrl }) => {
   // Participant তথ্য
   const userRes = await rideDb.query(
@@ -116,9 +110,7 @@ const triggerCoRideSosParticipant = async ({ userId, sessionId, baseUrl }) => {
   return { success: true, message: 'SOS sent to your emergency contact.' };
 };
 
-// ─────────────────────────────────────────────
 // Regular Ride SOS — Rider চাপলে
-// ─────────────────────────────────────────────
 const triggerRiderSos = async ({ userId, rideId, baseUrl }) => {
   const riderRes = await rideDb.query(
     `SELECT u.first_name, u.last_name, u.emergency_phone
@@ -160,9 +152,7 @@ const triggerRiderSos = async ({ userId, rideId, baseUrl }) => {
   return { success: true, message: 'SOS sent to your emergency contact.' };
 };
 
-// ─────────────────────────────────────────────
 // Regular Ride SOS — Passenger চাপলে
-// ─────────────────────────────────────────────
 const triggerPassengerSos = async ({ userId, rideId, baseUrl }) => {
   const passengerRes = await rideDb.query(
     `SELECT u.first_name, u.last_name, u.emergency_phone
@@ -211,9 +201,7 @@ const triggerPassengerSos = async ({ userId, rideId, baseUrl }) => {
   return { success: true, message: 'SOS sent to your emergency contact.' };
 };
 
-// ─────────────────────────────────────────────
 // Token দিয়ে tracking info get করা (web link)
-// ─────────────────────────────────────────────
 const getSosTrackingInfo = async (token) => {
   const tokenRes = await rideDb.query(
     `SELECT st.*, u.first_name, u.last_name
@@ -254,21 +242,18 @@ const getSosTrackingInfo = async (token) => {
   };
 };
 
-// ─────────────────────────────────────────────
 // SMS sender (Twilio / local gateway)
-// ─────────────────────────────────────────────
 const sendSms = async (phone, message) => {
-  // তোমার SMS gateway এখানে বসাও
-  // Option 1: Twilio
-  // const twilio = require('twilio')(process.env.TWILIO_SID, process.env.TWILIO_AUTH);
-  // await twilio.messages.create({ body: message, from: process.env.TWILIO_FROM, to: phone });
+  /* তোমার SMS gateway এখানে বসাও
+   Option 1: Twilio
+   const twilio = require('twilio')(process.env.TWILIO_SID, process.env.TWILIO_AUTH);
+   await twilio.messages.create({ body: message, from: process.env.TWILIO_FROM, to: phone });
 
-  // Option 2: Bangladesh local gateway (e.g. SSL Wireless, Mimsms)
-  // const axios = require('axios');
-  // await axios.post(process.env.SMS_GATEWAY_URL, { phone, message, api_key: process.env.SMS_API_KEY });
-
-  // এখন console log করছি — পরে replace করো
-  console.log(`📱 SMS to ${phone}:\n${message}`);
+   Option 2: Bangladesh local gateway (e.g. SSL Wireless, Mimsms)
+   const axios = require('axios');
+   await axios.post(process.env.SMS_GATEWAY_URL, { phone, message, api_key: process.env.SMS_API_KEY });
+   এখন console log করছি — পরে replace কর */
+   console.log(`📱 SMS to ${phone}:\n${message}`);
 };
 
 module.exports = {
