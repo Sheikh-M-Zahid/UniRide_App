@@ -19,7 +19,6 @@ const getMyActivity = async (userId, sort = 'new') => {
 const buildTimeCondition = (time, tableAlias = '') => {
   const col = tableAlias ? `${tableAlias}.created_at` : 'created_at';
 
-// frontend থেকে আসতে পারে: 'today', 'week', 'month' so  mapped: 'this_week' → 'week', 'this_month' → 'month'
   const normalized = time?.toLowerCase()?.replace('this_', '') || 'today';
 
   switch (normalized) {
@@ -42,9 +41,8 @@ const getActivityDashboard = async ({
   limit = 20,
 }) => {
   const offset = (page - 1) * limit;
-  const timeCondition = buildTimeCondition(time);
 
-  //  Ride requests (passenger হিসেবে) ──
+  // ── Ride requests ──
   let rideWhereClause = `WHERE rr.passenger_id = $1`;
 
   if (type !== 'all') {
@@ -61,7 +59,7 @@ const getActivityDashboard = async ({
 
   rideWhereClause += ` ${buildTimeCondition(time, 'rr')}`;
 
-  //  Summary
+  // ── Summary query ──
   const rideSummaryQuery = `
     SELECT
       COUNT(*)::int AS total,
@@ -72,7 +70,7 @@ const getActivityDashboard = async ({
     ${rideWhereClause}
   `;
 
-  // Ride list 
+  // ── Ride list query ──
   const rideListQuery = `
     SELECT
       rr.request_id AS id,
@@ -82,7 +80,7 @@ const getActivityDashboard = async ({
       u.phone AS phone,
       rr.pickup_location AS pickup,
       rr.destination,
-      COALESCE(rr.estimated_minutes::text, '0') AS time,
+      COALESCE(rr.estimated_minutes::text, '-') AS time,
       COALESCE(rr.estimated_fare, 0) AS fare,
       TO_CHAR(rr.created_at, 'DD Mon YYYY') AS date,
       rr.status,
@@ -102,44 +100,44 @@ const getActivityDashboard = async ({
   const rideSummaryResult = await rideDb.query(rideSummaryQuery, [userId]);
   const rideActivitiesResult = await rideDb.query(rideListQuery, [userId]);
 
-  //  Send items 
+  // ── Send items ──
   const sendItemResult = await rideDb.query(
     `SELECT
        s_id AS id,
        'send_item' AS item_type,
        'Parcel Delivery' AS title,
-       receiver_name AS name,
-       receiver_phone AS phone,
-       pickup_location AS pickup,
-       drop_location AS destination,
-       estimated_minutes::text AS time,
-       delivery_fee AS fare,
+       COALESCE(receiver_name, sender_name, '-') AS name,
+       COALESCE(receiver_phone, sender_phone, '-') AS phone,
+       COALESCE(pickup_location, '-') AS pickup,
+       COALESCE(drop_location, '-') AS destination,
+       COALESCE(estimated_minutes::text, '-') AS time,
+       COALESCE(delivery_fee, 0) AS fare,
        TO_CHAR(created_at, 'DD Mon YYYY') AS date,
        status,
        created_at
      FROM send_items
-     WHERE (receiver_id = $1 OR rider_id = $1)
+     WHERE (sender_id = $1 OR receiver_id = $1 OR rider_id = $1)
      ${buildTimeCondition(time)}
      ORDER BY created_at DESC`,
     [userId]
   );
 
-  //  Reserves
+  // ── Reserves ──
   const reserveData = await reserveService.getReserveActivityList({
     userId,
     type,
     time,
   });
 
-  // CoRide — Participant
+  // ── CoRide — Participant ──
   const coRideParticipantResult = await rideDb.query(
     `SELECT
        css.session_id::text AS id,
        'coride' AS item_type,
        'CoRide' AS title,
        (u.first_name || ' ' || u.last_name) AS creator_name,
-       css.start_location AS pickup,
-       css.destination,
+       COALESCE(css.start_location, '-') AS pickup,
+       COALESCE(css.destination, '-') AS destination,
        COALESCE(css.fare_per_person, 0) AS fare,
        TO_CHAR(css.created_at, 'DD Mon YYYY') AS date,
        css.status,
@@ -158,15 +156,15 @@ const getActivityDashboard = async ({
     [userId]
   );
 
-  // CoRide — Creator
+  // ── CoRide — Creator ──
   const coRideCreatorResult = await rideDb.query(
     `SELECT
        css.session_id::text AS id,
        'coride_creator' AS item_type,
        'CoRide (My Post)' AS title,
        NULL AS creator_name,
-       css.start_location AS pickup,
-       css.destination,
+       COALESCE(css.start_location, '-') AS pickup,
+       COALESCE(css.destination, '-') AS destination,
        COALESCE(css.fare_per_person, 0) AS fare,
        TO_CHAR(css.created_at, 'DD Mon YYYY') AS date,
        css.status,
@@ -182,54 +180,77 @@ const getActivityDashboard = async ({
     [userId]
   );
 
-  // Summary merge
+  // ── Summary merge ──
   const rideSummaryRow = rideSummaryResult.rows[0] || {};
   const reserveSummary = reserveData.summary || {};
-
   const coRideCount =
     coRideParticipantResult.rowCount + coRideCreatorResult.rowCount;
 
-  //  type filter(coride)
-  const shouldShowRide = type === 'all' || type === 'completed' || type === 'cancelled' || type === 'reserved';
+  // ── Send item earnings (শুধু delivered গুলো) ──
+  const sendItemEarnings = sendItemResult.rows
+    .filter(r => r.status === 'delivered')
+    .reduce((sum, r) => sum + Number(r.fare || 0), 0);
+
+  // ── Send item completed/cancelled count ──
+  const sendItemCompleted = sendItemResult.rows.filter(
+    r => r.status === 'delivered'
+  ).length;
+  const sendItemCancelled = sendItemResult.rows.filter(
+    r => r.status === 'cancelled'
+  ).length;
+
+  // ── Type filter ──
+  const shouldShowRide =
+    type === 'all' || type === 'completed' || type === 'cancelled' || type === 'reserved';
   const shouldShowSendItem = type === 'all' || type === 'send_item';
   const shouldShowCoRide = type === 'all' || type === 'coride';
   const shouldShowReserve = type === 'all' || type === 'reserved';
 
-  // সব মার্জ
+  // ── Merge all ──
   const mergedActivities = [
-    ...(shouldShowRide ? (rideActivitiesResult.rows || []).map((row) => ({
-      ...row,
-      fare: Number(row.fare || 0),
-      canCancel: row.can_cancel === true,
-    })) : []),
+    ...(shouldShowRide
+      ? (rideActivitiesResult.rows || []).map(row => ({
+          ...row,
+          fare: Number(row.fare || 0),
+          canCancel: row.can_cancel === true,
+        }))
+      : []),
 
-    ...(shouldShowSendItem ? (sendItemResult.rows || []).map((row) => ({
-      ...row,
-      fare: Number(row.fare || 0),
-      canCancel: false,
-    })) : []),
+    ...(shouldShowSendItem
+      ? (sendItemResult.rows || []).map(row => ({
+          ...row,
+          fare: Number(row.fare || 0),
+          canCancel: false,
+        }))
+      : []),
 
-    ...(shouldShowReserve ? ((reserveData.activities || []).map((row) => ({
-      ...row,
-      created_at: row.created_at,
-    }))) : []),
+    ...(shouldShowReserve
+      ? (reserveData.activities || []).map(row => ({
+          ...row,
+          created_at: row.created_at,
+        }))
+      : []),
 
-    ...(shouldShowCoRide ? (coRideParticipantResult.rows || []).map((row) => ({
-      ...row,
-      fare: Number(row.fare || 0),
-      canCancel: false,
-      item_type: 'coride',
-    })) : []),
+    ...(shouldShowCoRide
+      ? (coRideParticipantResult.rows || []).map(row => ({
+          ...row,
+          fare: Number(row.fare || 0),
+          canCancel: false,
+          item_type: 'coride',
+        }))
+      : []),
 
-    ...(shouldShowCoRide ? (coRideCreatorResult.rows || []).map((row) => ({
-      ...row,
-      fare: Number(row.fare || 0),
-      canCancel: false,
-      item_type: 'coride_creator',
-    })) : []),
+    ...(shouldShowCoRide
+      ? (coRideCreatorResult.rows || []).map(row => ({
+          ...row,
+          fare: Number(row.fare || 0),
+          canCancel: false,
+          item_type: 'coride_creator',
+        }))
+      : []),
   ];
 
-  // Date অনুযায়ী sort
+  // ── Date অনুযায়ী sort ──
   mergedActivities.sort(
     (a, b) => new Date(b.created_at) - new Date(a.created_at)
   );
@@ -245,13 +266,16 @@ const getActivityDashboard = async ({
         coRideCount,
       completed:
         Number(rideSummaryRow.completed || 0) +
-        Number(reserveSummary.completed || 0),
+        Number(reserveSummary.completed || 0) +
+        sendItemCompleted,
       cancelled:
         Number(rideSummaryRow.cancelled || 0) +
-        Number(reserveSummary.cancelled || 0),
+        Number(reserveSummary.cancelled || 0) +
+        sendItemCancelled,
       earnings:
         Number(rideSummaryRow.earnings || 0) +
-        Number(reserveSummary.earnings || 0),
+        Number(reserveSummary.earnings || 0) +
+        sendItemEarnings,
     },
     activities: paginatedActivities,
     filters: {
