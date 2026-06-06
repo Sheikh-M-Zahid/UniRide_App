@@ -1,8 +1,6 @@
 const rideDb = require('../config/rideDb');
 
-/* =========================
-   LOCATION HELPER
-========================= */
+//LOCATION HELPER
 const getLocation = (user) => {
   return (
     user.campus_address ||
@@ -12,9 +10,7 @@ const getLocation = (user) => {
   );
 };
 
-/* =========================
-   FETCH RIDERS
-========================= */
+// FETCH RIDERS
 const getAllRiders = async (query) => {
   const {
     search = '',
@@ -89,9 +85,7 @@ const getAllRiders = async (query) => {
   }));
 };
 
-/* =========================
-   UPDATE STATUS
-========================= */
+//UPDATE STATUS
 const updateRiderStatus = async ({ userId, status }) => {
   const allowed = ['active', 'suspended'];
 
