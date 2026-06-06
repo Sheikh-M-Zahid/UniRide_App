@@ -2,9 +2,7 @@ const rideDb = require('../config/rideDb');
 const ewuAdminDb = require('../config/ewuAdminDb');
 const bcrypt = require('bcrypt');
 
-/* =========================
-   SECURITY SUMMARY
-========================= */
+//SECURITY SUMMARY
 const getSecuritySummary = async (userId) => {
   const userRes = await rideDb.query(
     `SELECT
@@ -22,9 +20,7 @@ const getSecuritySummary = async (userId) => {
 
   const user = userRes.rows[0];
 
-  /* =========================
-     EMAIL VERIFIED LOGIC
-  ========================= */
+ //EMAIL VERIFIED LOGIC
   const ewuRes = await ewuAdminDb.query(
     `SELECT status
      FROM ewu_users
@@ -36,10 +32,8 @@ const getSecuritySummary = async (userId) => {
   const emailVerified =
     ewuRes.rowCount > 0 && ewuRes.rows[0].status === true;
 
-  /* =========================
-     DUE LOGIC
-  ========================= */
-  const dueAmount = Number(user.due_balance || 0);
+ // DUE LOGIC
+const dueAmount = Number(user.due_balance || 0);
 
   return {
     emailVerified,
@@ -49,9 +43,7 @@ const getSecuritySummary = async (userId) => {
   };
 };
 
-/* =========================
-   UPDATE EMERGENCY CONTACT
-========================= */
+//UPDATE EMERGENCY CONTACT
 const updateEmergencyContact = async (userId, phone) => {
   const result = await rideDb.query(
     `UPDATE users
@@ -66,9 +58,7 @@ const updateEmergencyContact = async (userId, phone) => {
   };
 };
 
-/* =========================
-   CHANGE PASSWORD
-========================= */
+//CHANGE PASSWORD
 const changePassword = async (
   userId,
   currentPassword,
