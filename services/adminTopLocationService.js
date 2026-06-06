@@ -1,17 +1,12 @@
 const rideDb = require('../config/rideDb');
-
-/* =========================
-   HELPER
-========================= */
+//HELPER
 const formatItem = (row, subText) => ({
   location_name: row.location,
   count: Number(row.count),
   sub_text: subText,
 });
 
-/* =========================
-   MAIN SERVICE
-========================= */
+//MAIN SERVICE
 const getTopLocationStats = async () => {
   const [
     pickupRes,
@@ -20,9 +15,7 @@ const getTopLocationStats = async () => {
     riderRes,
   ] = await Promise.all([
 
-    /* =========================
-       TOP PICKUP
-    ========================= */
+ //TOP PICKUP
     rideDb.query(`
       SELECT start_location AS location, COUNT(*) AS count
       FROM rides
@@ -32,10 +25,8 @@ const getTopLocationStats = async () => {
       LIMIT 5
     `),
 
-    /* =========================
-       TOP DESTINATION
-    ========================= */
-    rideDb.query(`
+//TOP DESTINATION
+   rideDb.query(`
       SELECT destination AS location, COUNT(*) AS count
       FROM rides
       WHERE destination IS NOT NULL
@@ -44,9 +35,7 @@ const getTopLocationStats = async () => {
       LIMIT 5
     `),
 
-    /* =========================
-       HIGH DEMAND (BEST LOGIC)
-    ========================= */
+//HIGH DEMAND (BEST LOGIC)
     rideDb.query(`
       SELECT start_location AS location, COUNT(*) AS count
       FROM rides
@@ -56,9 +45,7 @@ const getTopLocationStats = async () => {
       LIMIT 5
     `),
 
-    /* =========================
-       RIDER AVAILABILITY
-    ========================= */
+//RIDER AVAILABILITY
     rideDb.query(`
       SELECT location_name AS location, COUNT(*) AS count
       FROM (
