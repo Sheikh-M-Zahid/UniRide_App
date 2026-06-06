@@ -1,8 +1,5 @@
 const rideDb = require('../config/rideDb');
-
-/* =========================
-   PROFILE COMPLETION
-========================= */
+//PROFILE COMPLETION
 const calculateProfileCompletion = (user) => {
   let completion = 0;
 
@@ -17,9 +14,7 @@ const calculateProfileCompletion = (user) => {
   return completion;
 };
 
-/* =========================
-   GET PROFILE
-========================= */
+//GET PROFILE
 const getMyProfile = async (userId) => {
   const result = await rideDb.query(
     `SELECT
@@ -68,9 +63,7 @@ const getMyProfile = async (userId) => {
   };
 };
 
-/* =========================
-   UPDATE PROFILE IMAGE
-========================= */
+//UPDATE PROFILE IMAGE
 const updateProfileImage = async (userId, filePath) => {
   const result = await rideDb.query(
     `UPDATE users
