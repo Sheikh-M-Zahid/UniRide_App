@@ -4,7 +4,8 @@ const service = require('../services/notificationService');
 const rideDb = require('../config/rideDb');
 
 const getNotifications = asyncHandler(async (req, res) => {
-  const data = await service.getNotifications(req.user.userId);
+  const role = req.query.role || null;
+  const data = await service.getNotifications(req.user.userId, role);
 
   return successResponse(res, 'Notifications fetched', data);
 });
