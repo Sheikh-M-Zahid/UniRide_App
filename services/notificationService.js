@@ -14,9 +14,9 @@ const mapNotificationRow = (row) => ({
   relatedId: row.related_id || row.relatedId || null,
 });
 
-const getNotifications = async (userId) => {
-  const result = await rideDb.query(
-    `SELECT 
+const getNotifications = async (userId, role = null) => {
+  let query = `
+    SELECT 
         notification_id,
         title,
         message,
@@ -28,10 +28,17 @@ const getNotifications = async (userId) => {
         related_id
      FROM notifications
      WHERE user_id = $1
-     ORDER BY created_at DESC`,
-    [userId]
-  );
+  `;
+  const params = [userId];
 
+  if (role) {
+    query += ` AND (target_role = $2 OR target_role = 'general')`;
+    params.push(role);
+  }
+
+  query += ` ORDER BY created_at DESC`;
+
+  const result = await rideDb.query(query, params);
   return result.rows.map(mapNotificationRow);
 };
 
