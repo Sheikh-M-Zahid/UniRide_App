@@ -23,25 +23,16 @@ const getActiveOffers = async () => {
   return result.rows;
 };
 
-const applyOffer = async (promoCode) => {
+const applyOffer = async (promoCode, userId, currentFare = null, rideType = 'ride') => {
   if (!promoCode || !String(promoCode).trim()) {
     throw new Error('Promo code is required.');
   }
 
   const code = String(promoCode).trim().toUpperCase();
 
+  // ১. অফার খোঁজো
   const result = await rideDb.query(
-    `SELECT
-        offer_id,
-        offer_name,
-        offer_type,
-        reward_percentage,
-        eligible_user,
-        promo_code,
-        conditions,
-        start_date,
-        end_date
-     FROM offers
+    `SELECT * FROM offers
      WHERE UPPER(promo_code) = $1
        AND start_date <= CURRENT_DATE
        AND end_date >= CURRENT_DATE`,
@@ -52,7 +43,94 @@ const applyOffer = async (promoCode) => {
     throw new Error('Invalid or expired promo code.');
   }
 
-  return result.rows[0];
+  const offer = result.rows[0];
+
+  // ২. eligible_ride_type চেক
+  if (offer.eligible_ride_type !== 'both' && offer.eligible_ride_type !== rideType) {
+    throw new Error(`This offer is only valid for ${offer.eligible_ride_type}.`);
+  }
+
+  // ৩. condition চেক
+  if (offer.condition_type === 'new_user_only') {
+    const rideCountRes = await rideDb.query(
+      `SELECT COUNT(*) FROM ride_participants WHERE passenger_id = $1`,
+      [userId]
+    );
+    if (parseInt(rideCountRes.rows[0].count) > 0) {
+      throw new Error('This offer is for new users only.');
+    }
+  }
+
+  if (offer.condition_type === 'min_rides_per_month') {
+    const rideCountRes = await rideDb.query(
+      `SELECT COUNT(*) FROM ride_participants rp
+       JOIN rides r ON rp.ride_id = r.ride_id
+       WHERE rp.passenger_id = $1
+         AND r.created_at >= date_trunc('month', CURRENT_DATE)`,
+      [userId]
+    );
+    if (parseInt(rideCountRes.rows[0].count) < offer.condition_value) {
+      throw new Error(
+        `You need at least ${offer.condition_value} rides this month to use this offer.`
+      );
+    }
+  }
+
+  if (offer.condition_type === 'min_items_per_month') {
+    const itemCountRes = await rideDb.query(
+      `SELECT COUNT(*) FROM send_items
+       WHERE sender_id = $1
+         AND status = 'delivered'
+         AND created_at >= date_trunc('month', CURRENT_DATE)`,
+      [userId]
+    );
+    if (parseInt(itemCountRes.rows[0].count) < offer.condition_value) {
+      throw new Error(
+        `You need at least ${offer.condition_value} delivered items this month.`
+      );
+    }
+  }
+
+  if (offer.condition_type === 'min_fare_amount' && currentFare !== null) {
+    if (currentFare < offer.condition_value) {
+      throw new Error(`Minimum fare ৳${offer.condition_value} required for this offer.`);
+    }
+  }
+
+  // ৪. usage_limit চেক
+  if (offer.usage_limit_type === 'once_per_user') {
+    const usedRes = await rideDb.query(
+      `SELECT 1 FROM promo_usage WHERE user_id = $1 AND offer_id = $2 LIMIT 1`,
+      [userId, offer.offer_id]
+    );
+    if (usedRes.rowCount > 0) {
+      throw new Error('You have already used this offer.');
+    }
+  }
+
+  if (offer.usage_limit_type === 'once_per_day') {
+    const usedTodayRes = await rideDb.query(
+      `SELECT 1 FROM promo_usage
+       WHERE user_id = $1 AND offer_id = $2 AND used_date = CURRENT_DATE LIMIT 1`,
+      [userId, offer.offer_id]
+    );
+    if (usedTodayRes.rowCount > 0) {
+      throw new Error('You have already used this offer today.');
+    }
+  }
+
+  // ৫. bonus offer — max_total_uses চেক
+  if (offer.offer_category === 'bonus' && offer.max_total_uses !== null) {
+    const totalUsedRes = await rideDb.query(
+      `SELECT COUNT(*) FROM promo_usage WHERE offer_id = $1`,
+      [offer.offer_id]
+    );
+    if (parseInt(totalUsedRes.rows[0].count) >= offer.max_total_uses) {
+      throw new Error('This offer has reached its maximum redemption limit.');
+    }
+  }
+
+  return offer;
 };
 
 const getActiveOffersCount = async () => {
@@ -90,12 +168,18 @@ const createOffer = async (payload) => {
   const {
     offer_name,
     offer_type,
+    offer_category = 'normal',
     reward_percentage,
     eligible_user,
     start_date,
     end_date,
     promo_code,
     conditions,
+    usage_limit_type = 'once_per_user',
+    condition_type = 'none',
+    condition_value = null,
+    eligible_ride_type = 'both',
+    max_total_uses = null,
   } = payload;
 
   const normalizedEligibleUser = String(eligible_user || '')
@@ -107,39 +191,57 @@ const createOffer = async (payload) => {
     .toUpperCase();
 
   const result = await rideDb.query(
-    `INSERT INTO offers (
-      offer_name,
-      offer_type,
-      reward_percentage,
-      eligible_user,
-      start_date,
-      end_date,
-      promo_code,
-      conditions
-    )
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-    RETURNING
-      offer_id,
-      offer_name,
-      offer_type,
-      reward_percentage,
-      eligible_user,
-      promo_code,
-      conditions,
-      start_date,
-      end_date,
-      created_at`,
-    [
-      offer_name,
-      offer_type,
-      reward_percentage,
-      normalizedEligibleUser,
-      start_date,
-      end_date,
-      normalizedPromoCode,
-      conditions,
-    ]
-  );
+      `INSERT INTO offers (
+        offer_name,
+        offer_type,
+        offer_category,
+        reward_percentage,
+        eligible_user,
+        start_date,
+        end_date,
+        promo_code,
+        conditions,
+        usage_limit_type,
+        condition_type,
+        condition_value,
+        eligible_ride_type,
+        max_total_uses
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+      RETURNING
+        offer_id,
+        offer_name,
+        offer_type,
+        offer_category,
+        reward_percentage,
+        eligible_user,
+        promo_code,
+        conditions,
+        usage_limit_type,
+        condition_type,
+        condition_value,
+        eligible_ride_type,
+        max_total_uses,
+        start_date,
+        end_date,
+        created_at`,
+      [
+        offer_name,
+        offer_type,
+        offer_category,
+        reward_percentage,
+        normalizedEligibleUser,
+        start_date,
+        end_date,
+        normalizedPromoCode,
+        conditions,
+        usage_limit_type,
+        condition_type,
+        condition_value,
+        eligible_ride_type,
+        offer_category === 'bonus' ? max_total_uses : null,
+      ]
+    );
 
   const createdOffer = result.rows[0];
 
