@@ -26,11 +26,15 @@ router.post(
   validateRequiredFields([
     'offer_name',
     'offer_type',
+    'offer_category',
     'reward_percentage',
     'eligible_user',
     'start_date',
     'end_date',
-    'promo_code'
+    'promo_code',
+    'usage_limit_type',
+    'condition_type',
+    'eligible_ride_type',
   ]),
   offersController.createOffer
 );
