@@ -69,6 +69,9 @@ class _UniRideHomePageState extends State<UniRideHomePage> {
   }
 
   Future<void> _loadHomeSummary() async {
+    // রিফ্রেশের সময় loading state reset করো
+    if (mounted) setState(() => isLoadingHome = true);
+
     // Step 1: Summary
     try {
       final summaryResponse =
@@ -256,171 +259,181 @@ class _UniRideHomePageState extends State<UniRideHomePage> {
       // ── body ──
       body: Stack(
         children: [
-          // ── Main scroll content ──
-          SingleChildScrollView(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Search bar
-                  GestureDetector(
-                    onTap: () {
-                      if (_googleApiKey.isEmpty) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content:
-                            Text('Google Maps API key is missing'),
+          // ── Pull-to-Refresh + Main scroll content ──
+          RefreshIndicator(
+            onRefresh: _loadHomeSummary,
+            color: AppColors.primary,
+            backgroundColor: Colors.white,
+            strokeWidth: 2.5,
+            displacement: 40,
+            child: SingleChildScrollView(
+              // physics জরুরি — না থাকলে overscroll কাজ না-ও করতে পারে
+              physics: const AlwaysScrollableScrollPhysics(),
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Search bar
+                    GestureDetector(
+                      onTap: () {
+                        if (_googleApiKey.isEmpty) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content:
+                              Text('Google Maps API key is missing'),
+                            ),
+                          );
+                          return;
+                        }
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => PlanYourRidePage(
+                              googleApiKey: _googleApiKey,
+                            ),
                           ),
                         );
-                        return;
-                      }
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => PlanYourRidePage(
-                            googleApiKey: _googleApiKey,
-                          ),
+                      },
+                      child: Container(
+                        padding:
+                        const EdgeInsets.symmetric(horizontal: 15),
+                        height: 55,
+                        decoration: BoxDecoration(
+                          color: AppColors.inputFill,
+                          borderRadius: BorderRadius.circular(30),
+                          border: Border.all(color: AppColors.border),
                         ),
-                      );
-                    },
-                    child: Container(
-                      padding:
-                      const EdgeInsets.symmetric(horizontal: 15),
-                      height: 55,
-                      decoration: BoxDecoration(
-                        color: AppColors.inputFill,
-                        borderRadius: BorderRadius.circular(30),
-                        border: Border.all(color: AppColors.border),
+                        child: const Row(
+                          children: [
+                            Icon(Icons.search,
+                                color: AppColors.secondary),
+                            SizedBox(width: 10),
+                            Text(
+                              "Where do you want to go?",
+                              style: TextStyle(
+                                fontSize: 16,
+                                color: AppColors.mutedText,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
-                      child: const Row(
+                    ),
+
+                    const SizedBox(height: 25),
+
+                    const Text(
+                      "Suggestions",
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.text,
+                      ),
+                    ),
+
+                    const SizedBox(height: 15),
+
+                    SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
                         children: [
-                          Icon(Icons.search, color: AppColors.secondary),
-                          SizedBox(width: 10),
-                          Text(
-                            "Where do you want to go?",
-                            style: TextStyle(
-                              fontSize: 16,
-                              color: AppColors.mutedText,
+                          GestureDetector(
+                            onTap: () {
+                              if (_googleApiKey.isEmpty) {
+                                ScaffoldMessenger.of(context)
+                                    .showSnackBar(
+                                  const SnackBar(
+                                    content: Text(
+                                        'Google Maps API key is missing'),
+                                  ),
+                                );
+                                return;
+                              }
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => PlanYourRidePage(
+                                    googleApiKey: _googleApiKey,
+                                  ),
+                                ),
+                              );
+                            },
+                            child: const _SuggestionBox(
+                              icon: Icons.directions_car,
+                              title: "Ride",
+                            ),
+                          ),
+                          const SizedBox(width: 15),
+                          GestureDetector(
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) =>
+                                  const ReserveRide(),
+                                ),
+                              );
+                            },
+                            child: const _SuggestionBox(
+                              icon: Icons.calendar_today,
+                              title: "Reserve",
+                            ),
+                          ),
+                          const SizedBox(width: 15),
+                          GestureDetector(
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) =>
+                                  const SendItemForm(),
+                                ),
+                              );
+                            },
+                            child: const _SuggestionBox(
+                              icon: Icons.inventory,
+                              title: "Send Item",
+                            ),
+                          ),
+                          const SizedBox(width: 15),
+                          GestureDetector(
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) =>
+                                  const SharingCaringPage(),
+                                ),
+                              );
+                            },
+                            child: const _SuggestionBox(
+                              icon: Icons.volunteer_activism,
+                              title: "Co Ride",
                             ),
                           ),
                         ],
                       ),
                     ),
-                  ),
 
-                  const SizedBox(height: 25),
+                    const SizedBox(height: 30),
 
-                  const Text(
-                    "Suggestions",
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.text,
-                    ),
-                  ),
+                    if (_showAds)
+                      _HomeAdsSlider(
+                        controller: _adPageController,
+                        adImages: _adImages,
+                        onPageChanged: (index) {
+                          _currentAdIndex = index;
+                          _startAdAutoSlide();
+                        },
+                        onClose: _closeAds,
+                      ),
 
-                  const SizedBox(height: 15),
-
-                  SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: Row(
-                      children: [
-                        GestureDetector(
-                          onTap: () {
-                            if (_googleApiKey.isEmpty) {
-                              ScaffoldMessenger.of(context)
-                                  .showSnackBar(
-                                const SnackBar(
-                                  content: Text(
-                                      'Google Maps API key is missing'),
-                                ),
-                              );
-                              return;
-                            }
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => PlanYourRidePage(
-                                  googleApiKey: _googleApiKey,
-                                ),
-                              ),
-                            );
-                          },
-                          child: const _SuggestionBox(
-                            icon: Icons.directions_car,
-                            title: "Ride",
-                          ),
-                        ),
-                        const SizedBox(width: 15),
-                        GestureDetector(
-                          onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) =>
-                                const ReserveRide(),
-                              ),
-                            );
-                          },
-                          child: const _SuggestionBox(
-                            icon: Icons.calendar_today,
-                            title: "Reserve",
-                          ),
-                        ),
-                        const SizedBox(width: 15),
-                        GestureDetector(
-                          onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) =>
-                                const SendItemForm(),
-                              ),
-                            );
-                          },
-                          child: const _SuggestionBox(
-                            icon: Icons.inventory,
-                            title: "Send Item",
-                          ),
-                        ),
-                        const SizedBox(width: 15),
-                        GestureDetector(
-                          onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) =>
-                                const SharingCaringPage(),
-                              ),
-                            );
-                          },
-                          child: const _SuggestionBox(
-                            icon: Icons.volunteer_activism,
-                            title: "Co Ride",
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  const SizedBox(height: 30),
-
-                  if (_showAds)
-                    _HomeAdsSlider(
-                      controller: _adPageController,
-                      adImages: _adImages,
-                      onPageChanged: (index) {
-                        _currentAdIndex = index;
-                        _startAdAutoSlide();
-                      },
-                      onClose: _closeAds,
-                    ),
-
-                  // Active ride bubble এর জন্য নিচে padding
-                  if (!isLoadingHome && _activeRideRequest != null)
-                    const SizedBox(height: 80),
-                ],
+                    // Active ride bubble এর জন্য নিচে padding
+                    if (!isLoadingHome && _activeRideRequest != null)
+                      const SizedBox(height: 80),
+                  ],
+                ),
               ),
             ),
           ),
@@ -445,25 +458,20 @@ class _UniRideHomePageState extends State<UniRideHomePage> {
                           (d['riderName'] ?? 'Rider').toString(),
                           riderPhone:
                           (d['riderPhone'] ?? '').toString(),
-                          riderPhoto:
-                          d['riderPhoto']?.toString(),
+                          riderPhoto: d['riderPhoto']?.toString(),
                           destination:
                           (d['destination'] ?? '').toString(),
                           initialRiderLat: d['riderLat'] != null
-                              ? double.tryParse(
-                              '${d['riderLat']}')
+                              ? double.tryParse('${d['riderLat']}')
                               : null,
                           initialRiderLng: d['riderLng'] != null
-                              ? double.tryParse(
-                              '${d['riderLng']}')
+                              ? double.tryParse('${d['riderLng']}')
                               : null,
                           pickupLat: d['pickupLat'] != null
-                              ? double.tryParse(
-                              '${d['pickupLat']}')
+                              ? double.tryParse('${d['pickupLat']}')
                               : null,
                           pickupLng: d['pickupLng'] != null
-                              ? double.tryParse(
-                              '${d['pickupLng']}')
+                              ? double.tryParse('${d['pickupLng']}')
                               : null,
                           destinationLat: d['destinationLat'] != null
                               ? double.tryParse(
@@ -503,8 +511,7 @@ class _UniRideHomePageState extends State<UniRideHomePage> {
                         ),
                         const SizedBox(width: 10),
                         Column(
-                          crossAxisAlignment:
-                          CrossAxisAlignment.start,
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             const Text(

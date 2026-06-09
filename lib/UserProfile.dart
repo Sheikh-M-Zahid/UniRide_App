@@ -115,17 +115,25 @@ class _UniRideProfilePageState extends State<UniRideProfilePage> {
 
       if (!mounted) return;
 
+      final profilePicture = data['profilePicture']?.toString();
+      final prefs = await SharedPreferences.getInstance();
+
+      String? resolvedImageUrl;
+      if (profilePicture != null && profilePicture.isNotEmpty) {
+        resolvedImageUrl = _authApiService.getFullImageUrl(profilePicture);
+        await prefs.setString('cached_profile_image_url', resolvedImageUrl);
+      } else {
+        resolvedImageUrl = prefs.getString('cached_profile_image_url');
+      }
+
+      if (!mounted) return;
+
       setState(() {
         _displayName = fullName.isNotEmpty
             ? fullName
             : (combinedName.isNotEmpty ? combinedName : _displayName);
         _displayRating = double.tryParse('${data['rating'] ?? 5}') ?? 5.0;
-
-        final profilePicture = data['profilePicture']?.toString();
-        _profileImageUrl = (profilePicture != null && profilePicture.isNotEmpty)
-            ? _authApiService.getFullImageUrl(profilePicture)
-            : null;
-
+        _profileImageUrl = resolvedImageUrl;
         _gender = data['gender']?.toString();
         _emergencyContactNumber = data['emergencyContactNumber']?.toString();
         _universityEmail = data['universityEmail']?.toString();
@@ -415,9 +423,15 @@ class _UniRideProfilePageState extends State<UniRideProfilePage> {
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      body: SafeArea(
-        child: SingleChildScrollView(
-          child: Column(
+        body: SafeArea(
+          child: RefreshIndicator(
+            onRefresh: _initializeProfilePage,
+            color: AppColors.primary,
+            backgroundColor: Colors.white,
+            strokeWidth: 2.5,
+            child: SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              child: Column(
             children: [
               const SizedBox(height: 30),
 
@@ -723,9 +737,10 @@ class _UniRideProfilePageState extends State<UniRideProfilePage> {
 
               const SizedBox(height: 30),
             ],
+              ),
+            ),
           ),
         ),
-      ),
 
       // ================= BOTTOM NAVIGATION =================
       bottomNavigationBar: BottomNavigationBar(

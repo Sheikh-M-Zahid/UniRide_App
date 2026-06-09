@@ -75,7 +75,13 @@ class _AdminProfilePageState extends State<AdminProfilePage> {
       });
 
       try {
-        await _authApiService.updateAdminProfileImage(imageFile);
+        final uploadResult = await _authApiService.updateAdminProfileImage(imageFile);
+        final newImageUrl = uploadResult['data']?['profileImageUrl']?.toString() ?? '';
+
+        if (newImageUrl.isNotEmpty) {
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setString('cached_profile_image_url', newImageUrl);
+        }
 
         if (!mounted) return;
         setState(() {
@@ -213,13 +219,15 @@ class _AdminProfilePageState extends State<AdminProfilePage> {
                     const SizedBox(width: 12),
                     Expanded(
                       child: ElevatedButton(
-                        onPressed: () {
+                        onPressed: () async {
+                          final prefs = await SharedPreferences.getInstance();
+                          await prefs.setString('active_role', 'passenger');
+                          if (!mounted) return;
                           Navigator.pop(dialogContext);
                           Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (context) =>
-                              const UniRideProfilePage(),
+                              builder: (context) => const UniRideProfilePage(),
                             ),
                           );
                         },
@@ -361,7 +369,10 @@ class _AdminProfilePageState extends State<AdminProfilePage> {
                     const SizedBox(width: 12),
                     Expanded(
                       child: ElevatedButton(
-                        onPressed: () {
+                        onPressed: () async {
+                          final prefs = await SharedPreferences.getInstance();
+                          await prefs.setString('active_role', 'rider');
+                          if (!mounted) return;
                           Navigator.pop(dialogContext);
                           Navigator.push(
                             context,

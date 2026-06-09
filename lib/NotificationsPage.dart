@@ -209,7 +209,13 @@ class _NotificationsPageState extends State<NotificationsPage> {
     });
 
     try {
-      final response = await _api.getNotifications();
+      final roleStr = widget.userRole == UserRole.rider
+          ? 'rider'
+          : widget.userRole == UserRole.admin
+          ? 'admin'
+          : 'passenger';
+
+      final response = await _api.getNotifications(role: roleStr);
       final List rawList = response['data'] ?? [];
 
       final loadedNotifications = rawList

@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "734069954022",
+    "project_id": "uniride-7632e",
+    "storage_bucket": "uniride-7632e.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:734069954022:android:3e81769f3249c333023227",
+        "android_client_info": {
+          "package_name": "com.unitedgroup.uni_ride"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCjImNK5vlEjEMc4rGC1zPQ0cGlub2UfXA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

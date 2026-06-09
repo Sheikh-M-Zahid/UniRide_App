@@ -324,10 +324,16 @@ class _SettingsPageState extends State<SettingsPage> {
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
-          : SingleChildScrollView(
-        child: Column(
-          children: [
-            InkWell(
+          : RefreshIndicator(
+        onRefresh: _loadUserData,
+        color: AppColors.primary,
+        backgroundColor: Colors.white,
+        strokeWidth: 2.5,
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          child: Column(
+            children: [
+              InkWell(
               onTap: () async {
                 await Navigator.push(
                   context,
@@ -495,8 +501,9 @@ class _SettingsPageState extends State<SettingsPage> {
               ),
             ),
 
-            const SizedBox(height: 20),
-          ],
+              const SizedBox(height: 20),
+            ],
+          ),
         ),
       ),
     );

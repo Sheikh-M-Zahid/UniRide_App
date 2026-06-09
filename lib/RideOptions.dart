@@ -112,15 +112,27 @@ class _RideOptionsPageState extends State<RideOptionsPage> {
     }
   }
 
-  @override
-  void dispose() {
-    _refreshTimer?.cancel();
-    super.dispose();
-  }
-
   String selectedGender = 'Any';
   String selectedUserType = 'All';
   String selectedVehicleType = 'All';
+
+// Offer state — প্রতিটা ride এর জন্য আলাদা
+  final Map<String, _AppliedOffer> _appliedOffers = {};
+  final Map<String, TextEditingController> _promoControllers = {};
+  final Map<String, bool> _promoLoading = {};
+
+  TextEditingController _promoControllerFor(String rideId) {
+    return _promoControllers.putIfAbsent(rideId, () => TextEditingController());
+  }
+
+  @override
+  void dispose() {
+    _refreshTimer?.cancel();
+    for (final c in _promoControllers.values) {
+      c.dispose();
+    }
+    super.dispose();
+  }
 
   List<RideOptionModel> get filteredRides {
     final List<RideOptionModel> rides = _liveRides.where((ride) {
@@ -254,6 +266,10 @@ class _RideOptionsPageState extends State<RideOptionsPage> {
   }
 
   void _onBookNow(RideOptionModel ride) {
+    final applied = _appliedOffers[ride.id];
+    final finalFare = applied != null ? applied.discountedFare : ride.estimatedFare;
+    final promoCode = applied?.promoCode;
+
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -265,12 +281,72 @@ class _RideOptionsPageState extends State<RideOptionsPage> {
           vehicleNumber: ride.vehicleNumber,
           pickupAddress: widget.pickupLocation.address,
           destinationAddress: widget.destinationLocation.address,
-          fare: ride.estimatedFare,
+          fare: finalFare,
           distanceKm: widget.routeDistanceKm,
           estimatedMinutes: widget.estimatedTravelMinutes,
+          appliedPromoCode: promoCode,
+          originalFare: applied != null ? ride.estimatedFare : null,
         ),
       ),
     );
+  }
+
+  Future<void> _applyPromo(RideOptionModel ride) async {
+    final controller = _promoControllerFor(ride.id);
+    final code = controller.text.trim().toUpperCase();
+    if (code.isEmpty) return;
+
+    setState(() => _promoLoading[ride.id] = true);
+
+    try {
+      final response = await _authApiService.applyPromoCode(promoCode: code);
+      final data = response['data'] ?? {};
+      final rewardPct = double.tryParse('${data['reward_percentage'] ?? 0}') ?? 0;
+      final offerName = (data['offer_name'] ?? '').toString();
+
+      if (rewardPct <= 0) {
+        _showPromoSnack('Invalid or expired offer code.', isError: true);
+        return;
+      }
+
+      final discounted = ride.estimatedFare - (ride.estimatedFare * rewardPct / 100);
+
+      setState(() {
+        _appliedOffers[ride.id] = _AppliedOffer(
+          promoCode: code,
+          offerName: offerName,
+          discountPct: rewardPct,
+          discountedFare: discounted.roundToDouble(),
+        );
+      });
+
+      _showPromoSnack('🎉 "$code" applied! You save ৳${(ride.estimatedFare - discounted).toStringAsFixed(0)}');
+    } catch (e) {
+      _showPromoSnack(
+        e.toString().replaceFirst('Exception: ', ''),
+        isError: true,
+      );
+    } finally {
+      if (mounted) setState(() => _promoLoading[ride.id] = false);
+    }
+  }
+
+  void _removePromo(String rideId) {
+    setState(() {
+      _appliedOffers.remove(rideId);
+      _promoControllers[rideId]?.clear();
+    });
+  }
+
+  void _showPromoSnack(String msg, {bool isError = false}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(msg),
+      backgroundColor: isError ? const Color(0xFFDC2626) : AppColors.secondary,
+      behavior: SnackBarBehavior.floating,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+    ));
   }
 
   Future<void> _makePhoneCall(String phoneNumber) async {
@@ -970,38 +1046,9 @@ class _RideOptionsPageState extends State<RideOptionsPage> {
             value: "${ride.distanceAwayKm.toStringAsFixed(1)} km",
           ),
           const SizedBox(height: 14),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-            decoration: BoxDecoration(
-              color: AppColors.softPrimary,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: const Color(0xFFBFEFF0)),
-            ),
-            child: Row(
-              children: [
-                const Icon(Icons.payments_rounded, color: AppColors.secondary),
-                const SizedBox(width: 8),
-                const Text(
-                  "Estimated fare",
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.text,
-                  ),
-                ),
-                const Spacer(),
-                Text(
-                  "৳ ${ride.estimatedFare.toStringAsFixed(0)}",
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.secondary,
-                  ),
-                ),
-              ],
-            ),
-          ),
+          _buildFareSection(ride),
+          const SizedBox(height: 10),
+          _buildPromoSection(ride),
           const SizedBox(height: 16),
           Row(
             children: [
@@ -1243,6 +1290,230 @@ class _RideOptionsPageState extends State<RideOptionsPage> {
     );
   }
 
+  Widget _buildFareSection(RideOptionModel ride) {
+    final applied = _appliedOffers[ride.id];
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+      decoration: BoxDecoration(
+        color: AppColors.softPrimary,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: applied != null
+              ? const Color(0xFF34D399).withOpacity(0.6)
+              : const Color(0xFFBFEFF0),
+          width: applied != null ? 1.5 : 1,
+        ),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.payments_rounded, color: AppColors.secondary),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  "Estimated fare",
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.text,
+                  ),
+                ),
+                if (applied != null) ...[
+                  const SizedBox(height: 2),
+                  Row(
+                    children: [
+                      const Icon(Icons.local_offer_rounded,
+                          size: 11, color: Color(0xFF059669)),
+                      const SizedBox(width: 3),
+                      Text(
+                        applied.promoCode,
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: Color(0xFF059669),
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        '(-${applied.discountPct.toStringAsFixed(0)}%)',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: Color(0xFF059669),
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ],
+            ),
+          ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              if (applied != null)
+                Text(
+                  "৳ ${ride.estimatedFare.toStringAsFixed(0)}",
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: AppColors.mutedText,
+                    fontWeight: FontWeight.w500,
+                    decoration: TextDecoration.lineThrough,
+                  ),
+                ),
+              Text(
+                "৳ ${applied != null ? applied.discountedFare.toStringAsFixed(0) : ride.estimatedFare.toStringAsFixed(0)}",
+                style: TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.bold,
+                  color: applied != null
+                      ? const Color(0xFF059669)
+                      : AppColors.secondary,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPromoSection(RideOptionModel ride) {
+    final applied = _appliedOffers[ride.id];
+    final isLoading = _promoLoading[ride.id] ?? false;
+
+    if (applied != null) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF0FDF4),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: const Color(0xFFBBF7D0)),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.check_circle_rounded,
+                size: 18, color: Color(0xFF16A34A)),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    applied.offerName.isNotEmpty
+                        ? applied.offerName
+                        : 'Offer Applied',
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF15803D),
+                    ),
+                  ),
+                  Text(
+                    'Code: ${applied.promoCode} · ${applied.discountPct.toStringAsFixed(0)}% off',
+                    style: const TextStyle(
+                      fontSize: 11.5,
+                      color: Color(0xFF166534),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            GestureDetector(
+              onTap: () => _removePromo(ride.id),
+              child: Container(
+                padding: const EdgeInsets.all(5),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFDCFCE7),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(Icons.close_rounded,
+                    size: 15, color: Color(0xFF15803D)),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.local_offer_outlined,
+              size: 18, color: AppColors.secondary),
+          const SizedBox(width: 10),
+          Expanded(
+            child: TextField(
+              controller: _promoControllerFor(ride.id),
+              textCapitalization: TextCapitalization.characters,
+              style: const TextStyle(
+                fontSize: 13.5,
+                fontWeight: FontWeight.w600,
+                color: AppColors.text,
+                letterSpacing: 0.8,
+              ),
+              decoration: const InputDecoration(
+                hintText: 'Enter promo code',
+                hintStyle: TextStyle(
+                  color: AppColors.mutedText,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w400,
+                ),
+                border: InputBorder.none,
+                isDense: true,
+                contentPadding: EdgeInsets.zero,
+              ),
+              onSubmitted: (_) => _applyPromo(ride),
+            ),
+          ),
+          const SizedBox(width: 8),
+          GestureDetector(
+            onTap: isLoading ? null : () => _applyPromo(ride),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              padding:
+              const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              decoration: BoxDecoration(
+                color: isLoading
+                    ? AppColors.border
+                    : AppColors.primary,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: isLoading
+                  ? const SizedBox(
+                width: 14,
+                height: 14,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: Colors.white,
+                ),
+              )
+                  : const Text(
+                'Apply',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildNoRideFound() {
     return Container(
       width: double.infinity,
@@ -1307,4 +1578,18 @@ class _RideOptionsPageState extends State<RideOptionsPage> {
       ),
     );
   }
+}
+
+class _AppliedOffer {
+  final String promoCode;
+  final String offerName;
+  final double discountPct;
+  final double discountedFare;
+
+  const _AppliedOffer({
+    required this.promoCode,
+    required this.offerName,
+    required this.discountPct,
+    required this.discountedFare,
+  });
 }

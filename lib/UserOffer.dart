@@ -153,8 +153,12 @@ class _OffersPageState extends State<OffersPage> {
       appBar: AppBar(
         backgroundColor: AppColors.background,
         elevation: 0,
-        leading: const BackButton(color: AppColors.text),
-        automaticallyImplyLeading: false,
+        leading: Navigator.canPop(context)
+            ? IconButton(
+          icon: const Icon(Icons.arrow_back, color: AppColors.text),
+          onPressed: () => Navigator.pop(context),
+        )
+            : null,
         title: const Padding(
           padding: EdgeInsets.only(left: 8.0, top: 10),
           child: Text(
@@ -369,28 +373,34 @@ class _OffersPageState extends State<OffersPage> {
   }
 
   Widget _buildError() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Icon(Icons.error_outline, size: 48, color: AppColors.danger),
-          const SizedBox(height: 12),
-          Text(
-            errorMessage ?? 'Something went wrong',
-            textAlign: TextAlign.center,
-            style:
-            const TextStyle(color: AppColors.mutedText, fontSize: 14),
+    return ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      children: [
+        const SizedBox(height: 80),
+        Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.error_outline, size: 48, color: AppColors.danger),
+              const SizedBox(height: 12),
+              Text(
+                errorMessage ?? 'Something went wrong',
+                textAlign: TextAlign.center,
+                style:
+                const TextStyle(color: AppColors.mutedText, fontSize: 14),
+              ),
+              const SizedBox(height: 16),
+              ElevatedButton(
+                onPressed: _loadOffers,
+                style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary),
+                child: const Text('Retry',
+                    style: TextStyle(color: Colors.white)),
+              ),
+            ],
           ),
-          const SizedBox(height: 16),
-          ElevatedButton(
-            onPressed: _loadOffers,
-            style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary),
-            child: const Text('Retry',
-                style: TextStyle(color: Colors.white)),
-          ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }
@@ -467,29 +477,52 @@ class _OfferCard extends StatelessWidget {
                     ),
                   ],
                 ),
-                if (expiringSoon)
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.22),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: const Row(
-                      children: [
-                        Icon(Icons.timer_outlined,
-                            color: Colors.white, size: 13),
-                        SizedBox(width: 4),
-                        Text(
-                          'Ending Soon',
-                          style: TextStyle(
+                Builder(
+                  builder: (_) {
+                    final endRaw = offer['end_date']?.toString();
+                    final isExpiredNow = endRaw != null &&
+                        DateTime.tryParse(endRaw)?.toLocal().isBefore(DateTime.now()) == true;
+                    final isUsed = offer['is_used'] == true;
+
+                    String? badgeLabel;
+                    IconData? badgeIcon;
+
+                    if (isUsed) {
+                      badgeLabel = 'Used';
+                      badgeIcon = Icons.check_circle_outline;
+                    } else if (isExpiredNow) {
+                      badgeLabel = 'Expired';
+                      badgeIcon = Icons.cancel_outlined;
+                    } else if (expiringSoon) {
+                      badgeLabel = 'Ending Soon';
+                      badgeIcon = Icons.timer_outlined;
+                    }
+
+                    if (badgeLabel == null) return const SizedBox.shrink();
+
+                    return Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.22),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(badgeIcon!, color: Colors.white, size: 13),
+                          const SizedBox(width: 4),
+                          Text(
+                            badgeLabel,
+                            style: const TextStyle(
                               color: Colors.white,
                               fontSize: 11,
-                              fontWeight: FontWeight.w700),
-                        ),
-                      ],
-                    ),
-                  ),
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
               ],
             ),
 

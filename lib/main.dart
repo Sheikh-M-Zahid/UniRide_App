@@ -1,4 +1,7 @@
 import 'dart:async';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -8,9 +11,120 @@ import 'UserHome.dart';
 import 'RiderDashboard.dart';
 import 'AdminHome.dart';
 import 'RideRequestService.dart';
+import 'firebase_options.dart';
+import 'services/auth_api_service.dart';
+
+final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
+FlutterLocalNotificationsPlugin();
+
+@pragma('vm:entry-point')
+Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
+  await _showLocalNotification(message);
+}
+
+Future<void> _showLocalNotification(RemoteMessage message) async {
+  const AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
+    'uniride_channel',
+    'UniRide Notifications',
+    channelDescription: 'UniRide app notifications',
+    importance: Importance.max,
+    priority: Priority.high,
+    icon: '@mipmap/ic_launcher',
+    playSound: true,
+  );
+
+  await flutterLocalNotificationsPlugin.show(
+    message.hashCode,
+    message.notification?.title ?? 'UniRide',
+    message.notification?.body ?? '',
+    const NotificationDetails(android: androidDetails),
+  );
+}
+
+Future<void> _initFcmAndSaveToken() async {
+  try {
+    final messaging = FirebaseMessaging.instance;
+
+    // Notification channel Android-এ create করো
+    const AndroidNotificationChannel channel = AndroidNotificationChannel(
+      'uniride_channel',
+      'UniRide Notifications',
+      description: 'UniRide app notifications',
+      importance: Importance.max,
+    );
+
+    await flutterLocalNotificationsPlugin
+        .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
+        ?.createNotificationChannel(channel);
+
+    // Token নাও
+    final fcmToken = await messaging.getToken();
+
+    if (fcmToken != null && fcmToken.isNotEmpty) {
+      final prefs = await SharedPreferences.getInstance();
+      final savedToken = prefs.getString('fcm_token');
+
+      // Token নতুন হলে বা না থাকলে save করো
+      if (savedToken != fcmToken) {
+        await prefs.setString('fcm_token', fcmToken);
+      }
+
+      // যদি user already logged in থাকে তাহলে server-এ পাঠাও
+      final authToken = prefs.getString('token');
+      if (authToken != null && authToken.isNotEmpty) {
+        try {
+          await AuthApiService().saveFcmToken(fcmToken: fcmToken);
+        } catch (_) {}
+      }
+    }
+
+    // Token refresh হলে আবার save করো
+    messaging.onTokenRefresh.listen((newToken) async {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('fcm_token', newToken);
+
+      final authToken = prefs.getString('token');
+      if (authToken != null && authToken.isNotEmpty) {
+        try {
+          await AuthApiService().saveFcmToken(fcmToken: newToken);
+        } catch (_) {}
+      }
+    });
+  } catch (_) {}
+}
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
+
+  FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+
+  const AndroidInitializationSettings androidInit =
+  AndroidInitializationSettings('@mipmap/ic_launcher');
+  await flutterLocalNotificationsPlugin.initialize(
+    const InitializationSettings(android: androidInit),
+  );
+
+  await FirebaseMessaging.instance.requestPermission(
+    alert: true,
+    badge: true,
+    sound: true,
+  );
+
+  // Foreground-এ notification দেখানোর জন্য
+  FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+    _showLocalNotification(message);
+  });
+
+  // FCM token init এবং server-এ save
+  await _initFcmAndSaveToken();
+
   RideRequestService.initialize(navigatorKey);
   runApp(const MyApp());
 }
@@ -120,7 +234,6 @@ class _SplashScreenState extends State<SplashScreen>
         }
       }
     } catch (_) {
-      // ইচ্ছা করলে এখানে log দিতে পারো
     } finally {
       _locationCheckFinished = true;
       _goNextIfReady();
@@ -128,19 +241,18 @@ class _SplashScreenState extends State<SplashScreen>
   }
 
   Future<void> _goNextIfReady() async {
-    if (!_minimumSplashFinished || !_locationCheckFinished || _navigated) return;
+    if (!_minimumSplashFinished || !_locationCheckFinished || _navigated)
+      return;
 
     _navigated = true;
 
     final prefs = await SharedPreferences.getInstance();
 
-    final token = prefs.getString('token');
-    final isLoggedIn = prefs.getBool('is_logged_in') ?? false;
-    final lastRole = prefs.getString('last_role') ?? '';
     final lastLoginMillis = prefs.getInt('last_login_at');
 
     if (lastLoginMillis != null) {
-      final lastLoginTime = DateTime.fromMillisecondsSinceEpoch(lastLoginMillis);
+      final lastLoginTime =
+      DateTime.fromMillisecondsSinceEpoch(lastLoginMillis);
       final now = DateTime.now();
       final difference = now.difference(lastLoginTime);
 
@@ -184,10 +296,7 @@ class _SplashScreenState extends State<SplashScreen>
         transitionDuration: const Duration(milliseconds: 500),
         pageBuilder: (_, animation, __) => nextPage,
         transitionsBuilder: (_, animation, __, child) {
-          return FadeTransition(
-            opacity: animation,
-            child: child,
-          );
+          return FadeTransition(opacity: animation, child: child);
         },
       ),
     );
@@ -212,10 +321,7 @@ class _SplashScreenState extends State<SplashScreen>
             gradient: const LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
-              colors: [
-                AppColors.primary,
-                AppColors.secondary,
-              ],
+              colors: [AppColors.primary, AppColors.secondary],
             ),
             boxShadow: [
               BoxShadow(

@@ -40,15 +40,53 @@ class _AddOfferPageState extends State<AddOfferPage> {
     "Both",
   ];
 
+  final List<String> offerCategories = ["Normal", "Bonus"];
+
+  final List<String> usageLimitTypes = [
+    "Once Per User",
+    "Once Per Day",
+    "Unlimited",
+  ];
+
+  final List<String> conditionTypes = [
+    "None",
+    "Min Rides Per Month",
+    "Min Items Per Month",
+    "Min Fare Amount",
+    "New User Only",
+  ];
+
+  final List<String> rideTypes = ["Both", "Ride", "Send Item"];
+
+  String? selectedOfferCategory;
+  String? selectedUsageLimitType;
+  String? selectedConditionType;
+  String? selectedRideType;
+
+  final TextEditingController conditionValueController = TextEditingController();
+  final TextEditingController maxTotalUsesController = TextEditingController();
+
   bool get isFormValid {
+    final bonusValid = selectedOfferCategory != 'Bonus' ||
+        maxTotalUsesController.text.isNotEmpty;
+    final conditionValid = selectedConditionType == 'None' ||
+        selectedConditionType == 'New User Only' ||
+        selectedConditionType == null ||
+        conditionValueController.text.isNotEmpty;
+
     return offerNameController.text.isNotEmpty &&
         rewardController.text.isNotEmpty &&
         selectedOfferType != null &&
         selectedTarget != null &&
+        selectedOfferCategory != null &&
+        selectedUsageLimitType != null &&
+        selectedConditionType != null &&
+        selectedRideType != null &&
         startDate != null &&
         endDate != null &&
         promoController.text.isNotEmpty &&
-        conditionController.text.isNotEmpty;
+        bonusValid &&
+        conditionValid;
   }
 
   Future<void> pickStartDate() async {
@@ -90,12 +128,29 @@ class _AddOfferPageState extends State<AddOfferPage> {
       final response = await _authApiService.createOffer(
         offerName: offerNameController.text.trim(),
         offerType: selectedOfferType!.trim(),
+        offerCategory: selectedOfferCategory!.toLowerCase(),
         rewardPercentage: rewardController.text.trim(),
         eligibleUser: selectedTarget!.trim(),
         startDate: startDate!.toIso8601String().split('T').first,
         endDate: endDate!.toIso8601String().split('T').first,
         promoCode: promoController.text.trim(),
         conditions: conditionController.text.trim(),
+        usageLimitType: selectedUsageLimitType!
+            .toLowerCase()
+            .replaceAll(' ', '_'),
+        conditionType: selectedConditionType!
+            .toLowerCase()
+            .replaceAll(' ', '_'),
+        conditionValue: conditionValueController.text.isNotEmpty
+            ? int.tryParse(conditionValueController.text.trim())
+            : null,
+        eligibleRideType: selectedRideType!
+            .toLowerCase()
+            .replaceAll(' ', '_'),
+        maxTotalUses: selectedOfferCategory == 'Bonus' &&
+            maxTotalUsesController.text.isNotEmpty
+            ? int.tryParse(maxTotalUsesController.text.trim())
+            : null,
       );
 
       final data = response['data'] ?? {};
@@ -189,6 +244,62 @@ class _AddOfferPageState extends State<AddOfferPage> {
 
                 const SizedBox(height: 15),
 
+                buildDropdown(
+                  "Offer Category",
+                  selectedOfferCategory,
+                  offerCategories,
+                      (val) => setState(() => selectedOfferCategory = val),
+                ),
+
+                const SizedBox(height: 15),
+
+                buildDropdown(
+                  "Usage Limit",
+                  selectedUsageLimitType,
+                  usageLimitTypes,
+                      (val) => setState(() => selectedUsageLimitType = val),
+                ),
+
+                const SizedBox(height: 15),
+
+                buildDropdown(
+                  "Applicable For",
+                  selectedRideType,
+                  rideTypes,
+                      (val) => setState(() => selectedRideType = val),
+                ),
+
+                const SizedBox(height: 15),
+
+                buildDropdown(
+                  "Condition Type",
+                  selectedConditionType,
+                  conditionTypes,
+                      (val) => setState(() => selectedConditionType = val),
+                ),
+
+                if (selectedConditionType != null &&
+                    selectedConditionType != 'None' &&
+                    selectedConditionType != 'New User Only') ...[
+                  const SizedBox(height: 15),
+                  buildTextField(
+                    "Condition Value (number)",
+                    conditionValueController,
+                    isNumber: true,
+                  ),
+                ],
+
+                if (selectedOfferCategory == 'Bonus') ...[
+                  const SizedBox(height: 15),
+                  buildTextField(
+                    "Max Total Uses",
+                    maxTotalUsesController,
+                    isNumber: true,
+                  ),
+                ],
+
+                const SizedBox(height: 15),
+
                 dateTile("Start Date", startDate, pickStartDate),
                 const SizedBox(height: 10),
                 dateTile("End Date", endDate, pickEndDate),
@@ -196,10 +307,6 @@ class _AddOfferPageState extends State<AddOfferPage> {
                 const SizedBox(height: 15),
 
                 buildTextField("Promo Code", promoController),
-
-                const SizedBox(height: 15),
-
-                buildTextField("Condition", conditionController),
 
                 const SizedBox(height: 25),
 

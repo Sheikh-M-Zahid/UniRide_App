@@ -9,6 +9,7 @@ import 'LoginCheck.dart';
 import 'GmailConfirm.dart';
 import 'FindAccount.dart';
 import 'AdminHome.dart';
+import 'RiderDashboard.dart';
 import 'services/auth_api_service.dart';
 
 void main() {
@@ -53,10 +54,17 @@ class _AppStartPageState extends State<AppStartPage> {
     if (!mounted) return;
 
     if (isLoggedIn) {
-      if (isAdmin) {
+      final activeRole = prefs.getString('active_role') ?? '';
+
+      if (isAdmin && activeRole != 'passenger' && activeRole != 'rider') {
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(builder: (context) => AdminDashboard()),
+        );
+      } else if (activeRole == 'rider') {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const RiderDashboard()),
         );
       } else {
         Navigator.pushReplacement(
@@ -114,21 +122,29 @@ class _UniRideLoginState extends State<UniRideLogin> {
 
   Future<void> _initializeGoogleSignIn() async {
     if (_isGoogleInitialized) return;
-
     await _googleSignIn.initialize();
-
     _isGoogleInitialized = true;
   }
 
   bool _isValidUniversityEmail(String email) {
     final normalizedEmail = email.trim().toLowerCase();
-
     return normalizedEmail.endsWith('@std.ewubd.edu') ||
         normalizedEmail.endsWith('@ewubd.edu');
   }
 
   Future<bool> _checkIfAdmin() async {
     return await _authApiService.checkIfAdmin();
+  }
+
+  // FCM token server-এ পাঠানোর helper method
+  Future<void> _sendFcmTokenToServer() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final fcmToken = prefs.getString('fcm_token');
+      if (fcmToken != null && fcmToken.isNotEmpty) {
+        await AuthApiService().saveFcmToken(fcmToken: fcmToken);
+      }
+    } catch (_) {}
   }
 
   Future<void> _handleGoogleSignIn() async {
@@ -143,7 +159,6 @@ class _UniRideLoginState extends State<UniRideLogin> {
       await _googleSignIn.signOut();
 
       final GoogleSignInAccount account = await _googleSignIn.authenticate();
-
       final email = account.email.trim().toLowerCase();
 
       if (!_isValidUniversityEmail(email)) {
@@ -192,6 +207,14 @@ class _UniRideLoginState extends State<UniRideLogin> {
         ),
       );
 
+      // ✅ FCM token server-এ পাঠানো (Google login success)
+      await _sendFcmTokenToServer();
+
+      if (!mounted) return;
+
+      final prefs2 = await SharedPreferences.getInstance();
+      await prefs2.setString('active_role', isAdmin ? 'admin' : 'passenger');
+
       if (isAdmin) {
         Navigator.pushReplacement(
           context,
@@ -207,10 +230,8 @@ class _UniRideLoginState extends State<UniRideLogin> {
           ),
         );
       }
-    }
-    catch (error) {
+    } catch (error) {
       if (!mounted) return;
-
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Google sign-in failed: $error'),
@@ -291,6 +312,14 @@ class _UniRideLoginState extends State<UniRideLogin> {
 
       if (!mounted) return;
 
+      // ✅ FCM token server-এ পাঠানো (email/password login success)
+      await _sendFcmTokenToServer();
+
+      if (!mounted) return;
+
+      final prefs2 = await SharedPreferences.getInstance();
+      await prefs2.setString('active_role', isAdmin ? 'admin' : 'passenger');
+
       if (isAdmin) {
         Navigator.pushReplacement(
           context,
@@ -308,7 +337,6 @@ class _UniRideLoginState extends State<UniRideLogin> {
       }
     } catch (error) {
       if (!mounted) return;
-
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Login failed: $error'),

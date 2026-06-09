@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:flutter_polyline_points/flutter_polyline_points.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:socket_io_client/socket_io_client.dart' as IO;
@@ -68,16 +69,18 @@ class _ActiveRideTrackingPageState extends State<ActiveRideTrackingPage> {
   String _statusText = 'Connecting...';
   bool _isSendingSos = false;
 
-  // Custom marker icons
-  BitmapDescriptor _riderIcon = BitmapDescriptor.defaultMarkerWithHue(
-    BitmapDescriptor.hueGreen,
-  );
-  BitmapDescriptor _myIcon = BitmapDescriptor.defaultMarkerWithHue(
-    BitmapDescriptor.hueBlue,
-  );
-  BitmapDescriptor _destIcon = BitmapDescriptor.defaultMarkerWithHue(
-    BitmapDescriptor.hueRed,
-  );
+  // Encoded polylines cache — avoid repeated API calls for same route
+  String? _riderToMePolyline;
+  String? _meToDestPolyline;
+  LatLng? _lastRiderLoc;
+  LatLng? _lastMyLoc;
+
+  final BitmapDescriptor _riderIcon =
+  BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen);
+  final BitmapDescriptor _myIcon =
+  BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueBlue);
+  final BitmapDescriptor _destIcon =
+  BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed);
 
   @override
   void initState() {
@@ -109,7 +112,7 @@ class _ActiveRideTrackingPageState extends State<ActiveRideTrackingPage> {
     super.dispose();
   }
 
-  // ── আমার নিজের location ──
+  // ── নিজের location ──
   Future<void> _initMyLocation() async {
     try {
       LocationPermission permission = await Geolocator.checkPermission();
@@ -122,9 +125,8 @@ class _ActiveRideTrackingPageState extends State<ActiveRideTrackingPage> {
       if (!mounted) return;
       _myLocation = LatLng(pos.latitude, pos.longitude);
       _updateMyMarker(pos.latitude, pos.longitude);
-      _rebuildPolylines();
+      await _rebuildPolylines();
 
-      // ৫ সেকেন্ড পর পর নিজের location আপডেট
       _myLocationTimer =
           Timer.periodic(const Duration(seconds: 5), (_) async {
             try {
@@ -134,13 +136,13 @@ class _ActiveRideTrackingPageState extends State<ActiveRideTrackingPage> {
               if (!mounted) return;
               setState(() => _myLocation = LatLng(p.latitude, p.longitude));
               _updateMyMarker(p.latitude, p.longitude);
-              _rebuildPolylines();
+              await _rebuildPolylines();
             } catch (_) {}
           });
     } catch (_) {}
   }
 
-  // ── Socket connect — rider এর live location ──
+  // ── Socket ──
   Future<void> _connectSocket() async {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('token') ?? '';
@@ -160,20 +162,12 @@ class _ActiveRideTrackingPageState extends State<ActiveRideTrackingPage> {
       if (mounted) setState(() => _statusText = 'Live tracking active');
     });
 
-    // Rider এর location update (riderSocket এ send_location emit হলে
-    // active_riders_room এ location_update আসে)
-    _socket!.on('location_update', (data) {
-      // শুধু আমার rider এর update নেব
-      // rider এর userId match করতে হবে — তাই poll দিয়েই করব
-      // socket শুধু backup হিসেবে থাকবে
-    });
-
     _socket!.onDisconnect((_) {
       if (mounted) setState(() => _statusText = 'Reconnecting...');
     });
   }
 
-  // ── API poll — rider location ──
+  // ── Poll rider location ──
   void _startPollingRiderLocation() {
     _locationPollTimer =
         Timer.periodic(const Duration(seconds: 5), (_) async {
@@ -186,7 +180,6 @@ class _ActiveRideTrackingPageState extends State<ActiveRideTrackingPage> {
 
             final lat = double.tryParse('${d['lat'] ?? ''}');
             final lng = double.tryParse('${d['lng'] ?? ''}');
-
             if (lat == null || lng == null) return;
             if (!mounted) return;
 
@@ -195,98 +188,113 @@ class _ActiveRideTrackingPageState extends State<ActiveRideTrackingPage> {
               _statusText = 'Live tracking active';
             });
             _updateRiderMarker(lat, lng);
-            _rebuildPolylines();
+            await _rebuildPolylines();
           } catch (_) {}
         });
   }
 
-  // ── Markers ──
-  void _updateRiderMarker(double lat, double lng) {
-    if (!mounted) return;
-    final pos = LatLng(lat, lng);
-    setState(() {
-      _markers.removeWhere((m) => m.markerId.value == 'rider');
-      _markers.add(
-        Marker(
-          markerId: const MarkerId('rider'),
-          position: pos,
-          icon: _riderIcon,
-          infoWindow: InfoWindow(
-            title: widget.riderName,
-            snippet: 'Your rider',
-          ),
-        ),
-      );
-    });
+  // ── Decode encoded polyline ──
+  List<LatLng> _decode(String encoded) {
+    final pts = PolylinePoints().decodePolyline(encoded);
+    return pts.map((p) => LatLng(p.latitude, p.longitude)).toList();
   }
 
-  void _updateMyMarker(double lat, double lng) {
-    if (!mounted) return;
-    setState(() {
-      _markers.removeWhere((m) => m.markerId.value == 'me');
-      _markers.add(
-        Marker(
-          markerId: const MarkerId('me'),
-          position: LatLng(lat, lng),
-          icon: _myIcon,
-          infoWindow: const InfoWindow(title: 'You'),
-        ),
+  // ── Fetch route polyline from backend ──
+  Future<String?> _fetchPolyline(LatLng origin, LatLng dest) async {
+    try {
+      final res = await _api.getRoutePolyline(
+        originLat: origin.latitude,
+        originLng: origin.longitude,
+        destinationLat: dest.latitude,
+        destinationLng: dest.longitude,
       );
-    });
-
-    // destination marker
-    if (_destinationLocation != null) {
-      setState(() {
-        _markers.removeWhere((m) => m.markerId.value == 'dest');
-        _markers.add(
-          Marker(
-            markerId: const MarkerId('dest'),
-            position: _destinationLocation!,
-            icon: _destIcon,
-            infoWindow: InfoWindow(
-              title: 'Destination',
-              snippet: widget.destination,
-            ),
-          ),
-        );
-      });
+      return res['data']?['encodedPolyline'] as String?;
+    } catch (_) {
+      return null;
     }
   }
 
-  // ── Polylines ──
-  // Rider → Passenger: teal (primary)
-  // Passenger → Destination: orange
-  void _rebuildPolylines() {
+  // ── Rebuild polylines — real road ──
+  Future<void> _rebuildPolylines() async {
     if (!mounted) return;
+
     final newPolylines = <Polyline>{};
 
+    // Rider → Passenger (teal, solid)
     if (_riderLocation != null && _myLocation != null) {
-      newPolylines.add(
-        Polyline(
+      // শুধু rider location উল্লেখযোগ্যভাবে বদলালে নতুন polyline আনব
+      final bool riderMoved = _lastRiderLoc == null ||
+          Geolocator.distanceBetween(
+            _lastRiderLoc!.latitude,
+            _lastRiderLoc!.longitude,
+            _riderLocation!.latitude,
+            _riderLocation!.longitude,
+          ) >
+              30;
+
+      if (riderMoved || _riderToMePolyline == null) {
+        _riderToMePolyline =
+        await _fetchPolyline(_riderLocation!, _myLocation!);
+        _lastRiderLoc = _riderLocation;
+      }
+
+      if (_riderToMePolyline != null && _riderToMePolyline!.isNotEmpty) {
+        newPolylines.add(Polyline(
+          polylineId: const PolylineId('rider_to_passenger'),
+          points: _decode(_riderToMePolyline!),
+          color: const Color(0xFF14B8A6),
+          width: 5,
+        ));
+      } else {
+        // Fallback straight line
+        newPolylines.add(Polyline(
           polylineId: const PolylineId('rider_to_passenger'),
           points: [_riderLocation!, _myLocation!],
-          color: const Color(0xFF14B8A6), // teal
+          color: const Color(0xFF14B8A6),
           width: 4,
-          patterns: [], // solid line
-        ),
-      );
+        ));
+      }
     }
 
+    // Passenger → Destination (amber, dashed)
     if (_myLocation != null && _destinationLocation != null) {
-      newPolylines.add(
-        Polyline(
+      final bool myLocMoved = _lastMyLoc == null ||
+          Geolocator.distanceBetween(
+            _lastMyLoc!.latitude,
+            _lastMyLoc!.longitude,
+            _myLocation!.latitude,
+            _myLocation!.longitude,
+          ) >
+              30;
+
+      if (myLocMoved || _meToDestPolyline == null) {
+        _meToDestPolyline =
+        await _fetchPolyline(_myLocation!, _destinationLocation!);
+        _lastMyLoc = _myLocation;
+      }
+
+      if (_meToDestPolyline != null && _meToDestPolyline!.isNotEmpty) {
+        newPolylines.add(Polyline(
+          polylineId: const PolylineId('passenger_to_dest'),
+          points: _decode(_meToDestPolyline!),
+          color: const Color(0xFFF59E0B),
+          width: 5,
+          patterns: [PatternItem.dash(20), PatternItem.gap(10)],
+        ));
+      } else {
+        newPolylines.add(Polyline(
           polylineId: const PolylineId('passenger_to_dest'),
           points: [_myLocation!, _destinationLocation!],
-          color: const Color(0xFFF59E0B), // amber/orange
+          color: const Color(0xFFF59E0B),
           width: 4,
           patterns: [PatternItem.dash(20), PatternItem.gap(10)],
-        ),
-      );
+        ));
+      }
     }
 
+    if (!mounted) return;
     setState(() => _polylines = newPolylines);
 
-    // Camera কে rider এর দিকে নিয়ে যাও
     if (_riderLocation != null) {
       _mapController?.animateCamera(
         CameraUpdate.newLatLng(_riderLocation!),
@@ -294,18 +302,59 @@ class _ActiveRideTrackingPageState extends State<ActiveRideTrackingPage> {
     }
   }
 
+  // ── Markers ──
+  void _updateRiderMarker(double lat, double lng) {
+    if (!mounted) return;
+    setState(() {
+      _markers.removeWhere((m) => m.markerId.value == 'rider');
+      _markers.add(Marker(
+        markerId: const MarkerId('rider'),
+        position: LatLng(lat, lng),
+        icon: _riderIcon,
+        infoWindow: InfoWindow(
+          title: widget.riderName,
+          snippet: 'Your rider',
+        ),
+      ));
+    });
+  }
+
+  void _updateMyMarker(double lat, double lng) {
+    if (!mounted) return;
+    setState(() {
+      _markers.removeWhere((m) => m.markerId.value == 'me');
+      _markers.add(Marker(
+        markerId: const MarkerId('me'),
+        position: LatLng(lat, lng),
+        icon: _myIcon,
+        infoWindow: const InfoWindow(title: 'You (Passenger)'),
+      ));
+
+      if (_destinationLocation != null) {
+        _markers.removeWhere((m) => m.markerId.value == 'dest');
+        _markers.add(Marker(
+          markerId: const MarkerId('dest'),
+          position: _destinationLocation!,
+          icon: _destIcon,
+          infoWindow: InfoWindow(
+            title: 'Destination',
+            snippet: widget.destination,
+          ),
+        ));
+      }
+    });
+  }
+
   // ── SOS ──
   Future<void> _triggerSos() async {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text(
-          '🚨 SOS Alert',
-          style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
-        ),
-        content: const Text(
-          'This will send an emergency alert. Are you sure?',
-        ),
+        title: const Text('🚨 SOS Alert',
+            style:
+            TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+        content:
+        const Text('This will send an emergency alert. Are you sure?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -313,7 +362,8 @@ class _ActiveRideTrackingPageState extends State<ActiveRideTrackingPage> {
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            style:
+            ElevatedButton.styleFrom(backgroundColor: Colors.red),
             child: const Text('Yes, send SOS',
                 style: TextStyle(color: Colors.white)),
           ),
@@ -354,8 +404,7 @@ class _ActiveRideTrackingPageState extends State<ActiveRideTrackingPage> {
           // ── Map ──
           _isLoading
               ? const Center(
-            child:
-            CircularProgressIndicator(color: AppColors.primary),
+            child: CircularProgressIndicator(color: AppColors.primary),
           )
               : _riderLocation == null && _myLocation == null
               ? const Center(
@@ -365,11 +414,9 @@ class _ActiveRideTrackingPageState extends State<ActiveRideTrackingPage> {
                 Icon(Icons.location_searching,
                     size: 52, color: AppColors.primary),
                 SizedBox(height: 14),
-                Text(
-                  'Getting location...',
-                  style: TextStyle(
-                      color: AppColors.mutedText, fontSize: 15),
-                ),
+                Text('Getting location...',
+                    style: TextStyle(
+                        color: AppColors.mutedText, fontSize: 15)),
               ],
             ),
           )
@@ -380,7 +427,7 @@ class _ActiveRideTrackingPageState extends State<ActiveRideTrackingPage> {
                   const LatLng(23.8103, 90.4125),
               zoom: 15,
             ),
-            onMapCreated: (c) {
+            onMapCreated: (c) async {
               _mapController = c;
               if (_riderLocation != null) {
                 _updateRiderMarker(
@@ -394,28 +441,26 @@ class _ActiveRideTrackingPageState extends State<ActiveRideTrackingPage> {
                   _myLocation!.longitude,
                 );
               }
-              // destination marker আলাদাভাবে add করো
-              // যেন _myLocation null হলেও destination দেখা যায়
-              if (_destinationLocation != null) {
+              if (_destinationLocation != null && _myLocation == null) {
                 setState(() {
-                  _markers.removeWhere((m) => m.markerId.value == 'dest');
-                  _markers.add(
-                    Marker(
-                      markerId: const MarkerId('dest'),
-                      position: _destinationLocation!,
-                      icon: _destIcon,
-                      infoWindow: InfoWindow(
-                        title: 'Destination',
-                        snippet: widget.destination,
-                      ),
+                  _markers.removeWhere(
+                          (m) => m.markerId.value == 'dest');
+                  _markers.add(Marker(
+                    markerId: const MarkerId('dest'),
+                    position: _destinationLocation!,
+                    icon: _destIcon,
+                    infoWindow: InfoWindow(
+                      title: 'Destination',
+                      snippet: widget.destination,
                     ),
-                  );
+                  ));
                 });
               }
-              _rebuildPolylines();
+              await _rebuildPolylines();
             },
             markers: _markers,
             polylines: _polylines,
+            trafficEnabled: true,
             myLocationEnabled: false,
             zoomControlsEnabled: false,
           ),
@@ -452,7 +497,6 @@ class _ActiveRideTrackingPageState extends State<ActiveRideTrackingPage> {
                       ),
                     ),
                     const SizedBox(width: 12),
-                    // Rider photo / avatar
                     CircleAvatar(
                       radius: 20,
                       backgroundColor: const Color(0xFFECFEFF),
@@ -489,9 +533,7 @@ class _ActiveRideTrackingPageState extends State<ActiveRideTrackingPage> {
                           Text(
                             '→ ${widget.destination}',
                             style: const TextStyle(
-                              fontSize: 12,
-                              color: AppColors.mutedText,
-                            ),
+                                fontSize: 12, color: AppColors.mutedText),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
@@ -593,8 +635,7 @@ class _ActiveRideTrackingPageState extends State<ActiveRideTrackingPage> {
                 width: 62,
                 height: 62,
                 decoration: BoxDecoration(
-                  color:
-                  _isSendingSos ? Colors.red.shade300 : Colors.red,
+                  color: _isSendingSos ? Colors.red.shade300 : Colors.red,
                   shape: BoxShape.circle,
                   boxShadow: [
                     BoxShadow(
@@ -634,14 +675,13 @@ class _ActiveRideTrackingPageState extends State<ActiveRideTrackingPage> {
             ),
           ),
 
-          // ── Rider info bottom sheet ──
+          // ── Bottom rider info ──
           Positioned(
             bottom: 0,
             left: 0,
             right: 0,
             child: Container(
-              padding:
-              const EdgeInsets.fromLTRB(20, 16, 20, 28),
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
               decoration: const BoxDecoration(
                 color: Colors.white,
                 borderRadius:
@@ -693,19 +733,15 @@ class _ActiveRideTrackingPageState extends State<ActiveRideTrackingPage> {
                         Text(
                           widget.riderPhone,
                           style: const TextStyle(
-                            fontSize: 13,
-                            color: AppColors.mutedText,
-                          ),
+                              fontSize: 13, color: AppColors.mutedText),
                         ),
                       ],
                     ),
                   ),
-                  // Call button
                   GestureDetector(
                     onTap: () async {
-                      final uri = Uri(
-                          scheme: 'tel', path: widget.riderPhone);
-                      // ignore: deprecated_member_use
+                      final uri =
+                      Uri(scheme: 'tel', path: widget.riderPhone);
                       if (await canLaunchUrl(uri)) await launchUrl(uri);
                     },
                     child: Container(
@@ -739,18 +775,13 @@ class _ActiveRideTrackingPageState extends State<ActiveRideTrackingPage> {
         SizedBox(
           width: 28,
           child: dashed
-              ? Row(
-            children: [
-              Container(
-                  width: 8, height: 3, color: color),
-              const SizedBox(width: 2),
-              Container(
-                  width: 8, height: 3, color: color),
-              const SizedBox(width: 2),
-              Container(
-                  width: 4, height: 3, color: color),
-            ],
-          )
+              ? Row(children: [
+            Container(width: 8, height: 3, color: color),
+            const SizedBox(width: 2),
+            Container(width: 8, height: 3, color: color),
+            const SizedBox(width: 2),
+            Container(width: 4, height: 3, color: color),
+          ])
               : Container(height: 3, color: color),
         ),
         const SizedBox(width: 8),

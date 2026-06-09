@@ -93,9 +93,14 @@ class AuthApiService {
     final response = await http.get(
       url,
       headers: {
-        'Content-Type': 'application/json',
         'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
       },
+    ).timeout(
+      const Duration(seconds: 30),
+      onTimeout: () => throw Exception(
+        'Server is waking up, please try again in a moment.',
+      ),
     );
 
     final data = jsonDecode(response.body);
@@ -1879,6 +1884,31 @@ class AuthApiService {
     }
   }
 
+  Future<Map<String, dynamic>> completeRideFromMap({
+    required String rideId,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+
+    final url = Uri.parse('$baseUrl/rider/map/ride/$rideId/complete');
+
+    final response = await http.post(
+      url,
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+    );
+
+    final data = jsonDecode(response.body);
+
+    if (response.statusCode == 200) {
+      return data;
+    } else {
+      throw Exception(data['message'] ?? 'Failed to complete ride');
+    }
+  }
+
   // ReportProblemPage.dart
   Future<Map<String, dynamic>> submitReport({
     required String comment,
@@ -2208,7 +2238,8 @@ class AuthApiService {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('token');
 
-    final url = Uri.parse('$baseUrl/rider/confirmed-ride/$requestId/cancel');
+    // ✅ URL ঠিক করা হয়েছে — server.js এ mount prefix অনুযায়ী
+    final url = Uri.parse('$baseUrl/rider/active-ride/confirmed-ride/$requestId/cancel');
 
     final response = await http.post(
       url,
@@ -2220,6 +2251,14 @@ class AuthApiService {
         'cancelReason': cancelReason,
       }),
     );
+
+    // ✅ Content-type check যোগ করা হয়েছে
+    final contentType = response.headers['content-type'] ?? '';
+    if (!contentType.contains('application/json')) {
+      throw Exception(
+        'Server error (${response.statusCode}). Cancel ride route not found. Check backend.',
+      );
+    }
 
     final data = jsonDecode(response.body);
 
@@ -2548,12 +2587,18 @@ class AuthApiService {
   Future<Map<String, dynamic>> createOffer({
     required String offerName,
     required String offerType,
+    required String offerCategory,
     required String rewardPercentage,
     required String eligibleUser,
     required String startDate,
     required String endDate,
     required String promoCode,
     required String conditions,
+    required String usageLimitType,
+    required String conditionType,
+    int? conditionValue,
+    required String eligibleRideType,
+    int? maxTotalUses,
   }) async {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('token');
@@ -2569,12 +2614,18 @@ class AuthApiService {
       body: jsonEncode({
         'offer_name': offerName,
         'offer_type': offerType,
+        'offer_category': offerCategory,
         'reward_percentage': int.tryParse(rewardPercentage) ?? 0,
         'eligible_user': eligibleUser.toLowerCase(),
         'start_date': startDate,
         'end_date': endDate,
         'promo_code': promoCode,
         'conditions': conditions,
+        'usage_limit_type': usageLimitType,
+        'condition_type': conditionType,
+        'eligible_ride_type': eligibleRideType,
+        if (conditionValue != null) 'condition_value': conditionValue,
+        if (maxTotalUses != null) 'max_total_uses': maxTotalUses,
       }),
     );
 
@@ -2773,8 +2824,14 @@ class AuthApiService {
     );
 
     request.headers['Authorization'] = 'Bearer $token';
+    final ext = imageFile.path.split('.').last.toLowerCase();
+    final mimeType = (ext == 'png') ? 'png' : (ext == 'webp') ? 'webp' : 'jpeg';
     request.files.add(
-      await http.MultipartFile.fromPath('profilePicture', imageFile.path),
+      await http.MultipartFile.fromPath(
+        'profilePicture',
+        imageFile.path,
+        contentType: MediaType('image', mimeType),
+      ),
     );
 
     final streamedResponse = await request.send();
@@ -4064,14 +4121,16 @@ class AuthApiService {
   }
 
   // NotificationPage.dart
-  Future<Map<String, dynamic>> getNotifications() async {
+  Future<Map<String, dynamic>> getNotifications({String? role}) async {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('token');
 
-    final url = Uri.parse('$baseUrl/notifications');
+    final uri = Uri.parse('$baseUrl/notifications').replace(
+      queryParameters: role != null ? {'role': role} : null,
+    );
 
     final response = await http.get(
-      url,
+      uri,
       headers: {
         'Content-Type': 'application/json',
         'Authorization': 'Bearer $token',
@@ -4268,6 +4327,7 @@ class AuthApiService {
     required double fare,
     required double distanceKm,
     required int estimatedMinutes,
+    String? appliedPromoCode,
   }) async {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('token');
@@ -4287,6 +4347,7 @@ class AuthApiService {
         'fare': fare,
         'distanceKm': distanceKm,
         'estimatedMinutes': estimatedMinutes,
+        if (appliedPromoCode != null) 'applied_promo_code': appliedPromoCode,
       }),
     );
 
@@ -5119,6 +5180,88 @@ class AuthApiService {
       return data;
     } else {
       throw Exception(data['message'] ?? 'Failed to load rider location');
+    }
+  }
+
+  Future<Map<String, dynamic>> getRoutePolyline({
+    required double originLat,
+    required double originLng,
+    required double destinationLat,
+    required double destinationLng,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+
+    final uri = Uri.parse('$baseUrl/rider/map/route-polyline').replace(
+      queryParameters: {
+        'originLat': originLat.toString(),
+        'originLng': originLng.toString(),
+        'destinationLat': destinationLat.toString(),
+        'destinationLng': destinationLng.toString(),
+      },
+    );
+
+    final response = await http.get(
+      uri,
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+    );
+
+    final data = jsonDecode(response.body);
+
+    if (response.statusCode == 200) {
+      return data;
+    } else {
+      throw Exception(data['message'] ?? 'Failed to get route');
+    }
+  }
+
+  Future<Map<String, dynamic>> applyPromoCode({
+    required String promoCode,
+  }) async {
+    final token = await _getToken();
+
+    final response = await http.post(
+      Uri.parse('$baseUrl/offers/apply'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode({'promo_code': promoCode}),
+    );
+
+    final data = jsonDecode(response.body);
+
+    if (response.statusCode == 200 || response.statusCode == 201) {
+      return data;
+    } else {
+      throw Exception(data['message'] ?? 'Failed to apply promo code');
+    }
+  }
+
+  Future<Map<String, dynamic>> saveFcmToken({required String fcmToken}) async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+
+    final url = Uri.parse('$baseUrl/notifications/fcm-token');
+
+    final response = await http.post(
+      url,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode({'fcmToken': fcmToken}),
+    );
+
+    final data = jsonDecode(response.body);
+
+    if (response.statusCode == 200 || response.statusCode == 201) {
+      return data;
+    } else {
+      throw Exception(data['message'] ?? 'Failed to save FCM token');
     }
   }
 }

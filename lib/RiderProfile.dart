@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'services/auth_api_service.dart';
 import 'RiderDashboard.dart';
 import 'RiderActivityPage.dart';
@@ -66,13 +67,21 @@ class _RiderProfileState extends State<RiderProfile> {
 
       if (!mounted) return;
 
+      final picUrl = data['profilePicture']?.toString() ?? '';
+      final prefs = await SharedPreferences.getInstance();
+
+      if (picUrl.isNotEmpty) {
+        await prefs.setString('cached_profile_image_url', picUrl);
+      }
+
       setState(() {
-        _fullName = (data['fullName'] ?? widget.userName ?? 'User Name')
-            .toString();
+        _fullName = (data['fullName'] ?? widget.userName ?? 'User Name').toString();
         _rating = (data['rating'] is num)
             ? (data['rating'] as num).toDouble()
             : widget.userRating;
-        _profileImageUrl = data['profilePicture']?.toString();
+        _profileImageUrl = picUrl.isNotEmpty
+            ? picUrl
+            : prefs.getString('cached_profile_image_url');
         _isLoadingProfile = false;
       });
     } catch (e) {

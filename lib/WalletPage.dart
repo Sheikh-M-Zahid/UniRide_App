@@ -405,9 +405,14 @@ class _WalletPageState extends State<WalletPage> {
           color: Color(0xFF14B8A6),
         ),
       )
-          : ListView(
-        children: [
-          _dueCard(),
+          : RefreshIndicator(
+        onRefresh: _loadWalletData,
+        color: const Color(0xFF14B8A6),
+        backgroundColor: Colors.white,
+        strokeWidth: 2.5,
+        child: ListView(
+          children: [
+            _dueCard(),
           _sectionTitle('Payment methods'),
           _paymentMethodSection(),
           _sectionTitle('Promotions'),
@@ -427,8 +432,9 @@ class _WalletPageState extends State<WalletPage> {
               );
             },
           ),
-          const SizedBox(height: 28),
-        ],
+            const SizedBox(height: 28),
+          ],
+        ),
       ),
     );
   }

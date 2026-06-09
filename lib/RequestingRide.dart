@@ -24,6 +24,8 @@ class RequestingRidePage extends StatefulWidget {
   final double fare;
   final double distanceKm;
   final int estimatedMinutes;
+  final String? appliedPromoCode;
+  final double? originalFare;
 
   const RequestingRidePage({
     super.key,
@@ -37,6 +39,8 @@ class RequestingRidePage extends StatefulWidget {
     required this.fare,
     required this.distanceKm,
     required this.estimatedMinutes,
+    this.appliedPromoCode,
+    this.originalFare,
   });
 
   @override
@@ -153,6 +157,7 @@ class _RequestingRidePageState extends State<RequestingRidePage>
         fare: widget.fare,
         distanceKm: widget.distanceKm,
         estimatedMinutes: widget.estimatedMinutes,
+        appliedPromoCode: widget.appliedPromoCode,
       );
 
       _requestId = (response['data']?['requestId'] ?? '').toString();
@@ -477,7 +482,9 @@ class _RequestingRidePageState extends State<RequestingRidePage>
           Row(
             children: [
               Expanded(
-                child: _buildMiniInfoCard(
+                child: widget.originalFare != null
+                    ? _buildDiscountedFareCard()
+                    : _buildMiniInfoCard(
                   title: "Fare",
                   value: "৳ ${widget.fare.toStringAsFixed(0)}",
                 ),
@@ -582,6 +589,57 @@ class _RequestingRidePageState extends State<RequestingRidePage>
               fontWeight: FontWeight.w700,
             ),
           ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDiscountedFareCard() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF0FDF4),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFBBF7D0)),
+      ),
+      child: Column(
+        children: [
+          const Text(
+            "Fare",
+            style: TextStyle(
+              fontSize: 11.5,
+              color: AppColors.mutedText,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            "৳ ${widget.originalFare!.toStringAsFixed(0)}",
+            style: const TextStyle(
+              fontSize: 11,
+              color: AppColors.mutedText,
+              decoration: TextDecoration.lineThrough,
+            ),
+          ),
+          Text(
+            "৳ ${widget.fare.toStringAsFixed(0)}",
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              fontSize: 13.5,
+              color: Color(0xFF15803D),
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          if (widget.appliedPromoCode != null)
+            Text(
+              widget.appliedPromoCode!,
+              style: const TextStyle(
+                fontSize: 9.5,
+                color: Color(0xFF16A34A),
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0.5,
+              ),
+            ),
         ],
       ),
     );
