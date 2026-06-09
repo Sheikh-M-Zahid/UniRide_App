@@ -170,7 +170,14 @@ const notifyUsersForRide = async ({ ride }) => {
     }
 
     const title = 'Ride Available';
-    const message = `A matching ride is now available from ${ride.start_location} to ${ride.destination}.`;
+    const pickup = ride.start_location && !ride.start_location.match(/^[\d\.\,\s]+$/)
+      ? ride.start_location
+      : 'your area';
+    const dest = ride.destination && !ride.destination.match(/^[\d\.\,\s]+$/)
+      ? ride.destination
+      : 'your destination';
+
+    const message = `A matching ride is now available from ${pickup} to ${dest}.`;
 
     await rideDb.query(
       `INSERT INTO notifications (
@@ -179,16 +186,18 @@ const notifyUsersForRide = async ({ ride }) => {
         message,
         type,
         is_read,
+        target_role,
         related_id,
         created_at
       )
-      VALUES ($1, $2, $3, $4, FALSE, $5, CURRENT_TIMESTAMP)`,
-      [userId, title, message, 'ride_available', ride.ride_id]
+      VALUES ($1, $2, $3, $4, FALSE, $5, $6, CURRENT_TIMESTAMP)`,
+      [userId, title, message, 'ride_available', 'passenger', ride.ride_id]
     );
 
     await rideDb.query(
       `UPDATE ride_availability_alerts
-       SET notified_at = CURRENT_TIMESTAMP
+       SET notified_at = CURRENT_TIMESTAMP,
+           is_active = FALSE
        WHERE alert_id = $1`,
       [match.alert.alert_id]
     );
