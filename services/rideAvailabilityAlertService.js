@@ -89,8 +89,19 @@ const deactivateAvailabilityAlert = async ({ userId, alertId }) => {
   return result.rows[0];
 };
 
+const deactivateAllAlertsForUser = async (userId) => {
+  await rideDb.query(
+    `UPDATE ride_availability_alerts
+     SET is_active = FALSE
+     WHERE user_id = $1
+       AND is_active = TRUE`,
+    [userId]
+  );
+};
+
 module.exports = {
   createAvailabilityAlert,
   getMyAvailabilityAlerts,
   deactivateAvailabilityAlert,
+  deactivateAllAlertsForUser,
 };
