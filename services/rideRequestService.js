@@ -160,6 +160,14 @@ const createRequest = async (passengerId, payload) => {
     currentLocation: request.pickup_location,
   };
 
+  await rideDb.query(
+    `UPDATE ride_availability_alerts
+     SET is_active = FALSE
+     WHERE user_id = $1
+       AND is_active = TRUE`,
+    [passengerId]
+  );
+
   emitToRider(request.rider_id, riderPayload);
 
   const { createNotification } = require('./notificationService');
@@ -337,6 +345,14 @@ const acceptRequest = async (riderId, requestId) => {
     );
 
     await client.query('COMMIT');
+    
+    await rideDb.query(
+      `UPDATE ride_availability_alerts
+       SET is_active = FALSE
+       WHERE user_id = $1
+         AND is_active = TRUE`,
+      [request.passenger_id]
+    );
 
     const acceptedRequest = acceptedRes.rows[0];
 
