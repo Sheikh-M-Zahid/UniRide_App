@@ -2,6 +2,7 @@ const rideDb = require('../config/rideDb');
 const riderActiveRideService = require('./riderActiveRideService');
 const { isRouteMatch } = require('../utils/routeMatcher');
 const googleMapsService = require('./googleMapsService');
+const notificationService = require('./notificationService');
 
 const getMapDashboard = async ({ riderId }) => {
   const locationRes = await rideDb.query(
@@ -197,10 +198,79 @@ const getRoutePolyline = async ({ originLat, originLng, destinationLat, destinat
   }
 };
 
+const completeRideFromMap = async ({ riderId, rideId }) => {
+  // Ride complete করো
+  const rideRes = await rideDb.query(
+    `UPDATE rides
+     SET status = 'completed', completed_at = CURRENT_TIMESTAMP
+     WHERE ride_id = $1 AND rider_id = $2
+     RETURNING ride_id, rider_id`,
+    [rideId, riderId]
+  );
+
+  if (rideRes.rowCount === 0) {
+    throw new Error('Ride not found or unauthorized.');
+  }
+
+  // Passenger খুঁজো
+  const participantRes = await rideDb.query(
+    `SELECT rp.passenger_id, u.first_name, u.last_name
+     FROM ride_participants rp
+     JOIN users u ON u.user_id = rp.passenger_id
+     WHERE rp.ride_id = $1
+     LIMIT 1`,
+    [rideId]
+  );
+
+  const passengerId = participantRes.rows[0]?.passenger_id;
+  const riderRes = await rideDb.query(
+    `SELECT first_name, last_name FROM users WHERE user_id = $1`,
+    [riderId]
+  );
+  const riderName = riderRes.rows[0]
+    ? `${riderRes.rows[0].first_name} ${riderRes.rows[0].last_name}`
+    : 'Your rider';
+
+  // Passenger কে notification পাঠাও
+  if (passengerId) {
+    await notificationService.createNotification({
+      userId: passengerId,
+      title: 'Ride Completed Successfully!',
+      message: `Your ride has been completed. You have been safely dropped off at your destination. Thank you for riding with UniRide!`,
+      type: 'booking',
+      isImportant: false,
+      targetRole: 'passenger',
+      relatedId: rideId,
+    });
+  }
+
+  // Rider কে notification পাঠাও
+  await notificationService.createNotification({
+    userId: riderId,
+    title: 'Ride Completed!',
+    message: `Congratulations! You have successfully completed the ride and dropped off the passenger at their destination. Great job!`,
+    type: 'booking',
+    isImportant: false,
+    targetRole: 'rider',
+    relatedId: rideId,
+  });
+
+  // ride_requests table এও update করো যাতে passenger এর active ride শেষ হয়
+  await rideDb.query(
+    `UPDATE ride_requests
+     SET status = 'completed'
+     WHERE ride_id = $1 AND status = 'accepted'`,
+    [rideId]
+  );
+
+  return { rideId, status: 'completed' };
+};
+
 module.exports = {
   getMapDashboard,
   updateLocation,
   acceptRequest,
   startNavigation,
   getRoutePolyline,
+  completeRideFromMap,
 };
