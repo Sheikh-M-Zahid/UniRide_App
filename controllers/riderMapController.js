@@ -80,10 +80,26 @@ const getRoutePolyline = async (req, res) => {
   }
 };
 
+const completeRideFromMap = async (req, res) => {
+  try {
+    const riderId = req.user.userId;
+
+    const data = await riderMapService.completeRideFromMap({
+      riderId,
+      rideId: req.params.rideId,
+    });
+
+    return successResponse(res, 'Ride completed successfully', data);
+  } catch (err) {
+    return errorResponse(res, err.message, 400);
+  }
+};
+
 module.exports = {
   getMapDashboard,
   updateLocation,
   acceptRequest,
   startNavigation,
   getRoutePolyline,
+  completeRideFromMap,
 };
