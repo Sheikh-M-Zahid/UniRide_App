@@ -76,4 +76,4 @@ JWT_SECRET=
 
 ## 👤 Developer
 
-Zahid — East West University, Bangladesh
+Md. Zahid Hossain, Marjan Hasan, Marzia Hasan — East West University, Bangladesh
