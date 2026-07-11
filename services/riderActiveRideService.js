@@ -1,5 +1,6 @@
 const rideDb = require('../config/rideDb');
 const { calculateCancelFine } = require('./cancelFineService');
+const cbfService = require('./cbfService');
 
 const getRemainingSeconds = (futureTime) => {
   if (!futureTime) return 0;
@@ -470,6 +471,31 @@ const completeRide = async ({ riderId, rideId, io }) => {
 
   if (!result.rows.length) throw new Error('Ride not found or cannot be completed.');
 
+  const ride = result.rows[0];
+
+  // ── CBF: এই ride এ যত passenger ছিল, প্রত্যেকের preference শিখে নাও ──
+  try {
+    const participantsRes = await rideDb.query(
+      `SELECT passenger_id, fare FROM ride_participants WHERE ride_id = $1`,
+      [rideId]
+    );
+
+    for (const participant of participantsRes.rows) {
+      await cbfService.updateUserPreferencesFromRide({
+        userId: participant.passenger_id,
+        vehicleType: ride.vehicle_type,
+        fare: participant.fare,
+        travelTime: ride.travel_time,
+        pickupLat: ride.pickup_latitude ?? ride.start_latitude,
+        pickupLng: ride.pickup_longitude ?? ride.start_longitude,
+        destLat: ride.destination_latitude,
+        destLng: ride.destination_longitude,
+      });
+    }
+  } catch (err) {
+    console.error('CBF preference update failed:', err.message);
+  }
+
   if (io) {
     io.to(`ride:${rideId}`).emit('ride:completed', {
       rideId,
@@ -477,7 +503,7 @@ const completeRide = async ({ riderId, rideId, io }) => {
     });
   }
 
-  return result.rows[0];
+  return ride;
 };
 
 module.exports = {
