@@ -205,15 +205,21 @@ const acceptRideRequest = async ({ riderId, requestId, io }) => {
       [riderId]
     );
 
+    const nowTime = new Date().toTimeString().slice(0, 5); // "HH:MM" — request accept হওয়ার সময়
+
     const rideRes = await client.query(
       `INSERT INTO rides (
           rider_id, vehicle_id, start_location, destination,
           total_distance_km, per_km_rate, total_fare,
-          available_seats, status, travel_date, vehicle_type
+          available_seats, status, travel_date, vehicle_type,
+          pickup_latitude, pickup_longitude,
+          destination_latitude, destination_longitude,
+          travel_time
        )
        VALUES (
           $1, $2, $3, $4, $5, $6, $7,
-          1, 'assigned', CURRENT_DATE, $8
+          1, 'assigned', CURRENT_DATE, $8,
+          $9, $10, $11, $12, $13
        )
        RETURNING *`,
       [
@@ -225,6 +231,11 @@ const acceptRideRequest = async ({ riderId, requestId, io }) => {
         request.rate_per_km,
         request.estimated_fare,
         request.vehicle_type || vehicle.vehicle_type,
+        request.pickup_latitude,
+        request.pickup_longitude,
+        request.destination_latitude,
+        request.destination_longitude,
+        nowTime,
       ]
     );
 
