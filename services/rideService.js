@@ -245,7 +245,7 @@ const listJoinedRides = async (passengerId) => {
   return result.rows;
 };
 
-const searchRides = async (payload) => {
+const searchRides = async (payload, passengerId) => {
   const { pickup_lat, pickup_lng, destination_lat, destination_lng } = payload;
 
   const apiKey = process.env.GOOGLE_MAPS_API_KEY;
@@ -460,11 +460,21 @@ const searchRides = async (payload) => {
     routeFareCar < carRate.base_fare ? carRate.base_fare : routeFareCar
   );
 
+  // ── CBF: passenger profile অনুযায়ী rides score + sort করো ──
+  const rankedRides = await cbfService.scoreAndSortRides({
+    passengerId,
+    rides: availableRides,
+    pickupLat: pickup_lat,
+    pickupLng: pickup_lng,
+    destLat: destination_lat,
+    destLng: destination_lng,
+  });
+
   return {
     distance_km:    parseFloat(distance_km.toFixed(2)),
     estimated_time,
     estimated_fare,
-    availableRides,
+    availableRides: rankedRides,
   };
 };
 
