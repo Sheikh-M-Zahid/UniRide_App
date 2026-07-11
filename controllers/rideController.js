@@ -55,7 +55,7 @@ const listJoinedRides = asyncHandler(async (req, res) => {
 });
 
 const searchRides = asyncHandler(async (req, res) => {
-  const data = await rideService.searchRides(req.body);
+  const data = await rideService.searchRides(req.body, req.user.userId);
   return successResponse(res, 'Rides searched successfully.', data);
 });
 
