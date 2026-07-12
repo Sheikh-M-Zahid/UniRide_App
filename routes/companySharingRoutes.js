@@ -12,6 +12,7 @@ router.post(
 );
 
 router.get('/my-active', authMiddleware, controller.getMyActiveSession);
+router.post('/search', authMiddleware, controller.searchSessions);
 router.get('/:sessionId', authMiddleware, controller.getSessionById);
 router.post('/:sessionId/join', authMiddleware, controller.joinSession);
 router.patch('/:sessionId/cancel', authMiddleware, controller.cancelSession);
