@@ -1,6 +1,7 @@
 const rideDb = require('../config/rideDb');
 const { createNotification } = require('./notificationService');
 const { emitCoRideSeatUpdate } = require('../utils/coRideEmitter');
+const coRideRecommendationService = require('./coRideRecommendationService');
 
 const createSession = async (userId, payload) => {
   const {
@@ -107,7 +108,7 @@ const joinSession = async (sessionId, userId) => {
   );
   if (existing.rowCount > 0) throw new Error('Already joined this session.');
 
-  // Session bilok check
+  // Session block check
   const sessionResult = await rideDb.query(
     `SELECT * FROM company_sharing_sessions WHERE session_id = $1`,
     [sessionId]
@@ -117,6 +118,16 @@ const joinSession = async (sessionId, userId) => {
   const session = sessionResult.rows[0];
   const availableSeats = session.total_seats - session.booked_seats;
   if (availableSeats <= 0) throw new Error('No seats available.');
+
+  // ── Gender safety check (নতুন) ──
+  const joiningUserRes = await rideDb.query(
+    `SELECT gender FROM users WHERE user_id = $1`,
+    [userId]
+  );
+  const joiningUserGender = joiningUserRes.rows[0]?.gender;
+  if (!coRideRecommendationService.isGenderAllowed(session.preferred_gender, joiningUserGender)) {
+    throw new Error(`This CoRide is only open to ${session.preferred_gender} riders.`);
+  }
 
   // Join
   const participant = await rideDb.query(
@@ -251,7 +262,7 @@ const getLiveLocation = async (sessionId) => {
   return result.rows[0];
 };
 
-const listSessions = async () => {
+const listSessions = async (userId) => {
   const result = await rideDb.query(
     `SELECT css.*, u.first_name, u.last_name, u.university_email,
             (css.total_seats - css.booked_seats) AS available_seats
@@ -260,7 +271,22 @@ const listSessions = async () => {
      WHERE css.status = 'Active'
      ORDER BY css.created_at DESC`
   );
-  return result.rows;
+
+  if (!userId) return result.rows;
+
+  const userRes = await rideDb.query(
+    `SELECT gender, university_email FROM users WHERE user_id = $1`,
+    [userId]
+  );
+  const user = userRes.rows[0];
+  if (!user) return result.rows;
+
+  return coRideRecommendationService.scoreAndSortSessions({
+    userId,
+    userGender: user.gender,
+    userEmail: user.university_email,
+    sessions: result.rows,
+  });
 };
 
 const sendCompanyChatMessage = async (sessionId, senderId, message_text) => {
