@@ -2,6 +2,11 @@ const rideDb = require('../config/rideDb');
 const { createNotification } = require('./notificationService');
 const { emitCoRideSeatUpdate } = require('../utils/coRideEmitter');
 const coRideRecommendationService = require('./coRideRecommendationService');
+const coRideRecommendationService = require('./coRideRecommendationService');
+const { computeRoute } = require('./googleMapsService');
+const { safeDistanceKm } = require('../utils/geo');
+
+const NOTIFY_RADIUS_KM = 2;
 
 const createSession = async (userId, payload) => {
   const {
@@ -15,14 +20,41 @@ const createSession = async (userId, payload) => {
     total_seats,
     preferred_gender,
     fare_per_person,
+    start_lat,
+    start_lng,
+    destination_lat,
+    destination_lng,
   } = payload;
+
+  // ── route polyline compute করো (lat/lng থাকলে) ──
+  let routePolyline = null;
+  let routeDistanceKm = null;
+  let routeDurationMinutes = null;
+
+  if (start_lat && start_lng && destination_lat && destination_lng) {
+    try {
+      const route = await computeRoute({
+        originLat: start_lat,
+        originLng: start_lng,
+        destinationLat: destination_lat,
+        destinationLng: destination_lng,
+      });
+      routePolyline = route.polyline;
+      routeDistanceKm = route.distanceKm;
+      routeDurationMinutes = route.durationMinutes;
+    } catch (err) {
+      console.error('CoRide route compute failed:', err.message);
+    }
+  }
 
   const result = await rideDb.query(
     `INSERT INTO company_sharing_sessions 
       (created_by, start_location, destination, status,
        trip_date, trip_time, vehicle_type, vehicle_number,
-       total_seats, booked_seats, preferred_gender, fare_per_person)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,0,$10,$11)
+       total_seats, booked_seats, preferred_gender, fare_per_person,
+       start_lat, start_lng, destination_lat, destination_lng,
+       route_polyline, route_distance_km, route_duration_minutes)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,0,$10,$11,$12,$13,$14,$15,$16,$17,$18)
      RETURNING *`,
     [
       userId,
@@ -36,13 +68,24 @@ const createSession = async (userId, payload) => {
       total_seats || 2,
       preferred_gender || 'Any',
       fare_per_person || null,
+      start_lat || null,
+      start_lng || null,
+      destination_lat || null,
+      destination_lng || null,
+      routePolyline,
+      routeDistanceKm,
+      routeDurationMinutes,
     ]
   );
 
   const session = result.rows[0];
 
-  // ── সব passenger-কে নোটিফিকেশন পাঠাও (preferred_gender filter সহ)
-  let userQuery = `SELECT user_id, first_name, last_name, gender FROM users WHERE user_id != $1`;
+  // ── Radius-based notification (২ কিমি এর মধ্যে home_location থাকা user) ──
+  let userQuery = `
+    SELECT user_id, first_name, last_name, gender, home_location_lat, home_location_lng
+    FROM users
+    WHERE user_id != $1
+  `;
   const params = [userId];
 
   if (preferred_gender && preferred_gender.toLowerCase() !== 'any') {
@@ -59,7 +102,18 @@ const createSession = async (userId, payload) => {
   const creator = creatorResult.rows[0];
   const creatorName = `${creator.first_name} ${creator.last_name}`;
 
-  for (const user of users.rows) {
+  const nearbyUsers = (start_lat && start_lng)
+    ? users.rows.filter((u) => {
+        if (!u.home_location_lat || !u.home_location_lng) return true; // location অজানা হলে fallback হিসেবে পাঠাও
+        const dist = safeDistanceKm(
+          Number(start_lat), Number(start_lng),
+          Number(u.home_location_lat), Number(u.home_location_lng)
+        );
+        return dist === null || dist <= NOTIFY_RADIUS_KM;
+      })
+    : users.rows;
+
+  for (const user of nearbyUsers) {
     await createNotification({
       userId: user.user_id,
       title: 'New CoRide Available!',
@@ -383,6 +437,37 @@ const getSessionWithParticipants = async (sessionId, userId) => {
   };
 };
 
+
+// ── Passenger search: gender/corridor/frequent-partner সব মিলিয়ে matching sessions ──
+const searchSessions = async (userId, { pickupLat, pickupLng, destLat, destLng }) => {
+  const userRes = await rideDb.query(
+    `SELECT gender, university_email FROM users WHERE user_id = $1`,
+    [userId]
+  );
+  const user = userRes.rows[0];
+  if (!user) throw new Error('User not found.');
+
+  const sessionsRes = await rideDb.query(
+    `SELECT css.*, u.first_name, u.last_name, u.university_email,
+            (css.total_seats - css.booked_seats) AS available_seats
+     FROM company_sharing_sessions css
+     JOIN users u ON css.created_by = u.user_id
+     WHERE css.status = 'Active'
+       AND css.created_by != $1
+       AND (css.total_seats - css.booked_seats) > 0
+     ORDER BY css.created_at DESC`,
+    [userId]
+  );
+
+  return coRideRecommendationService.searchMatchingSessions({
+    userId,
+    userGender: user.gender,
+    userEmail: user.university_email,
+    pickupLat, pickupLng, destLat, destLng,
+    sessions: sessionsRes.rows,
+  });
+};
+
 module.exports = {
   createSession,
   getSessionById,
@@ -393,6 +478,7 @@ module.exports = {
   updateLiveLocation,
   getLiveLocation,
   listSessions,
+  searchSessions,
   sendCompanyChatMessage,
   fetchCompanyChatMessages,
   removeParticipant,
