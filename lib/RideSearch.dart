@@ -392,6 +392,7 @@ class _PlanYourRidePageState extends State<PlanYourRidePage> {
         double.tryParse('${map['estimatedFare'] ?? 0}') ?? 0,
         isAvailable:
         (int.tryParse('${map['available_seats'] ?? 0}') ?? 0) > 0,
+        cbfScore: double.tryParse('${map['cbfScore'] ?? 0.5}') ?? 0.5,
       );
     }).toList();
   }

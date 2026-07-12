@@ -25,6 +25,7 @@ class RideOptionModel {
   final double distanceAwayKm;
   final bool isAvailable;
   final String driverGender;
+  final double cbfScore;
 
   const RideOptionModel({
     required this.id,
@@ -41,6 +42,7 @@ class RideOptionModel {
     required this.distanceAwayKm,
     this.isAvailable = true,
     this.driverGender = '',
+    this.cbfScore = 0.5,
   });
 
   factory RideOptionModel.fromJson(Map<String, dynamic> json) {
@@ -59,6 +61,7 @@ class RideOptionModel {
       distanceAwayKm: (json['distanceAwayKm'] ?? 0.0).toDouble(),
       isAvailable: json['isAvailable'] == true,
       driverGender: json['driverGender']?.toString() ?? '',
+      cbfScore: (json['cbfScore'] ?? 0.5).toDouble(),
     );
   }
 }

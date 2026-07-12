@@ -16,17 +16,31 @@ class OTPVerificationPage extends StatefulWidget {
   State<OTPVerificationPage> createState() => _OTPVerificationPageState();
 }
 
-class _OTPVerificationPageState extends State<OTPVerificationPage> {
-  // 6টি ঘরের জন্য ৪টি কন্ট্রোলার
+class _OTPVerificationPageState extends State<OTPVerificationPage>
+    with TickerProviderStateMixin {
   final List<TextEditingController> _controllers =
   List.generate(6, (_) => TextEditingController());
-
   final List<FocusNode> _focusNodes =
   List.generate(6, (_) => FocusNode());
+
+  // ── প্রতিটা box-এর জন্য আলাদা AnimationController ──
+  late final List<AnimationController> _bounceControllers;
+  late final List<Animation<double>> _bounceAnimations;
+
+  // ── Shake (invalid OTP) ──
+  late final AnimationController _shakeController;
+  late final Animation<double> _shakeAnimation;
+
+  // ── Success scale ──
+  late final AnimationController _successController;
+  late final Animation<double> _successScaleAnimation;
+  late final Animation<double> _successFadeAnimation;
 
   bool _isButtonActive = false;
   bool _isLoading = false;
   bool _isOtpInvalid = false;
+  bool _showSuccess = false;
+
   final AuthApiService _authApiService = AuthApiService();
   String _signupToken = '';
 
@@ -37,48 +51,97 @@ class _OTPVerificationPageState extends State<OTPVerificationPage> {
   void initState() {
     super.initState();
 
-    // প্রত্যেকটি কন্ট্রোলারের ইনপুট চেক করার জন্য লিসেনার অ্যাড
+    // ── Bounce controllers (একটা করে প্রতিটা box-এর জন্য) ──
+    _bounceControllers = List.generate(6, (i) {
+      return AnimationController(
+        vsync: this,
+        duration: const Duration(milliseconds: 350),
+      );
+    });
+
+    _bounceAnimations = _bounceControllers.map((ctrl) {
+      return TweenSequence<double>([
+        TweenSequenceItem(
+            tween: Tween(begin: 1.0, end: 1.18)
+                .chain(CurveTween(curve: Curves.easeOut)),
+            weight: 40),
+        TweenSequenceItem(
+            tween: Tween(begin: 1.18, end: 0.92)
+                .chain(CurveTween(curve: Curves.easeInOut)),
+            weight: 30),
+        TweenSequenceItem(
+            tween: Tween(begin: 0.92, end: 1.0)
+                .chain(CurveTween(curve: Curves.elasticOut)),
+            weight: 30),
+      ]).animate(ctrl);
+    }).toList();
+
+    // ── Shake controller ──
+    _shakeController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 480),
+    );
+    _shakeAnimation = TweenSequence<double>([
+      TweenSequenceItem(tween: Tween(begin: 0.0, end: -10.0), weight: 15),
+      TweenSequenceItem(tween: Tween(begin: -10.0, end: 10.0), weight: 15),
+      TweenSequenceItem(tween: Tween(begin: 10.0, end: -8.0), weight: 15),
+      TweenSequenceItem(tween: Tween(begin: -8.0, end: 8.0), weight: 15),
+      TweenSequenceItem(tween: Tween(begin: 8.0, end: -4.0), weight: 15),
+      TweenSequenceItem(tween: Tween(begin: -4.0, end: 4.0), weight: 15),
+      TweenSequenceItem(tween: Tween(begin: 4.0, end: 0.0), weight: 10),
+    ]).animate(CurvedAnimation(parent: _shakeController, curve: Curves.linear));
+
+    // ── Success controller ──
+    _successController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 600),
+    );
+    _successScaleAnimation = CurvedAnimation(
+      parent: _successController,
+      curve: Curves.elasticOut,
+    );
+    _successFadeAnimation = CurvedAnimation(
+      parent: _successController,
+      curve: const Interval(0.0, 0.5, curve: Curves.easeIn),
+    );
+
     for (var controller in _controllers) {
       controller.addListener(_checkOtpComplete);
     }
-
     _startResendTimer();
+  }
+
+  // ── একটা box-এ digit টাইপ হলে bounce play ──
+  void _playBounce(int index) {
+    _bounceControllers[index].forward(from: 0.0);
+  }
+
+  // ── OTP invalid হলে shake ──
+  Future<void> _playShake() async {
+    await _shakeController.forward(from: 0.0);
+    _shakeController.reset();
   }
 
   void _startResendTimer() {
     _resendTimer?.cancel();
-
-    setState(() {
-      _resendSeconds = 60;
-    });
-
+    setState(() => _resendSeconds = 60);
     _resendTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (!mounted) return;
-
       if (_resendSeconds == 0) {
         timer.cancel();
       } else {
-        setState(() {
-          _resendSeconds--;
-        });
+        setState(() => _resendSeconds--);
       }
     });
   }
 
-  // 6টি ঘর পূরণ হয়েছে কিনা চেক
   void _checkOtpComplete() {
     bool isComplete = _controllers.every((c) => c.text.isNotEmpty);
-
     if (_isButtonActive != isComplete) {
-      setState(() {
-        _isButtonActive = isComplete;
-      });
+      setState(() => _isButtonActive = isComplete);
     }
-
     if (_isOtpInvalid) {
-      setState(() {
-        _isOtpInvalid = false;
-      });
+      setState(() => _isOtpInvalid = false);
     }
   }
 
@@ -86,6 +149,7 @@ class _OTPVerificationPageState extends State<OTPVerificationPage> {
     if (value.length == 6) {
       for (int i = 0; i < 6; i++) {
         _controllers[i].text = value[i];
+        _playBounce(i);
       }
       FocusScope.of(context).unfocus();
       _checkOtpComplete();
@@ -107,23 +171,18 @@ class _OTPVerificationPageState extends State<OTPVerificationPage> {
 
   Future<void> _resendCode() async {
     if (_resendSeconds > 0) return;
-
     try {
       await _authApiService.resendSignupOtp(email: widget.email);
-
       _clearOtpFields();
       _startResendTimer();
-
       _showSnackBar("A new code has been sent to your email.");
     } catch (e) {
       _showSnackBar(e.toString());
     }
   }
 
-  // 🔥 OTP Verify Function
   Future<void> _verifyOtp() async {
     FocusScope.of(context).unfocus();
-
     String enteredOtp = _controllers.map((c) => c.text).join();
 
     if (enteredOtp.length != 6) {
@@ -131,9 +190,7 @@ class _OTPVerificationPageState extends State<OTPVerificationPage> {
       return;
     }
 
-    setState(() {
-      _isLoading = true;
-    });
+    setState(() => _isLoading = true);
 
     try {
       final response = await _authApiService.verifySignupOtp(
@@ -142,14 +199,20 @@ class _OTPVerificationPageState extends State<OTPVerificationPage> {
       );
 
       _signupToken = response['data']?['signupToken'] ?? '';
-
       if (!mounted) return;
 
       setState(() {
         _isLoading = false;
         _isOtpInvalid = false;
+        _showSuccess = true;
       });
 
+      // ── Success animation play করো ──
+      await _successController.forward();
+
+      await Future.delayed(const Duration(milliseconds: 800));
+
+      if (!mounted) return;
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
@@ -167,20 +230,24 @@ class _OTPVerificationPageState extends State<OTPVerificationPage> {
         _isOtpInvalid = true;
       });
 
+      // ── Shake animation play করো ──
+      await _playShake();
+
+      // ── Shake শেষে fields clear ──
+      _clearOtpFields();
+      setState(() => _isOtpInvalid = false);
+
       _showSnackBar(e.toString().replaceFirst('Exception: ', ''));
     }
   }
 
   @override
   void dispose() {
-    for (var controller in _controllers) {
-      controller.dispose();
-    }
-
-    for (var focusNode in _focusNodes) {
-      focusNode.dispose();
-    }
-
+    for (var c in _controllers) c.dispose();
+    for (var f in _focusNodes) f.dispose();
+    for (var a in _bounceControllers) a.dispose();
+    _shakeController.dispose();
+    _successController.dispose();
     _resendTimer?.cancel();
     super.dispose();
   }
@@ -188,14 +255,9 @@ class _OTPVerificationPageState extends State<OTPVerificationPage> {
   @override
   Widget build(BuildContext context) {
     String displayName = widget.email.trim();
-
-    if (displayName.contains('@')) {
-      displayName = displayName.split('@')[0];
-    }
-
+    if (displayName.contains('@')) displayName = displayName.split('@')[0];
     if (displayName.isNotEmpty) {
-      displayName =
-          displayName[0].toUpperCase() + displayName.substring(1);
+      displayName = displayName[0].toUpperCase() + displayName.substring(1);
     } else {
       displayName = "User";
     }
@@ -223,35 +285,45 @@ class _OTPVerificationPageState extends State<OTPVerificationPage> {
 
               Text(
                 'Enter the 6-digit code sent to you at:\n${widget.email}',
-                style: const TextStyle(
-                  fontSize: 16,
-                  color: Color(0xFF1F2937),
-                ),
+                style: const TextStyle(fontSize: 16, color: Color(0xFF1F2937)),
               ),
 
               const SizedBox(height: 30),
 
-              // OTP Input Row
-              Row(
-                mainAxisAlignment:
-                MainAxisAlignment.spaceBetween,
-                children: List.generate(
-                  6,
-                      (index) => _otpBox(index),
+              // ── OTP Row — shake wrapper এর ভেতরে ──
+              AnimatedBuilder(
+                animation: _shakeAnimation,
+                builder: (context, child) {
+                  return Transform.translate(
+                    offset: Offset(_shakeAnimation.value, 0),
+                    child: child,
+                  );
+                },
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: List.generate(6, (index) => _otpBox(index)),
                 ),
               ),
 
               const SizedBox(height: 15),
 
-              Text(
-                _isOtpInvalid
-                    ? 'The OTP you entered is incorrect. Please try again.'
-                    : 'Tip: Be sure to check your inbox and spam folders',
-                style: TextStyle(
-                  color: _isOtpInvalid ? Colors.red : Colors.grey,
-                  fontSize: 13,
-                  fontWeight:
-                  _isOtpInvalid ? FontWeight.w500 : FontWeight.normal,
+              // ── Success overlay OR error/tip text ──
+              AnimatedSwitcher(
+                duration: const Duration(milliseconds: 300),
+                child: _showSuccess
+                    ? _buildSuccessBanner()
+                    : Text(
+                  key: const ValueKey('tip'),
+                  _isOtpInvalid
+                      ? 'The OTP you entered is incorrect. Please try again.'
+                      : 'Tip: Be sure to check your inbox and spam folders',
+                  style: TextStyle(
+                    color: _isOtpInvalid ? Colors.red : Colors.grey,
+                    fontSize: 13,
+                    fontWeight: _isOtpInvalid
+                        ? FontWeight.w500
+                        : FontWeight.normal,
+                  ),
                 ),
               ),
 
@@ -264,43 +336,31 @@ class _OTPVerificationPageState extends State<OTPVerificationPage> {
                 onTap: _resendSeconds > 0 ? null : _resendCode,
               ),
 
-              const SizedBox(height: 12),
-
               const Spacer(),
 
               Row(
-                mainAxisAlignment:
-                MainAxisAlignment.spaceBetween,
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   FloatingActionButton(
                     heroTag: 'back_otp',
-                    onPressed: _isLoading
-                        ? null
-                        : () => Navigator.pop(context),
+                    onPressed:
+                    _isLoading ? null : () => Navigator.pop(context),
                     backgroundColor: Colors.white,
                     elevation: 0,
-                    child: const Icon(
-                      Icons.arrow_back,
-                      color: Color(0xFF1F2937),
-                    ),
+                    child: const Icon(Icons.arrow_back,
+                        color: Color(0xFF1F2937)),
                   ),
 
-                  // Next Button
                   GestureDetector(
-                    onTap: (_isButtonActive && !_isLoading)
-                        ? _verifyOtp
-                        : null,
+                    onTap: (_isButtonActive && !_isLoading) ? _verifyOtp : null,
                     child: Container(
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 30,
-                        vertical: 15,
-                      ),
+                          horizontal: 30, vertical: 15),
                       decoration: BoxDecoration(
                         color: (_isButtonActive && !_isLoading)
                             ? const Color(0xFF14B8A6)
                             : Colors.grey[300],
-                        borderRadius:
-                        BorderRadius.circular(30),
+                        borderRadius: BorderRadius.circular(30),
                       ),
                       child: Row(
                         children: [
@@ -310,30 +370,28 @@ class _OTPVerificationPageState extends State<OTPVerificationPage> {
                             width: 20,
                             child: CircularProgressIndicator(
                               strokeWidth: 2.2,
-                              valueColor:
-                              AlwaysStoppedAnimation<Color>(
-                                Colors.white,
-                              ),
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                  Colors.white),
                             ),
                           )
                               : Text(
                             'Next',
                             style: TextStyle(
                               fontSize: 18,
-                              color: (_isButtonActive && !_isLoading)
+                              color:
+                              (_isButtonActive && !_isLoading)
                                   ? Colors.white
                                   : Colors.grey[600],
                             ),
                           ),
                           const SizedBox(width: 5),
-                          _isLoading
-                              ? const SizedBox.shrink()
-                              : Icon(
-                            Icons.arrow_forward,
-                            color: (_isButtonActive && !_isLoading)
-                                ? Colors.white
-                                : Colors.grey[600],
-                          ),
+                          if (!_isLoading)
+                            Icon(
+                              Icons.arrow_forward,
+                              color: (_isButtonActive && !_isLoading)
+                                  ? Colors.white
+                                  : Colors.grey[600],
+                            ),
                         ],
                       ),
                     ),
@@ -349,74 +407,115 @@ class _OTPVerificationPageState extends State<OTPVerificationPage> {
     );
   }
 
-  Widget _otpBox(int index) {
-    return SizedBox(
-      height: 60,
-      width: 65,
-      child: TextField(
-        controller: _controllers[index],
-        focusNode: _focusNodes[index],
-        autofocus: index == 0,
-        textAlign: TextAlign.center,
-        keyboardType: TextInputType.number,
-        textInputAction:
-        index == 5 ? TextInputAction.done : TextInputAction.next,
-        maxLength: 1,
-        autofillHints: const [AutofillHints.oneTimeCode],
-        style: const TextStyle(
-          fontSize: 24,
-          fontWeight: FontWeight.bold,
-          color: Color(0xFF1F2937),
-        ),
-        inputFormatters: [
-          FilteringTextInputFormatter.digitsOnly,
-        ],
-        decoration: InputDecoration(
-          counterText: "",
-          filled: true,
-          fillColor: Colors.white,
-          border: OutlineInputBorder(
-            borderRadius:
-            BorderRadius.circular(12),
-            borderSide: BorderSide.none,
+  // ── Success banner (OTP match হলে দেখাবে) ──
+  Widget _buildSuccessBanner() {
+    return ScaleTransition(
+      key: const ValueKey('success'),
+      scale: _successScaleAnimation,
+      child: FadeTransition(
+        opacity: _successFadeAnimation,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          decoration: BoxDecoration(
+            color: const Color(0xFF14B8A6).withOpacity(0.1),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: const Color(0xFF14B8A6), width: 1.2),
           ),
-          enabledBorder: OutlineInputBorder(
-            borderRadius:
-            BorderRadius.circular(12),
-            borderSide: BorderSide(
-              color: _isOtpInvalid
-                  ? Colors.red
-                  : const Color(0xFFE5E7EB),
-              width: 1.2,
-            ),
-          ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius:
-            BorderRadius.circular(12),
-            borderSide: BorderSide(
-              color: _isOtpInvalid
-                  ? Colors.red
-                  : const Color(0xFF0F766E),
-              width: 2,
-            ),
+          child: Row(
+            children: const [
+              Icon(Icons.check_circle_rounded,
+                  color: Color(0xFF0F766E), size: 20),
+              SizedBox(width: 10),
+              Text(
+                'OTP verified successfully!',
+                style: TextStyle(
+                  color: Color(0xFF0F766E),
+                  fontWeight: FontWeight.w600,
+                  fontSize: 14,
+                ),
+              ),
+            ],
           ),
         ),
-        onChanged: (value) {
-          if (value.length > 1) {
-            _fillOtpFromPaste(value);
-            return;
-          }
+      ),
+    );
+  }
 
-          if (value.length == 1 && index < 5) {
-            FocusScope.of(context)
-                .requestFocus(_focusNodes[index + 1]);
-          } else if (value.isEmpty && index > 0) {
-            FocusScope.of(context)
-                .requestFocus(_focusNodes[index - 1]);
-          } else if (value.length == 1 && index == 5) {
-            FocusScope.of(context).unfocus();
-          }
-        },
+  Widget _otpBox(int index) {
+    return AnimatedBuilder(
+      animation: _bounceAnimations[index],
+      builder: (context, child) {
+        return Transform.scale(
+          scale: _bounceAnimations[index].value,
+          child: child,
+        );
+      },
+      child: SizedBox(
+        height: 60,
+        width: 65,
+        child: TextField(
+          controller: _controllers[index],
+          focusNode: _focusNodes[index],
+          autofocus: index == 0,
+          textAlign: TextAlign.center,
+          keyboardType: TextInputType.number,
+          textInputAction:
+          index == 5 ? TextInputAction.done : TextInputAction.next,
+          maxLength: 1,
+          autofillHints: const [AutofillHints.oneTimeCode],
+          style: const TextStyle(
+            fontSize: 24,
+            fontWeight: FontWeight.bold,
+            color: Color(0xFF1F2937),
+          ),
+          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+          decoration: InputDecoration(
+            counterText: "",
+            filled: true,
+            fillColor: Colors.white,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide.none,
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(
+                color: _isOtpInvalid
+                    ? Colors.red
+                    : const Color(0xFFE5E7EB),
+                width: 1.2,
+              ),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(
+                color: _isOtpInvalid
+                    ? Colors.red
+                    : const Color(0xFF0F766E),
+                width: 2,
+              ),
+            ),
+          ),
+          onChanged: (value) {
+            if (value.length > 1) {
+              _fillOtpFromPaste(value);
+              return;
+            }
+
+            if (value.length == 1) {
+              // ── Digit টাইপ হলে bounce ──
+              _playBounce(index);
+
+              if (index < 5) {
+                FocusScope.of(context).requestFocus(_focusNodes[index + 1]);
+              } else {
+                FocusScope.of(context).unfocus();
+              }
+            } else if (value.isEmpty && index > 0) {
+              FocusScope.of(context).requestFocus(_focusNodes[index - 1]);
+            }
+          },
+        ),
       ),
     );
   }
@@ -426,14 +525,11 @@ class _OTPVerificationPageState extends State<OTPVerificationPage> {
       onTap: onTap,
       borderRadius: BorderRadius.circular(20),
       child: Container(
-        padding: const EdgeInsets.symmetric(
-          horizontal: 20,
-          vertical: 10,
-        ),
+        padding:
+        const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
         decoration: BoxDecoration(
           color: onTap == null ? const Color(0xFFF1F5F9) : Colors.white,
-          borderRadius:
-          BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(20),
           border: Border.all(
             color: onTap == null
                 ? const Color(0xFFE2E8F0)
@@ -444,9 +540,7 @@ class _OTPVerificationPageState extends State<OTPVerificationPage> {
           title,
           style: TextStyle(
             fontWeight: FontWeight.w500,
-            color: onTap == null
-                ? Colors.grey
-                : const Color(0xFF0F766E),
+            color: onTap == null ? Colors.grey : const Color(0xFF0F766E),
           ),
         ),
       ),

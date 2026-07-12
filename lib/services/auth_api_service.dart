@@ -7,7 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 class AuthApiService {
   static String get baseUrl {
-    return 'https://uniride-app-rm20.onrender.com/api';
+    return 'https://uniride-e831415d105a.herokuapp.com/api';
   }
 
   Future<Map<String, dynamic>> login({
@@ -3240,6 +3240,10 @@ class AuthApiService {
     int? totalSeats,
     String? preferredGender,
     double? farePerPerson,
+    double? startLat,
+    double? startLng,
+    double? destinationLat,
+    double? destinationLng,
   }) async {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('token');
@@ -3263,6 +3267,10 @@ class AuthApiService {
         'total_seats': totalSeats,
         'preferred_gender': preferredGender,
         'fare_per_person': farePerPerson,
+        'start_lat': startLat,
+        'start_lng': startLng,
+        'destination_lat': destinationLat,
+        'destination_lng': destinationLng,
       }),
     );
 
@@ -3272,6 +3280,41 @@ class AuthApiService {
       return data;
     } else {
       throw Exception(data['message'] ?? 'Failed to create co ride session');
+    }
+  }
+
+  // CoRide - Search matching sessions
+  Future<Map<String, dynamic>> searchCoRideSessions({
+    required double pickupLat,
+    required double pickupLng,
+    required double destinationLat,
+    required double destinationLng,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+
+    final url = Uri.parse('$baseUrl/company-sharing/search');
+
+    final response = await http.post(
+      url,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode({
+        'pickupLat': pickupLat,
+        'pickupLng': pickupLng,
+        'destinationLat': destinationLat,
+        'destinationLng': destinationLng,
+      }),
+    );
+
+    final data = jsonDecode(response.body);
+
+    if (response.statusCode == 200) {
+      return data;
+    } else {
+      throw Exception(data['message'] ?? 'Failed to search CoRide');
     }
   }
 

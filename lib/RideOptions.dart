@@ -17,6 +17,7 @@ class AppColors {
 }
 
 enum RideSortType {
+  recommended,
   lowestFare,
   nearestRide,
   earliestDeparture,
@@ -46,7 +47,7 @@ class RideOptionsPage extends StatefulWidget {
 
 class _RideOptionsPageState extends State<RideOptionsPage> {
   final AuthApiService _authApiService = AuthApiService();
-  RideSortType selectedSort = RideSortType.lowestFare;
+  RideSortType selectedSort = RideSortType.recommended;
 
   late List<RideOptionModel> _liveRides;
   bool _isRefreshing = false;
@@ -101,6 +102,7 @@ class _RideOptionsPageState extends State<RideOptionsPage> {
           double.tryParse('${map['estimatedFare'] ?? 0}') ?? 0,
           isAvailable:
           (int.tryParse('${map['available_seats'] ?? 0}') ?? 0) > 0,
+          cbfScore: double.tryParse('${map['cbfScore'] ?? 0.5}') ?? 0.5,
         );
       }).toList();
       if (!mounted) return;
@@ -155,6 +157,9 @@ class _RideOptionsPageState extends State<RideOptionsPage> {
     }).toList();
 
     switch (selectedSort) {
+      case RideSortType.recommended:
+        rides.sort((a, b) => b.cbfScore.compareTo(a.cbfScore));
+        break;
       case RideSortType.lowestFare:
         rides.sort((a, b) => a.estimatedFare.compareTo(b.estimatedFare));
         break;
@@ -748,6 +753,15 @@ class _RideOptionsPageState extends State<RideOptionsPage> {
             spacing: 10,
             runSpacing: 10,
             children: [
+              _buildChoiceChip(
+                label: "Recommended",
+                isSelected: selectedSort == RideSortType.recommended,
+                onTap: () {
+                  setState(() {
+                    selectedSort = RideSortType.recommended;
+                  });
+                },
+              ),
               _buildChoiceChip(
                 label: "Lowest fare",
                 isSelected: selectedSort == RideSortType.lowestFare,

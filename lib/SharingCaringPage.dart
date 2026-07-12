@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import 'services/auth_api_service.dart';
@@ -26,6 +27,7 @@ class _SharingCaringPageState extends State<SharingCaringPage> {
   bool _isStartingJourney = false;
   Map<String, dynamic>? _activeSession;
   Timer? _locationTimer;
+  StreamSubscription<Position>? _positionSubscription;
   final _formKey = GlobalKey<FormState>();
 
   final TextEditingController currentLocationController =
@@ -41,6 +43,12 @@ class _SharingCaringPageState extends State<SharingCaringPage> {
 
   DateTime? selectedDate;
   TimeOfDay? selectedTime;
+  double? currentLat;
+  double? currentLng;
+  double? destinationLat;
+  double? destinationLng;
+
+  // DateTime? selectedDate;
 
   String? selectedVehicleType;
   String? selectedGender;
@@ -94,6 +102,10 @@ class _SharingCaringPageState extends State<SharingCaringPage> {
         } else {
           setState(() => _activeSession = sessionData);
         }
+
+        if (_activeSession?['is_started'] == true) {
+          await _startLiveLocationUpdates();
+        }
       } else {
         setState(() => _activeSession = null);
       }
@@ -111,6 +123,8 @@ class _SharingCaringPageState extends State<SharingCaringPage> {
       if (!mounted) return;
       setState(() => _activeSession = null);
       _locationTimer?.cancel();
+      _positionSubscription?.cancel();
+      super.dispose();
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('CoRide cancelled.')),
       );
@@ -135,6 +149,7 @@ class _SharingCaringPageState extends State<SharingCaringPage> {
         _activeSession!['is_started'] = true;
         _isStartingJourney = false;
       });
+      await _startLiveLocationUpdates();
 
       // Map page এ navigate করো
       Navigator.push(
@@ -202,12 +217,50 @@ class _SharingCaringPageState extends State<SharingCaringPage> {
     }
   }
 
-  void _startLiveLocationUpdates() {
-    _locationTimer?.cancel();
-    _locationTimer = Timer.periodic(const Duration(seconds: 10), (_) async {
-      // GPS এর জন্য geolocator package ব্যবহার করো
-      // এখানে placeholder — তোমার existing GPS logic দিয়ে replace করো
-    });
+  Future<void> _startLiveLocationUpdates() async {
+    _positionSubscription?.cancel();
+
+    final sessionId = _activeSession?['session_id']?.toString();
+    if (sessionId == null || sessionId.isEmpty) return;
+
+    final bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) return;
+
+    LocationPermission permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+    }
+    if (permission == LocationPermission.denied ||
+        permission == LocationPermission.deniedForever) {
+      return;
+    }
+
+    const locationSettings = LocationSettings(
+      accuracy: LocationAccuracy.high,
+      distanceFilter: 20, // ২০ মিটার নড়াচড়া করলেই আপডেট পাঠাবে
+    );
+
+    _positionSubscription =
+        Geolocator.getPositionStream(locationSettings: locationSettings)
+            .listen((Position position) async {
+          final currentSessionId = _activeSession?['session_id']?.toString();
+          if (currentSessionId == null || currentSessionId.isEmpty) return;
+
+          try {
+            await _authApiService.updateCoRideLiveLocation(
+              sessionId: currentSessionId,
+              lat: position.latitude,
+              lng: position.longitude,
+            );
+          } catch (_) {
+            // silent fail — পরের update এ আবার চেষ্টা হবে
+          }
+        });
+  }
+
+  void _stopLiveLocationUpdates() {
+    _positionSubscription?.cancel();
+    _positionSubscription = null;
   }
 
   void _refreshForm() {
@@ -257,8 +310,13 @@ class _SharingCaringPageState extends State<SharingCaringPage> {
     );
 
     if (result != null && mounted) {
+      final latLng = result["latLng"];
       setState(() {
         currentLocationController.text = result["address"] ?? "";
+        if (latLng is LatLng) {
+          currentLat = latLng.latitude;
+          currentLng = latLng.longitude;
+        }
       });
     }
   }
@@ -276,8 +334,13 @@ class _SharingCaringPageState extends State<SharingCaringPage> {
     );
 
     if (result != null && mounted) {
+      final latLng = result["latLng"];
       setState(() {
         destinationController.text = result["address"] ?? "";
+        if (latLng is LatLng) {
+          destinationLat = latLng.latitude;
+          destinationLng = latLng.longitude;
+        }
       });
     }
   }
@@ -545,6 +608,10 @@ class _SharingCaringPageState extends State<SharingCaringPage> {
         totalSeats: int.tryParse(availableSeatController.text.trim()),
         preferredGender: selectedGender,
         farePerPerson: double.tryParse(fareController.text.trim()),
+        startLat: currentLat,
+        startLng: currentLng,
+        destinationLat: destinationLat,
+        destinationLng: destinationLng,
       );
 
       if (!mounted) return;

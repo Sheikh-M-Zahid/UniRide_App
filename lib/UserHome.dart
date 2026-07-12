@@ -9,6 +9,7 @@ import 'UserActivity.dart';
 import 'UserServices.dart';
 import 'ReserveRide.dart';
 import 'SendItem.dart';
+import 'CoRideSearchPage.dart';
 import 'SharingCaringPage.dart';
 import 'NotificationsPage.dart';
 import 'ActiveRideTrackingPage.dart';
@@ -410,6 +411,22 @@ class _UniRideHomePageState extends State<UniRideHomePage> {
                             child: const _SuggestionBox(
                               icon: Icons.volunteer_activism,
                               title: "Co Ride",
+                            ),
+                          ),
+                          const SizedBox(width: 15),
+                          GestureDetector(
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) =>
+                                  const CoRideSearchPage(),
+                                ),
+                              );
+                            },
+                            child: const _SuggestionBox(
+                              icon: Icons.search_rounded,
+                              title: "Find CoRide",
                             ),
                           ),
                         ],
