@@ -50,6 +50,14 @@ const listSessions = asyncHandler(async (req, res) => {
   return successResponse(res, 'Sessions fetched successfully.', data);
 });
 
+const searchSessions = asyncHandler(async (req, res) => {
+  const { pickupLat, pickupLng, destinationLat, destinationLng } = req.body;
+  const data = await service.searchSessions(req.user.userId, {
+    pickupLat, pickupLng, destLat: destinationLat, destLng: destinationLng,
+  });
+  return successResponse(res, 'Matching CoRide sessions fetched.', data);
+});
+
 const sendCompanyChatMessage = asyncHandler(async (req, res) => {
   const data = await service.sendCompanyChatMessage(
     req.params.sessionId, req.user.userId, req.body.message_text
@@ -89,6 +97,7 @@ module.exports = {
   updateLiveLocation,
   getLiveLocation,
   listSessions,
+  searchSessions,
   sendCompanyChatMessage,
   fetchCompanyChatMessages,
   removeParticipant,
