@@ -64,16 +64,6 @@ flutter pub get
 flutter run
 ```
 
-## 🔑 Environment Variables
-
-```env
-DATABASE_URL=
-FIREBASE_PROJECT_ID=
-BREVO_API_KEY=
-GOOGLE_MAPS_API_KEY=
-JWT_SECRET=
-```
-
 ## 👤 Developer
 
 Md. Zahid Hossain, Marjan Hasan, Marzia Hasan — East West University, Bangladesh
