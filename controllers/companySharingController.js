@@ -46,7 +46,7 @@ const getLiveLocation = asyncHandler(async (req, res) => {
 });
 
 const listSessions = asyncHandler(async (req, res) => {
-  const data = await service.listSessions();
+  const data = await service.listSessions(req.user.userId);
   return successResponse(res, 'Sessions fetched successfully.', data);
 });
 
