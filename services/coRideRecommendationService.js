@@ -1,5 +1,6 @@
 const rideDb = require('../config/rideDb');
 const ewuAdminDb = require('../config/ewuAdminDb');
+const { matchPassengerToSession } = require('./coRideRouteMatchingService');
 
 const NEUTRAL = 0.5;
 
@@ -95,9 +96,64 @@ const scoreAndSortSessions = async ({ userId, userGender, userEmail, sessions })
   return scored;
 };
 
+// Passenger search: ranked list based on gender, route corridor, occupation, and frequent partners
+const searchMatchingSessions = async ({
+  userId, userGender, userEmail,
+  pickupLat, pickupLng, destLat, destLng,
+  sessions,
+}) => {
+  const genderFiltered = sessions.filter((s) =>
+    isGenderAllowed(s.preferred_gender, userGender)
+  );
+
+  const frequentPartners = await getFrequentPartners(userId);
+  const myOccupation = await getUserOccupation(userEmail);
+  const maxRideCount = Math.max(1, ...Array.from(frequentPartners.values(), (v) => v || 0), 0);
+
+  const results = [];
+
+  for (const session of genderFiltered) {
+    const corridorMatch = await matchPassengerToSession({
+      session, pickupLat, pickupLng, destLat, destLng,
+    });
+    if (!corridorMatch) continue; // route-এ না পড়লে বাদ
+
+    const rideCount = frequentPartners.get(session.created_by) || 0;
+    const frequentScore = rideCount > 0 ? rideCount / maxRideCount : 0;
+
+    let occupationScore = NEUTRAL;
+    if (myOccupation && session.university_email) {
+      const creatorOccupation = await getUserOccupation(session.university_email);
+      if (creatorOccupation) {
+        occupationScore = creatorOccupation === myOccupation ? 1 : 0.2;
+      }
+    }
+
+    const finalScore = Number(
+      (
+        corridorMatch.proximityScore * 0.4 +
+        frequentScore * 0.35 +
+        occupationScore * 0.25
+      ).toFixed(3)
+    );
+
+    results.push({
+      ...session,
+      coRideScore: finalScore,
+      isFrequentPartner: rideCount > 0,
+      pickupDistanceKm: corridorMatch.pickupDistanceKm,
+      destDistanceKm: corridorMatch.destDistanceKm,
+    });
+  }
+
+  results.sort((a, b) => b.coRideScore - a.coRideScore);
+  return results;
+};
+
 module.exports = {
   isGenderAllowed,
   getFrequentPartners,
   getUserOccupation,
   scoreAndSortSessions,
+  searchMatchingSessions,
 };
