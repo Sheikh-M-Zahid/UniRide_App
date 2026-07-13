@@ -406,7 +406,6 @@ const searchRides = async (payload, passengerId) => {
    */
 
   const DETOUR_THRESHOLD_KM = 2;
-  const DETOUR_THRESHOLD_KM = 2;
   const DETOUR_RATE_PER_KM  = 5;
   const DESTINATION_MATCH_RADIUS_KM = 0.3;
 
