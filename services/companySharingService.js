@@ -2,7 +2,6 @@ const rideDb = require('../config/rideDb');
 const { createNotification } = require('./notificationService');
 const { emitCoRideSeatUpdate } = require('../utils/coRideEmitter');
 const coRideRecommendationService = require('./coRideRecommendationService');
-const coRideRecommendationService = require('./coRideRecommendationService');
 const { computeRoute } = require('./googleMapsService');
 const { safeDistanceKm } = require('../utils/geo');
 
