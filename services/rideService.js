@@ -1,5 +1,6 @@
 const rideDb = require('../config/rideDb');
 const cbfService = require('./cbfService');
+const { safeDistanceKm } = require('../utils/geo');
 
 const createRide = async (userId, payload) => {
   const {
@@ -310,6 +311,8 @@ const searchRides = async (payload, passengerId) => {
        r.status,
        r.destination,
        r.start_location,
+       r.destination_latitude,
+       r.destination_longitude,
        u.first_name,
        u.last_name,
        u.phone,
@@ -403,7 +406,9 @@ const searchRides = async (payload, passengerId) => {
    */
 
   const DETOUR_THRESHOLD_KM = 2;
+  const DETOUR_THRESHOLD_KM = 2;
   const DETOUR_RATE_PER_KM  = 5;
+  const DESTINATION_MATCH_RADIUS_KM = 0.3;
 
   const availableRides = rides.map((ride, i) => {
     const vType = String(ride.vehicle_type || '').trim().toLowerCase();
@@ -444,6 +449,11 @@ const searchRides = async (payload, passengerId) => {
       riderDistanceKm:  riderDistKm !== null
                           ? parseFloat(riderDistKm.toFixed(2))
                           : null,
+      destDistanceKm: safeDistanceKm(
+        destination_lat, destination_lng,
+        ride.destination_latitude !== null ? Number(ride.destination_latitude) : null,
+        ride.destination_longitude !== null ? Number(ride.destination_longitude) : null
+      ),
       //Rider info flat করে দিলাম 
       rider: {
         name:   `${ride.first_name || ''} ${ride.last_name || ''}`.trim(),
@@ -451,7 +461,11 @@ const searchRides = async (payload, passengerId) => {
         rating: Number(ride.rating || 5),
       },
     };
-  });
+  })
+  // ── destination মিলছে না এমন ride hard-filter করে বাদ ──
+  .filter((ride) =>
+    ride.destDistanceKm !== null && ride.destDistanceKm <= DESTINATION_MATCH_RADIUS_KM
+  );
 
   // Route summary fare (car rate দিয়ে)
   const carRate = rateMap.car;
@@ -470,11 +484,28 @@ const searchRides = async (payload, passengerId) => {
     destLng: destination_lng,
   });
 
+  // ── Destination-proximity + CBF মিলিয়ে recommend tier বসাও ──
+  const tieredRides = rankedRides.map((ride) => {
+    const proximityScore = ride.destDistanceKm != null
+      ? Math.max(0, 1 - ride.destDistanceKm / DESTINATION_MATCH_RADIUS_KM)
+      : 0;
+    const combinedScore = (ride.cbfScore || 0) * 0.6 + proximityScore * 0.4;
+
+    let recommendTier = null;
+    if (combinedScore >= 0.8) recommendTier = 'super';
+    else if (combinedScore >= 0.6) recommendTier = 'great';
+    else if (combinedScore >= 0.4) recommendTier = 'good';
+
+    return { ...ride, combinedScore, recommendTier };
+  });
+
+  tieredRides.sort((a, b) => b.combinedScore - a.combinedScore);
+
   return {
     distance_km:    parseFloat(distance_km.toFixed(2)),
     estimated_time,
     estimated_fare,
-    availableRides: rankedRides,
+    availableRides: tieredRides,
   };
 };
 
