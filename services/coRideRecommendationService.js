@@ -1,7 +1,8 @@
 const rideDb = require('../config/rideDb');
 const ewuAdminDb = require('../config/ewuAdminDb');
-const { safeDistanceKm } = require('../utils/geo');
+const { matchPassengerToSession, getEffectiveRoute } = require('./coRideRouteMatchingService');
 const { computeRoute } = require('./googleMapsService');
+const { haversineDistanceKm } = require('../utils/geo');
 
 const NEUTRAL = 0.5;
 const normalizeGender = (g) => (g || '').toString().trim().toLowerCase();
@@ -12,47 +13,22 @@ const isGenderAllowed = (sessionPreferredGender, userGender) => {
   return pref === normalizeGender(userGender);
 };
 
-const decodePolyline = (encoded) => {
-  if (!encoded) return [];
-  const points = [];
-  let index = 0, lat = 0, lng = 0;
-  while (index < encoded.length) {
-    let b, shift = 0, result = 0;
-    do { b = encoded.charCodeAt(index++) - 63; result |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20);
-    lat += (result & 1) ? ~(result >> 1) : (result >> 1);
-    shift = 0; result = 0;
-    do { b = encoded.charCodeAt(index++) - 63; result |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20);
-    lng += (result & 1) ? ~(result >> 1) : (result >> 1);
-    points.push([lat / 1e5, lng / 1e5]);
-  }
-  return points;
-};
-
-const minDistanceToPolylineKm = (lat, lng, polylinePoints) => {
-  if (!polylinePoints || !polylinePoints.length) return null;
-  let min = Infinity;
-  for (const [plat, plng] of polylinePoints) {
-    const d = safeDistanceKm(lat, lng, plat, plng);
-    if (d !== null && d < min) min = d;
-  }
-  return min === Infinity ? null : min;
-};
-
-const PROXIMITY_RADIUS_KM = 3;
-const DEST_INCLUDE_RADIUS_KM = 1.5;
-const DEST_PERFECT_MATCH_KM = 0.1;
+// matchPassengerToSession() ইতিমধ্যে CORRIDOR_BUFFER_KM (1.2km) হার্ড-ফিল্টার করে,
+// তাই এখানে সেই ব্যান্ডের ভেতরেই স্কোর curve বানানো হচ্ছে — সামঞ্জস্যপূর্ণ রাখার জন্য।
+const CORRIDOR_BUFFER_KM = 1.2;
+const DEST_PERFECT_MATCH_KM = 0.1; // ১০০ মিটার = "সরাসরি ওখানেই যাচ্ছে"
 
 const scoreProximity = (distKm) => {
   if (distKm == null) return 0;
-  if (distKm >= PROXIMITY_RADIUS_KM) return 0;
-  return 1 - distKm / PROXIMITY_RADIUS_KM;
+  if (distKm >= CORRIDOR_BUFFER_KM) return 0;
+  return 1 - distKm / CORRIDOR_BUFFER_KM;
 };
 
 const scoreDestinationMatch = (distKm) => {
   if (distKm == null) return 0;
   if (distKm <= DEST_PERFECT_MATCH_KM) return 1;
-  if (distKm >= DEST_INCLUDE_RADIUS_KM) return 0;
-  return 1 - (distKm - DEST_PERFECT_MATCH_KM) / (DEST_INCLUDE_RADIUS_KM - DEST_PERFECT_MATCH_KM);
+  if (distKm >= CORRIDOR_BUFFER_KM) return 0;
+  return 1 - (distKm - DEST_PERFECT_MATCH_KM) / (CORRIDOR_BUFFER_KM - DEST_PERFECT_MATCH_KM);
 };
 
 const normalizeInverse = (values) => {
@@ -62,6 +38,27 @@ const normalizeInverse = (values) => {
   const max = Math.max(...valid);
   if (max === min) return values.map((v) => (v === null || v === undefined ? NEUTRAL : 1));
   return values.map((v) => (v === null || v === undefined || Number.isNaN(v)) ? NEUTRAL : 1 - (v - min) / (max - min));
+};
+
+// লাইভ জ্যাম-ইনডেক্স: journey শুরু হয়ে থাকলে current location থেকে,
+// না হলে start_location থেকে destination পর্যন্ত ফ্রেশ (TRAFFIC_AWARE) সময়/দূরত্ব নেয়।
+const getCongestionIndex = async (session) => {
+  const isLive = session.is_started === true && session.current_lat && session.current_lng;
+  const originLat = isLive ? Number(session.current_lat) : Number(session.start_lat);
+  const originLng = isLive ? Number(session.current_lng) : Number(session.start_lng);
+  if (!originLat || !originLng || !session.destination_lat || !session.destination_lng) return null;
+
+  try {
+    const route = await computeRoute({
+      originLat, originLng,
+      destinationLat: Number(session.destination_lat),
+      destinationLng: Number(session.destination_lng),
+    });
+    const km = Math.max(route.distanceKm, 0.1);
+    return route.durationMinutes / km; // মিনিট/কিমি — কম মানে কম জ্যাম
+  } catch (_) {
+    return null;
+  }
 };
 
 const getUserOccupation = async (universityEmail) => {
@@ -115,46 +112,28 @@ const scoreAndSortSessions = async ({ userId, userGender, userEmail, sessions })
   return scored;
 };
 
+// ---- মূল সার্চ র‍্যাঙ্কিং: proximity (pickup) > destination match > traffic > fare ----
 const searchMatchingSessions = async ({
   userId, userGender, userEmail, pickupLat, pickupLng, destLat, destLng, sessions,
 }) => {
   const genderFiltered = sessions.filter((s) => isGenderAllowed(s.preferred_gender, userGender));
+
+  // Step 1 & 2: করিডোর ম্যাচ (তোমার matchPassengerToSession — proximity + direction + live route)
   const corridorCandidates = [];
-
   for (const session of genderFiltered) {
-    const polylinePoints = decodePolyline(session.route_polyline);
-
-    let pickupDistanceKm = polylinePoints.length ? minDistanceToPolylineKm(pickupLat, pickupLng, polylinePoints) : null;
-    if (pickupDistanceKm === null && session.start_lat && session.start_lng) {
-      pickupDistanceKm = safeDistanceKm(pickupLat, pickupLng, Number(session.start_lat), Number(session.start_lng));
-    }
-
-    let destDistanceKm = polylinePoints.length ? minDistanceToPolylineKm(destLat, destLng, polylinePoints) : null;
-    if (destDistanceKm === null && session.destination_lat && session.destination_lng) {
-      destDistanceKm = safeDistanceKm(destLat, destLng, Number(session.destination_lat), Number(session.destination_lng));
-    }
-
-    if (pickupDistanceKm === null || pickupDistanceKm > PROXIMITY_RADIUS_KM) continue;
-    if (destDistanceKm === null || destDistanceKm > DEST_INCLUDE_RADIUS_KM) continue;
-
-    corridorCandidates.push({ session, pickupDistanceKm, destDistanceKm });
+    const match = await matchPassengerToSession({ session, pickupLat, pickupLng, destLat, destLng });
+    if (!match) continue;
+    corridorCandidates.push({ session, ...match });
   }
-
   if (!corridorCandidates.length) return [];
 
-  const trafficResults = await Promise.all(corridorCandidates.map(async ({ session }) => {
-    if (!session.start_lat || !session.start_lng || !session.destination_lat || !session.destination_lng) return null;
-    try {
-      const route = await computeRoute({
-        originLat: Number(session.start_lat), originLng: Number(session.start_lng),
-        destinationLat: Number(session.destination_lat), destinationLng: Number(session.destination_lng),
-      });
-      const km = Math.max(route.distanceKm, 0.1);
-      return route.durationMinutes / km;
-    } catch (err) { return null; }
-  }));
+  // Step 3: জ্যাম-ইনডেক্স (fresh, traffic-aware; জীবিত/is_started হলে current location থেকে)
+  const trafficResults = await Promise.all(
+    corridorCandidates.map(({ session }) => getCongestionIndex(session))
+  );
   const congestionScores = normalizeInverse(trafficResults);
 
+  // Step 4: ভাড়া (কম = ভালো)
   const fares = corridorCandidates.map((c) => {
     const f = Number(c.session.fare_per_person);
     return Number.isFinite(f) ? f : null;
@@ -170,9 +149,9 @@ const searchMatchingSessions = async ({
     const destinationScore = scoreDestinationMatch(destDistanceKm);
     const trafficScore = congestionScores[i];
     const fareScore = fareScores[i];
+
     const rideCount = frequentPartners.get(session.created_by) || 0;
     const frequentScore = rideCount > 0 ? rideCount / maxRideCount : 0;
-
     let occupationScore = NEUTRAL;
     if (myOccupation && session.university_email) {
       const creatorOccupation = await getUserOccupation(session.university_email);
@@ -191,8 +170,8 @@ const searchMatchingSessions = async ({
       ...session,
       coRideScore: finalScore,
       isFrequentPartner: rideCount > 0,
-      pickupDistanceKm: pickupDistanceKm !== null ? Number(pickupDistanceKm.toFixed(2)) : null,
-      destDistanceKm: destDistanceKm !== null ? Number(destDistanceKm.toFixed(2)) : null,
+      pickupDistanceKm,
+      destDistanceKm,
     };
   }));
 
