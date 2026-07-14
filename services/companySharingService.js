@@ -594,6 +594,64 @@ const markCompanyChatAsRead = async (sessionId, userId) => {
   return { success: true };
 };
 
+// ── Confirmed participant নিজে জার্নি-শুরুর-আগে CoRide ছেড়ে দিতে পারবে ──
+const leaveSession = async (sessionId, userId) => {
+  const sessionRes = await rideDb.query(
+    `SELECT * FROM company_sharing_sessions WHERE session_id = $1`,
+    [sessionId]
+  );
+  if (sessionRes.rowCount === 0) throw new Error('Session not found.');
+  const session = sessionRes.rows[0];
+
+  if (session.status !== 'Active') {
+    throw new Error('This CoRide is already closed.');
+  }
+  if (session.is_started) {
+    throw new Error('Journey has already started — you can no longer leave this CoRide.');
+  }
+
+  const partRes = await rideDb.query(
+    `SELECT id FROM company_participants WHERE session_id = $1 AND user_id = $2 AND confirmed = TRUE`,
+    [sessionId, userId]
+  );
+  if (partRes.rowCount === 0) throw new Error('You are not part of this CoRide.');
+
+  await rideDb.query(
+    `DELETE FROM company_participants WHERE session_id = $1 AND user_id = $2`,
+    [sessionId, userId]
+  );
+
+  await rideDb.query(
+    `UPDATE company_sharing_sessions SET booked_seats = GREATEST(booked_seats - 1, 0) WHERE session_id = $1`,
+    [sessionId]
+  );
+
+  const updatedSeats = (session.total_seats || 0) - Math.max((session.booked_seats || 1) - 1, 0);
+  emitCoRideSeatUpdate(sessionId, updatedSeats);
+
+  const leavingUserRes = await rideDb.query(
+    `SELECT first_name, last_name FROM users WHERE user_id = $1`,
+    [userId]
+  );
+  const leavingUserName = leavingUserRes.rows[0]
+    ? `${leavingUserRes.rows[0].first_name} ${leavingUserRes.rows[0].last_name}`
+    : 'A passenger';
+
+  await createNotification({
+    userId: session.created_by,
+    title: 'A passenger has left the CoRide.ে',
+    message: `${leavingUserName} A passenger left your CoRide before the journey started.`,
+    type: 'co_ride',
+    isImportant: false,
+    targetRole: 'passenger',
+    relatedId: String(sessionId),
+  });
+
+  return { success: true };
+};
+
+const removeParticipant = async (sessionId, creatorId, participantUserId) => {
+
 const removeParticipant = async (sessionId, creatorId, participantUserId) => {
   // Creator কিনা check
   const sessionRes = await rideDb.query(
@@ -723,4 +781,5 @@ module.exports = {
   markCompanyChatAsRead,
   removeParticipant,
   getSessionWithParticipants,
+  leaveSession,
 };
