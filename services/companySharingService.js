@@ -182,18 +182,6 @@ const getSessionById = async (sessionId) => {
   return result.rows[0];
 };
 
-const getMyActiveSession = async (userId) => {
-  const result = await rideDb.query(
-    `SELECT * FROM company_sharing_sessions
-     WHERE created_by = $1 AND status = 'Active'
-     ORDER BY created_at DESC
-     LIMIT 1`,
-    [userId]
-  );
-
-  return result.rows[0] || null;
-};
-
 const joinSession = async (sessionId, userId) => {
   await activeRideGuardService.assertNoActiveRideConflict(userId);
 
