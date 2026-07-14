@@ -29,6 +29,7 @@ router.post(
 );
 router.get('/:sessionId/chat', authMiddleware, controller.fetchCompanyChatMessages);
 router.patch('/:sessionId/chat/read', authMiddleware, controller.markCompanyChatAsRead);
+router.patch('/:sessionId/leave', authMiddleware, controller.leaveSession);
 
 router.delete(
   '/:sessionId/participants/:participantUserId',
