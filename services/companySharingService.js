@@ -651,8 +651,6 @@ const leaveSession = async (sessionId, userId) => {
 };
 
 const removeParticipant = async (sessionId, creatorId, participantUserId) => {
-
-const removeParticipant = async (sessionId, creatorId, participantUserId) => {
   // Creator কিনা check
   const sessionRes = await rideDb.query(
     `SELECT created_by FROM company_sharing_sessions WHERE session_id = $1`,
