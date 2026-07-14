@@ -27,6 +27,7 @@ const { setRideAvailabilityIo } = require('./utils/rideAvailabilityEmitter');
 const { setAdminVehicleIo } = require('./utils/adminVehicleEmitter');
 
 const { setNotificationIo } = require('./utils/notificationEmitter');
+const { setChatIo } = require('./utils/companyChatRealtime');
 const attachNotificationSocket = require('./sockets/notificationSocket');
 const coRideSocket = require('./socket/coRideSocket');
 const { setCoRideIo } = require('./utils/coRideEmitter');
@@ -53,6 +54,7 @@ attachNotificationSocket(io);
 coRideSocket(io);
 sosSocket(io);
 setCoRideIo(io);
+setChatIo(io);
 
 io.on('connection', (socket) => {
   activeRiderSocket(socket);
