@@ -55,6 +55,7 @@ coRideSocket(io);
 sosSocket(io);
 setCoRideIo(io);
 setChatIo(io);
+require('./services/coRideExpiryJob').startCron();
 
 io.on('connection', (socket) => {
   activeRiderSocket(socket);
