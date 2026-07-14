@@ -70,6 +70,12 @@ const fetchCompanyChatMessages = asyncHandler(async (req, res) => {
   return successResponse(res, 'Messages fetched.', data);
 });
 
+const markCompanyChatAsRead = asyncHandler(async (req, res) => {
+  const userId = req.user.userId || req.user.user_id;
+  const data = await service.markCompanyChatAsRead(req.params.sessionId, userId);
+  return successResponse(res, 'Chat marked as read.', data);
+});
+
 const removeParticipant = asyncHandler(async (req, res) => {
   const data = await service.removeParticipant(
     req.params.sessionId,
