@@ -4,6 +4,43 @@ const { emitCoRideSeatUpdate } = require('../utils/coRideEmitter');
 const coRideRecommendationService = require('./coRideRecommendationService');
 const { computeRoute } = require('./googleMapsService');
 const { safeDistanceKm } = require('../utils/geo');
+const admin = require('../config/firebase');
+const { emitCompanyChatMessage, isUserOnline } = require('../utils/companyChatRealtime');
+const { isUserViewingSession } = require('../utils/coRideChatPresence');
+
+// ── CoRide চ্যাট push notification (যদি রিসিভার সেই চ্যাট স্ক্রিনে না থাকে) ──
+const sendChatPushNotification = async (recipientId, senderName, messageText, sessionId) => {
+  try {
+    const tokenResult = await rideDb.query(
+      `SELECT fcm_token FROM users WHERE user_id = $1`,
+      [recipientId]
+    );
+    const fcmToken = tokenResult.rows[0]?.fcm_token;
+    if (!fcmToken) return;
+
+    await admin.messaging().send({
+      token: fcmToken,
+      notification: {
+        title: senderName,
+        body: messageText,
+      },
+      data: {
+        type: 'co_ride_chat',
+        sessionId: String(sessionId),
+      },
+      android: {
+        priority: 'high',
+        notification: {
+          channelId: 'uniride_channel',
+          priority: 'high',
+          defaultSound: true,
+        },
+      },
+    });
+  } catch (err) {
+    console.error('CoRide chat FCM error:', err?.message);
+  }
+};
 
 const NOTIFY_RADIUS_KM = 2;
 
@@ -360,10 +397,53 @@ const sendCompanyChatMessage = async (sessionId, senderId, message_text) => {
     ? `${userRes.rows[0].first_name} ${userRes.rows[0].last_name}`
     : 'User';
 
+  // ── প্রাপক খুঁজে বের করো: creator + confirmed participants, নিজেকে বাদ দিয়ে ──
+  const recipientsRes = await rideDb.query(
+    `SELECT created_by AS user_id FROM company_sharing_sessions WHERE session_id = $1
+     UNION
+     SELECT user_id FROM company_participants WHERE session_id = $1 AND confirmed = TRUE`,
+    [sessionId]
+  );
+  const recipients = recipientsRes.rows
+    .map((r) => r.user_id)
+    .filter((id) => String(id) !== String(senderId));
+
+  // ── কেউ অনলাইনে থাকলে সাথে সাথে delivered_at সেট করো ──
+  const anyoneOnline = recipients.some((id) => isUserOnline(id));
+  let deliveredAt = null;
+
+  if (anyoneOnline) {
+    const updateRes = await rideDb.query(
+      `UPDATE company_chats SET delivered_at = CURRENT_TIMESTAMP
+       WHERE chat_id = $1
+       RETURNING delivered_at`,
+      [message.chat_id]
+    );
+    deliveredAt = updateRes.rows[0]?.delivered_at || null;
+  }
+
+  // ── Real-time socket emit (যারা চ্যাট স্ক্রিনে আছে তারা সাথে সাথে দেখবে) ──
+  emitCompanyChatMessage(sessionId, {
+    chat_id: message.chat_id,
+    session_id: sessionId,
+    sender_id: message.sender_id,
+    sender_name: senderName,
+    message_text: message.message_text,
+    sent_at: message.sent_at,
+  });
+
+  // ── Push notification: শুধু যারা এই মুহূর্তে এই চ্যাট স্ক্রিনে নাই তাদের কাছে ──
+  for (const recipientId of recipients) {
+    if (!isUserViewingSession(sessionId, recipientId)) {
+      await sendChatPushNotification(recipientId, senderName, message_text, sessionId);
+    }
+  }
+
   return {
     ...message,
     sender_name: senderName,
     is_mine: true,
+    status: deliveredAt ? 'delivered' : 'sent',
   };
 };
 
@@ -377,11 +457,40 @@ const fetchCompanyChatMessages = async (sessionId, userId) => {
     [sessionId]
   );
 
-  return result.rows.map((row) => ({
-    ...row,
-    sender_name: `${row.first_name} ${row.last_name}`,
-    is_mine: String(row.sender_id) === String(userId),
-  }));
+  // অন্য participant-দের মধ্যে সবচেয়ে পুরনো last_read_at বের করো
+  // (সবাই মেসেজটা দেখেছে কিনা সেটা যাচাই করার জন্য)
+  const readsRes = await rideDb.query(
+    `SELECT MIN(last_read_at) AS min_last_read
+     FROM company_chat_reads
+     WHERE session_id = $1 AND user_id != $2`,
+    [sessionId, userId]
+  );
+  const othersMinLastRead = readsRes.rows[0]?.min_last_read || null;
+
+  return result.rows.map((row) => {
+    const isMine = String(row.sender_id) === String(userId);
+    let status = null;
+    let statusTime = null;
+
+    if (isMine) {
+      if (othersMinLastRead && new Date(row.sent_at) <= new Date(othersMinLastRead)) {
+        status = 'seen';
+        statusTime = othersMinLastRead;
+      } else if (row.delivered_at) {
+        status = 'delivered';
+      } else {
+        status = 'sent';
+      }
+    }
+
+    return {
+      ...row,
+      sender_name: `${row.first_name} ${row.last_name}`,
+      is_mine: isMine,
+      status,
+      status_time: statusTime,
+    };
+  });
 };
 
 const markCompanyChatAsRead = async (sessionId, userId) => {
