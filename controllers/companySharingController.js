@@ -66,7 +66,8 @@ const sendCompanyChatMessage = asyncHandler(async (req, res) => {
 });
 
 const fetchCompanyChatMessages = asyncHandler(async (req, res) => {
-  const data = await service.fetchCompanyChatMessages(req.params.sessionId);
+  const userId = req.user.userId || req.user.user_id;
+  const data = await service.fetchCompanyChatMessages(req.params.sessionId, userId);
   return successResponse(res, 'Messages fetched.', data);
 });
 
