@@ -81,6 +81,11 @@ const markCompanyChatAsRead = asyncHandler(async (req, res) => {
   return successResponse(res, 'Chat marked as read.', data);
 });
 
+const leaveSession = asyncHandler(async (req, res) => {
+  const data = await service.leaveSession(req.params.sessionId, req.user.userId);
+  return successResponse(res, 'You have left the CoRide.', data);
+});
+
 const removeParticipant = asyncHandler(async (req, res) => {
   const data = await service.removeParticipant(
     req.params.sessionId,
@@ -114,4 +119,5 @@ module.exports = {
   markCompanyChatAsRead,
   removeParticipant,
   getSessionWithParticipants,
+  leaveSession,
 };
