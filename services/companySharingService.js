@@ -349,10 +349,25 @@ const sendCompanyChatMessage = async (sessionId, senderId, message_text) => {
      RETURNING *`,
     [sessionId, senderId, message_text]
   );
-  return result.rows[0];
+
+  const message = result.rows[0];
+
+  const userRes = await rideDb.query(
+    `SELECT first_name, last_name FROM users WHERE user_id = $1`,
+    [senderId]
+  );
+  const senderName = userRes.rows[0]
+    ? `${userRes.rows[0].first_name} ${userRes.rows[0].last_name}`
+    : 'User';
+
+  return {
+    ...message,
+    sender_name: senderName,
+    is_mine: true,
+  };
 };
 
-const fetchCompanyChatMessages = async (sessionId) => {
+const fetchCompanyChatMessages = async (sessionId, userId) => {
   const result = await rideDb.query(
     `SELECT cc.*, u.first_name, u.last_name, u.university_email
      FROM company_chats cc
@@ -361,7 +376,12 @@ const fetchCompanyChatMessages = async (sessionId) => {
      ORDER BY cc.sent_at ASC`,
     [sessionId]
   );
-  return result.rows;
+
+  return result.rows.map((row) => ({
+    ...row,
+    sender_name: `${row.first_name} ${row.last_name}`,
+    is_mine: String(row.sender_id) === String(userId),
+  }));
 };
 
 const markCompanyChatAsRead = async (sessionId, userId) => {
