@@ -364,6 +364,17 @@ const fetchCompanyChatMessages = async (sessionId) => {
   return result.rows;
 };
 
+const markCompanyChatAsRead = async (sessionId, userId) => {
+  const upsertQuery = `
+    INSERT INTO company_chat_reads (session_id, user_id, last_read_at)
+    VALUES ($1, $2, CURRENT_TIMESTAMP)
+    ON CONFLICT (session_id, user_id)
+    DO UPDATE SET last_read_at = CURRENT_TIMESTAMP
+  `;
+  await rideDb.query(upsertQuery, [sessionId, userId]);
+  return { success: true };
+};
+
 const removeParticipant = async (sessionId, creatorId, participantUserId) => {
   // Creator কিনা check
   const sessionRes = await rideDb.query(
@@ -480,6 +491,7 @@ module.exports = {
   searchSessions,
   sendCompanyChatMessage,
   fetchCompanyChatMessages,
+  markCompanyChatAsRead,
   removeParticipant,
   getSessionWithParticipants,
 };
