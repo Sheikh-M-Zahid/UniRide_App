@@ -106,6 +106,7 @@ module.exports = {
   searchSessions,
   sendCompanyChatMessage,
   fetchCompanyChatMessages,
+  markCompanyChatAsRead,
   removeParticipant,
   getSessionWithParticipants,
 };
