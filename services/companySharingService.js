@@ -7,6 +7,8 @@ const { safeDistanceKm } = require('../utils/geo');
 const admin = require('../config/firebase');
 const { emitCompanyChatMessage, isUserOnline } = require('../utils/companyChatRealtime');
 const { isUserViewingSession } = require('../utils/coRideChatPresence');
+const activeRideGuardService = require('./activeRideGuardService');
+const safetyCheckService = require('./safetyCheckService');
 
 // ── CoRide চ্যাট push notification (যদি রিসিভার সেই চ্যাট স্ক্রিনে না থাকে) ──
 const sendChatPushNotification = async (recipientId, senderName, messageText, sessionId) => {
@@ -45,6 +47,8 @@ const sendChatPushNotification = async (recipientId, senderName, messageText, se
 const NOTIFY_RADIUS_KM = 2;
 
 const createSession = async (userId, payload) => {
+  await activeRideGuardService.assertNoActiveRideConflict(userId);
+
   const {
     start_location,
     destination,
@@ -191,6 +195,8 @@ const getMyActiveSession = async (userId) => {
 };
 
 const joinSession = async (sessionId, userId) => {
+  await activeRideGuardService.assertNoActiveRideConflict(userId);
+
   // Already joined check
   const existing = await rideDb.query(
     `SELECT id FROM company_participants WHERE session_id = $1 AND user_id = $2`,
@@ -280,16 +286,107 @@ const joinSession = async (sessionId, userId) => {
   return participant.rows[0];
 };
 
-const cancelSession = async (sessionId, userId) => {
-  const result = await rideDb.query(
-    `UPDATE company_sharing_sessions
-     SET status = 'Cancelled'
-     WHERE session_id = $1 AND created_by = $2
-     RETURNING *`,
-    [sessionId, userId]
+const cancelSession = async (sessionId, userId, { currentLat, currentLng } = {}) => {
+  const sessionRes = await rideDb.query(
+    `SELECT * FROM company_sharing_sessions WHERE session_id = $1`,
+    [sessionId]
   );
-  if (result.rowCount === 0) throw new Error('Session not found or unauthorized.');
-  return result.rows[0];
+  if (sessionRes.rowCount === 0) throw new Error('Session not found.');
+  const session = sessionRes.rows[0];
+
+  if (String(session.created_by) !== String(userId)) {
+    throw new Error('Only the host can close this CoRide.');
+  }
+  if (session.status !== 'Active') {
+    throw new Error('This CoRide is already closed.');
+  }
+
+  let newStatus;
+  let needsSafetyCheck = false;
+
+  if (!session.is_started) {
+    newStatus = 'Cancelled';
+  } else {
+    let progress = null;
+    if (
+      currentLat != null && currentLng != null &&
+      session.destination_lat && session.destination_lng && session.route_distance_km
+    ) {
+      const remainingKm = safeDistanceKm(
+        Number(currentLat), Number(currentLng),
+        Number(session.destination_lat), Number(session.destination_lng)
+      );
+      if (remainingKm !== null) {
+        const traveledKm = Math.max(0, Number(session.route_distance_km) - remainingKm);
+        progress = (traveledKm / Number(session.route_distance_km)) * 100;
+      }
+    }
+    newStatus = (progress !== null && progress >= 50) ? 'Completed' : 'Cancelled';
+    needsSafetyCheck = true;
+  }
+
+  const updated = await rideDb.query(
+    `UPDATE company_sharing_sessions
+     SET status = $1, closed_at = CURRENT_TIMESTAMP, closed_reason = $2,
+         current_lat = COALESCE($3, current_lat), current_lng = COALESCE($4, current_lng)
+     WHERE session_id = $5
+     RETURNING *`,
+    [
+      newStatus,
+      newStatus === 'Completed' ? 'manual_completed' : 'manual_cancelled',
+      currentLat ?? null,
+      currentLng ?? null,
+      sessionId,
+    ]
+  );
+  const finalSession = updated.rows[0];
+
+  const participants = await rideDb.query(
+    `SELECT user_id FROM company_participants WHERE session_id = $1 AND confirmed = TRUE`,
+    [sessionId]
+  );
+
+  const statusLabelBn = newStatus === 'Completed' ? 'সম্পন্ন হয়েছে' : 'বাতিল হয়েছে';
+
+  await createNotification({
+    userId: session.created_by,
+    title: `CoRide ${newStatus}`,
+    message: `Your CoRide trip ${statusLabelBn}।`,
+    type: 'co_ride',
+    isImportant: true,
+    targetRole: 'passenger',
+    relatedId: String(sessionId),
+  });
+
+  for (const p of participants.rows) {
+    await createNotification({
+      userId: p.user_id,
+      title: `CoRide ${newStatus}`,
+      message: `Your CoRide trip ${statusLabelBn}।`,
+      type: 'co_ride',
+      isImportant: true,
+      targetRole: 'passenger',
+      relatedId: String(sessionId),
+    });
+  }
+
+  const { emitCoRideStatusChange } = require('../utils/coRideEmitter');
+  emitCoRideStatusChange(sessionId, { status: newStatus });
+
+  if (needsSafetyCheck) {
+    await safetyCheckService.createSafetyCheck({
+      sessionId, rideType: 'coride',
+      recipientUserId: session.created_by, recipientRole: 'host',
+    });
+    for (const p of participants.rows) {
+      await safetyCheckService.createSafetyCheck({
+        sessionId, rideType: 'coride',
+        recipientUserId: p.user_id, recipientRole: 'participant',
+      });
+    }
+  }
+
+  return finalSession;
 };
 
 const startSession = async (sessionId, userId) => {
@@ -349,10 +446,15 @@ const getLiveLocation = async (sessionId) => {
     [sessionId]
   );
   if (result.rowCount === 0) throw new Error('Session not found.');
-  return result.rows[0];
+  const session = result.rows[0];
+  return {
+    ...session,
+    is_active: session.status === 'Active',
+    can_track_live: session.status === 'Active' && session.is_started === true,
+  };
 };
 
-const listSessions = async (userId) => {
+const getMyActiveSession = async (userId) => {
   const result = await rideDb.query(
     `SELECT css.*, u.first_name, u.last_name, u.university_email,
             (css.total_seats - css.booked_seats) AS available_seats
@@ -573,6 +675,8 @@ const getSessionWithParticipants = async (sessionId, userId) => {
     ...session,
     confirmed_participants: participantsRes.rows,
     is_creator: String(session.created_by) === String(userId),
+    is_active: session.status === 'Active',
+    can_track_live: session.status === 'Active' && session.is_started === true,
   };
 };
 
@@ -598,13 +702,21 @@ const searchSessions = async (userId, { pickupLat, pickupLng, destLat, destLng }
     [userId]
   );
 
-  return coRideRecommendationService.searchMatchingSessions({
+  const ranked = await coRideRecommendationService.searchMatchingSessions({
     userId,
     userGender: user.gender,
     userEmail: user.university_email,
     pickupLat, pickupLng, destLat, destLng,
     sessions: sessionsRes.rows,
   });
+
+  const activeCommitment = await activeRideGuardService.getActiveCommitment(userId);
+
+  return ranked.map((s) => ({
+    ...s,
+    bookable: !activeCommitment,
+    hasActiveRide: !!activeCommitment,
+  }));
 };
 
 module.exports = {
