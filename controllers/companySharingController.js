@@ -23,8 +23,12 @@ const joinSession = asyncHandler(async (req, res) => {
 });
 
 const cancelSession = asyncHandler(async (req, res) => {
-  const data = await service.cancelSession(req.params.sessionId, req.user.userId);
-  return successResponse(res, 'Session cancelled.', data);
+  const { currentLat, currentLng } = req.body || {};
+  const data = await service.cancelSession(req.params.sessionId, req.user.userId, {
+    currentLat, currentLng,
+  });
+  const message = data.status === 'Completed' ? 'Ride marked as completed.' : 'Session cancelled.';
+  return successResponse(res, message, data);
 });
 
 const startSession = asyncHandler(async (req, res) => {
