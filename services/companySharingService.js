@@ -120,50 +120,50 @@ const createSession = async (userId, payload) => {
 
   const session = result.rows[0];
 
-  // ── Radius-based notification (২ কিমি এর মধ্যে home_location থাকা user) ──
-  let userQuery = `
-    SELECT user_id, first_name, last_name, gender, home_location_lat, home_location_lng
-    FROM users
-    WHERE user_id != $1
-  `;
-  const params = [userId];
+  // // ── Radius-based notification (২ কিমি এর মধ্যে home_location থাকা user) ──
+  // let userQuery = `
+  //   SELECT user_id, first_name, last_name, gender, home_location_lat, home_location_lng
+  //   FROM users
+  //   WHERE user_id != $1
+  // `;
+  // const params = [userId];
 
-  if (preferred_gender && preferred_gender.toLowerCase() !== 'any') {
-    userQuery += ` AND LOWER(gender) = LOWER($2)`;
-    params.push(preferred_gender);
-  }
+  // if (preferred_gender && preferred_gender.toLowerCase() !== 'any') {
+  //   userQuery += ` AND LOWER(gender) = LOWER($2)`;
+  //   params.push(preferred_gender);
+  // }
 
-  const users = await rideDb.query(userQuery, params);
+  // const users = await rideDb.query(userQuery, params);
 
-  const creatorResult = await rideDb.query(
-    `SELECT first_name, last_name FROM users WHERE user_id = $1`,
-    [userId]
-  );
-  const creator = creatorResult.rows[0];
-  const creatorName = `${creator.first_name} ${creator.last_name}`;
+  // const creatorResult = await rideDb.query(
+  //   `SELECT first_name, last_name FROM users WHERE user_id = $1`,
+  //   [userId]
+  // );
+  // const creator = creatorResult.rows[0];
+  // const creatorName = `${creator.first_name} ${creator.last_name}`;
 
-  const nearbyUsers = (start_lat && start_lng)
-    ? users.rows.filter((u) => {
-        if (!u.home_location_lat || !u.home_location_lng) return true; // location অজানা হলে fallback হিসেবে পাঠাও
-        const dist = safeDistanceKm(
-          Number(start_lat), Number(start_lng),
-          Number(u.home_location_lat), Number(u.home_location_lng)
-        );
-        return dist === null || dist <= NOTIFY_RADIUS_KM;
-      })
-    : users.rows;
+  // const nearbyUsers = (start_lat && start_lng)
+  //   ? users.rows.filter((u) => {
+  //       if (!u.home_location_lat || !u.home_location_lng) return true; // location অজানা হলে fallback হিসেবে পাঠাও
+  //       const dist = safeDistanceKm(
+  //         Number(start_lat), Number(start_lng),
+  //         Number(u.home_location_lat), Number(u.home_location_lng)
+  //       );
+  //       return dist === null || dist <= NOTIFY_RADIUS_KM;
+  //     })
+  //   : users.rows;
 
-  for (const user of nearbyUsers) {
-    await createNotification({
-      userId: user.user_id,
-      title: 'New CoRide Available!',
-      message: `${creatorName} is looking for co-riders from ${start_location} to ${destination}. Fare: ৳${fare_per_person || 'N/A'} per person.`,
-      type: 'co_ride',
-      isImportant: false,
-      targetRole: 'passenger',
-      relatedId: String(session.session_id || session.id),
-    });
-  }
+  // for (const user of nearbyUsers) {
+  //   await createNotification({
+  //     userId: user.user_id,
+  //     title: 'New CoRide Available!',
+  //     message: `${creatorName} is looking for co-riders from ${start_location} to ${destination}. Fare: ৳${fare_per_person || 'N/A'} per person.`,
+  //     type: 'co_ride',
+  //     isImportant: false,
+  //     targetRole: 'passenger',
+  //     relatedId: String(session.session_id || session.id),
+  //   });
+  // }
 
   return session;
 };
