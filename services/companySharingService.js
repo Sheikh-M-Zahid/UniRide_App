@@ -716,7 +716,7 @@ module.exports = {
   startSession,
   updateLiveLocation,
   getLiveLocation,
-  listSessions,
+  listSessions: getMyActiveSession,
   searchSessions,
   sendCompanyChatMessage,
   fetchCompanyChatMessages,
