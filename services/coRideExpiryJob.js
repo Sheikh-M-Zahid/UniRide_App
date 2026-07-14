@@ -31,8 +31,8 @@ const sendReminder = async (session, reminderNumber) => {
   );
   await createNotification({
     userId: session.created_by,
-    title: 'CoRide এখনো শুরু হয়নি',
-    message: `আপনার CoRide (${session.start_location} → ${session.destination}) নির্ধারিত সময় পার হয়ে গেছে কিন্তু এখনো শুরু হয়নি। অনুগ্রহ করে যাত্রা শুরু করুন অথবা বাতিল করুন।`,
+    title: 'CoRide has not started yet.',
+    message: `Your CoRide (${session.start_location} → ${session.destination}) has passed its scheduled start time but has not started yet. Please start the ride or cancel it.`,
     type: 'co_ride',
     isImportant: true,
     targetRole: 'general',
@@ -50,8 +50,8 @@ const autoCloseSession = async (session) => {
 
   await createNotification({
     userId: session.created_by,
-    title: 'CoRide স্বয়ংক্রিয়ভাবে বাতিল হয়েছে',
-    message: 'আপনার কোরাইডটি নির্ধারিত সময়ের পর ২ ঘণ্টা অতিবাহিত হওয়ার পরেও যাত্রা শুরু না করায় রাইডটি স্বয়ংক্রিয়ভাবে ক্লোজ হয়ে গিয়েছে। আপনি আবার নতুন করে শুরু করুন।',
+    title: 'Your CoRide has been automatically canceled.',
+    message: 'Your CoRide was automatically closed because it was not started within 2 hours after the scheduled start time. Please create a new CoRide to begin your journey.',
     type: 'co_ride',
     isImportant: true,
     targetRole: 'general',
@@ -65,8 +65,8 @@ const autoCloseSession = async (session) => {
   for (const p of participants.rows) {
     await createNotification({
       userId: p.user_id,
-      title: 'CoRide বাতিল হয়েছে',
-      message: 'হোস্ট নির্ধারিত সময়ে যাত্রা শুরু না করায় এই CoRide স্বয়ংক্রিয়ভাবে বাতিল হয়ে গেছে।',
+      title: 'Your CoRide has been canceled.',
+      message: 'This CoRide has been automatically canceled because the host did not start the ride at the scheduled time.',
       type: 'co_ride',
       isImportant: true,
       targetRole: 'passenger',
