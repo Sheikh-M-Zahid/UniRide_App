@@ -103,6 +103,7 @@ class _RideOptionsPageState extends State<RideOptionsPage> {
           isAvailable:
           (int.tryParse('${map['available_seats'] ?? 0}') ?? 0) > 0,
           cbfScore: double.tryParse('${map['cbfScore'] ?? 0.5}') ?? 0.5,
+          recommendTier: map['recommendTier']?.toString(),
         );
       }).toList();
       if (!mounted) return;
@@ -941,6 +942,9 @@ class _RideOptionsPageState extends State<RideOptionsPage> {
   }
 
   Widget _buildRideCard(RideOptionModel ride) {
+    final tierColor = _tierBorderColor(ride.recommendTier);
+    final tierLabel = _tierLabel(ride.recommendTier);
+
     return Container(
       key: ValueKey(ride.id),
       margin: const EdgeInsets.only(bottom: 14),
@@ -948,10 +952,13 @@ class _RideOptionsPageState extends State<RideOptionsPage> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: AppColors.border),
+        border: Border.all(
+          color: tierColor ?? AppColors.border,
+          width: tierColor != null ? 2 : 1,
+        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
+            color: (tierColor ?? Colors.black).withOpacity(tierColor != null ? 0.12 : 0.04),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -959,6 +966,26 @@ class _RideOptionsPageState extends State<RideOptionsPage> {
       ),
       child: Column(
         children: [
+          if (tierLabel != null)
+            Align(
+              alignment: Alignment.topRight,
+              child: Container(
+                margin: const EdgeInsets.only(bottom: 8),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(
+                  color: tierColor,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  tierLabel,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ),
           Row(
             children: [
               Stack(
@@ -1591,6 +1618,32 @@ class _RideOptionsPageState extends State<RideOptionsPage> {
         ],
       ),
     );
+  }
+}
+
+Color? _tierBorderColor(String? tier) {
+  switch (tier) {
+    case 'super':
+      return const Color(0xFFF59E0B); // gold
+    case 'great':
+      return const Color(0xFF14B8A6); // teal
+    case 'good':
+      return const Color(0xFF60A5FA); // soft blue
+    default:
+      return null;
+  }
+}
+
+String? _tierLabel(String? tier) {
+  switch (tier) {
+    case 'super':
+      return '⭐ Super Recommended';
+    case 'great':
+      return 'Great Match';
+    case 'good':
+      return 'Good Match';
+    default:
+      return null;
   }
 }
 

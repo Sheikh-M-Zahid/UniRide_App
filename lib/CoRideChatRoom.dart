@@ -67,6 +67,9 @@ class _CoRideChatRoomPageState extends State<CoRideChatRoomPage> {
 
   @override
   void dispose() {
+    _socket?.emit('leave_company_session', {
+      'sessionId': widget.post.sessionId,
+    });
     _pollTimer?.cancel();
     _socket?.dispose();
     messageController.dispose();
@@ -160,22 +163,33 @@ class _CoRideChatRoomPageState extends State<CoRideChatRoomPage> {
         });
       }
 
+
       final response = await _api.getCoRideChatMessages(
         sessionId: widget.post.sessionId,
       );
 
+
       final List<dynamic> list = response['data'] ?? [];
+
 
       final loadedMessages = list
           .map((e) => CoRideMessage.fromJson(e as Map<String, dynamic>))
           .map(
             (msg) => msg.copyWith(
           time: _formatServerTime(msg.time),
+          statusTime: _formatServerTime(msg.statusTime),
         ),
       )
           .toList();
 
+
       if (!mounted) return;
+
+      final hasNewMessages = loadedMessages.length != messages.length ||
+          (loadedMessages.isNotEmpty &&
+              messages.isNotEmpty &&
+              loadedMessages.last.id != messages.last.id);
+
 
       setState(() {
         hasAccess = true;
@@ -184,15 +198,21 @@ class _CoRideChatRoomPageState extends State<CoRideChatRoomPage> {
         loadError = null;
       });
 
+
       await _api.markCoRideChatAsRead(sessionId: widget.post.sessionId);
-      _scrollToBottom();
+
+      if (!silent || hasNewMessages) {
+        _scrollToBottom();
+      }
     } catch (e) {
       if (!mounted) return;
+
 
       final text = e.toString().toLowerCase();
       final denied = text.contains('not allowed') ||
           text.contains('cannot access') ||
           text.contains('you are not allowed');
+
 
       setState(() {
         hasAccess = !denied ? hasAccess : false;
@@ -320,11 +340,12 @@ class _CoRideChatRoomPageState extends State<CoRideChatRoomPage> {
     );
   }
 
-  Widget _buildMessageBubble(CoRideMessage msg) {
+  Widget _buildMessageBubble(CoRideMessage msg, {bool isLast = false}) {
     final alignment =
     msg.isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start;
     final bubbleColor = msg.isMine ? AppColors.primary : Colors.white;
     final textColor = msg.isMine ? Colors.white : AppColors.text;
+
 
     return Column(
       crossAxisAlignment: alignment,
@@ -342,7 +363,7 @@ class _CoRideChatRoomPageState extends State<CoRideChatRoomPage> {
             ),
           ),
         Container(
-          margin: const EdgeInsets.only(bottom: 12),
+          margin: const EdgeInsets.only(bottom: 4),
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           constraints: const BoxConstraints(maxWidth: 280),
           decoration: BoxDecoration(
@@ -380,6 +401,26 @@ class _CoRideChatRoomPageState extends State<CoRideChatRoomPage> {
             ],
           ),
         ),
+        if (isLast && msg.isMine)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 12, right: 4),
+            child: Text(
+              msg.status == 'seen'
+                  ? (msg.statusTime.isNotEmpty
+                  ? 'Seen ${msg.statusTime}'
+                  : 'Seen')
+                  : msg.status == 'delivered'
+                  ? 'Delivered'
+                  : 'Sent',
+              style: const TextStyle(
+                color: AppColors.mutedText,
+                fontSize: 11,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          )
+        else
+          const SizedBox(height: 8),
       ],
     );
   }
@@ -554,16 +595,28 @@ class _CoRideChatRoomPageState extends State<CoRideChatRoomPage> {
                 itemCount: messages.length,
                 itemBuilder: (context, index) {
                   final msg = messages[index];
+                  final isLast = index == messages.length - 1;
                   return Align(
                     alignment: msg.isMine
                         ? Alignment.centerRight
                         : Alignment.centerLeft,
-                    child: _buildMessageBubble(msg),
+                    child: _buildMessageBubble(msg, isLast: isLast),
                   );
                 },
               ),
             ),
-            _buildInputBox(),
+            widget.post.isActive
+                ? _buildInputBox()
+                : Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(14),
+              color: const Color(0xFFF3F4F6),
+              child: const Text(
+                'This CoRide has been closed. You can view previous messages, but you can no longer send new ones.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Color(0xFF6B7280), fontSize: 12.5),
+              ),
+            ),
           ],
         ),
       ),

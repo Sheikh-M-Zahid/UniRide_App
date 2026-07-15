@@ -26,6 +26,7 @@ class RideOptionModel {
   final bool isAvailable;
   final String driverGender;
   final double cbfScore;
+  final String? recommendTier;
 
   const RideOptionModel({
     required this.id,
@@ -43,6 +44,7 @@ class RideOptionModel {
     this.isAvailable = true,
     this.driverGender = '',
     this.cbfScore = 0.5,
+    this.recommendTier,
   });
 
   factory RideOptionModel.fromJson(Map<String, dynamic> json) {
@@ -62,6 +64,7 @@ class RideOptionModel {
       isAvailable: json['isAvailable'] == true,
       driverGender: json['driverGender']?.toString() ?? '',
       cbfScore: (json['cbfScore'] ?? 0.5).toDouble(),
+      recommendTier: json['recommendTier']?.toString(),
     );
   }
 }

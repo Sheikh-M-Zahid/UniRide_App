@@ -238,56 +238,123 @@ class _CoRideSearchPageState extends State<CoRideSearchPage> {
   Widget _buildResultCard(dynamic session) {
     final name = '${session['first_name'] ?? ''} ${session['last_name'] ?? ''}'.trim();
     final isFrequent = session['isFrequentPartner'] == true;
-    final score = (session['coRideScore'] ?? 0).toDouble();
+    final int rank = (session['rank'] is int)
+        ? session['rank']
+        : int.tryParse(session['rank']?.toString() ?? '') ?? 0;
+    final bool isTop = session['isTopRecommendation'] == true;
+    final bool bookable = session['bookable'] != false;
+    final double? pickupKm = (session['pickupDistanceKm'] as num?)?.toDouble();
+    final double? destKm = (session['destDistanceKm'] as num?)?.toDouble();
+
+    Color borderColor = AppColors.border;
+    double borderWidth = 1;
+    Color? badgeColor;
+    if (rank == 1) {
+      borderColor = const Color(0xFFF59E0B);
+      borderWidth = 2.2;
+      badgeColor = const Color(0xFFF59E0B);
+    } else if (rank == 2) {
+      borderColor = const Color(0xFF94A3B8);
+      borderWidth = 2;
+      badgeColor = const Color(0xFF94A3B8);
+    }
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      margin: const EdgeInsets.only(bottom: 12, top: 6),
+      child: Stack(
+        clipBehavior: Clip.none,
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(name.isEmpty ? 'Rider' : name,
-                    style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
-              ),
-              if (isFrequent)
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFFFFBEB),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: const Color(0xFFFDE68A)),
-                  ),
-                  child: const Text('তোমার নিয়মিত সঙ্গী',
-                      style: TextStyle(fontSize: 10.5, color: Color(0xFFB45309), fontWeight: FontWeight.w700)),
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: borderColor, width: borderWidth),
+              boxShadow: isTop
+                  ? [BoxShadow(color: borderColor.withOpacity(0.25), blurRadius: 10, offset: const Offset(0, 4))]
+                  : null,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(name.isEmpty ? 'Rider' : name,
+                          style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
+                    ),
+                    if (isFrequent)
+                      Container(
+                        margin: const EdgeInsets.only(left: 6),
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFFFBEB),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: const Color(0xFFFDE68A)),
+                        ),
+                        child: const Text('Your trusted travel companion',
+                            style: TextStyle(fontSize: 10.5, color: Color(0xFFB45309), fontWeight: FontWeight.w700)),
+                      ),
+                  ],
                 ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Text('${session['start_location']} → ${session['destination']}',
-              style: const TextStyle(fontSize: 13, color: AppColors.text)),
-          const SizedBox(height: 6),
-          Text('Fare: ৳${session['fare_per_person'] ?? 'N/A'} · Seats left: ${session['available_seats'] ?? 0}',
-              style: const TextStyle(fontSize: 12.5, color: AppColors.mutedText)),
-          const SizedBox(height: 12),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: () => _bookSession(session['session_id'].toString()),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              ),
-              child: const Text('Book', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+                const SizedBox(height: 8),
+                Text('${session['start_location']} → ${session['destination']}',
+                    style: const TextStyle(fontSize: 13, color: AppColors.text)),
+                const SizedBox(height: 6),
+                Text('Fare: ৳${session['fare_per_person'] ?? 'N/A'} · Seats left: ${session['available_seats'] ?? 0}',
+                    style: const TextStyle(fontSize: 12.5, color: AppColors.mutedText)),
+                if (pickupKm != null || destKm != null) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    [
+                      if (pickupKm != null) 'From you ${pickupKm.toStringAsFixed(1)} km',
+                      if (destKm != null) 'You moved ${destKm.toStringAsFixed(2)} km away from the destination',
+                    ].join(' · '),
+                    style: const TextStyle(fontSize: 11.5, color: AppColors.mutedText),
+                  ),
+                ],
+                if (!bookable) ...[
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(color: const Color(0xFFFEF2F2), borderRadius: BorderRadius.circular(10)),
+                    child: const Text(
+                      'You are already in an active Ride/CoRide. Please cancel it before booking a new one.',
+                      style: TextStyle(fontSize: 11.5, color: Color(0xFFB91C1C)),
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: bookable ? () => _bookSession(session['session_id'].toString()) : null,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: bookable ? AppColors.primary : Colors.grey.shade400,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                    child: Text(bookable ? 'Book' : 'Not Available',
+                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+                  ),
+                ),
+              ],
             ),
           ),
+          if (badgeColor != null)
+            Positioned(
+              top: -10,
+              right: 14,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(
+                  color: badgeColor,
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: [BoxShadow(color: badgeColor.withOpacity(0.4), blurRadius: 6, offset: const Offset(0, 2))],
+                ),
+                child: Text('#$rank super',
+                    style: const TextStyle(fontSize: 11, color: Colors.white, fontWeight: FontWeight.w800)),
+              ),
+            ),
         ],
       ),
     );

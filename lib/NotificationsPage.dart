@@ -6,6 +6,7 @@ import 'services/auth_api_service.dart';
 import 'RideRequestPopup.dart';
 import 'UserOffer.dart';
 import 'RiderOffers.dart';
+import 'SafetyCheckResponsePopup.dart';
 
 class AppColors {
   static const Color primary = Color(0xFF14B8A6);
@@ -39,6 +40,7 @@ enum NotificationType {
   verification,
   safety,
   booking,
+  safetyCheck,
   general,
 }
 
@@ -145,6 +147,9 @@ NotificationType _notificationTypeFromString(String value) {
       return NotificationType.verification;
     case 'safety':
       return NotificationType.safety;
+    case 'safety_check':
+    case 'safetycheck':
+      return NotificationType.safetyCheck;
     case 'booking':
       return NotificationType.booking;
     case 'ride_available':
@@ -468,6 +473,15 @@ class _NotificationsPageState extends State<NotificationsPage> {
       return;
     }
 
+    if (item.type == NotificationType.safetyCheck && item.relatedId != null) {
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => SafetyCheckResponsePopup(checkId: item.relatedId!),
+      );
+      return;
+    }
+
     if (item.type == NotificationType.coRide && item.relatedId != null) {
       showDialog(
         context: context,
@@ -542,6 +556,8 @@ class _NotificationsPageState extends State<NotificationsPage> {
         return Icons.verified_user_outlined;
       case NotificationType.safety:
         return Icons.shield_outlined;
+      case NotificationType.safetyCheck:
+        return Icons.health_and_safety_outlined;
       case NotificationType.booking:
         return Icons.directions_car_outlined;
       case NotificationType.general:
@@ -562,6 +578,8 @@ class _NotificationsPageState extends State<NotificationsPage> {
         return AppColors.danger;
       case NotificationType.payment:
         return AppColors.info;
+      case NotificationType.safetyCheck:
+        return AppColors.danger;
       case NotificationType.adminNotice:
       case NotificationType.verification:
       case NotificationType.safety:

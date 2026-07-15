@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:geolocator/geolocator.dart';
@@ -91,25 +92,15 @@ class _SharingCaringPageState extends State<SharingCaringPage> {
     try {
       final res = await _authApiService.getMyActiveCoRideSession();
       if (!mounted) return;
-      final sessionData = res['data'];
-      if (sessionData != null) {
-        final sessionId = sessionData['session_id']?.toString() ?? '';
-        if (sessionId.isNotEmpty) {
-          // Participants সহ নতুন API call
-          final detailRes = await _authApiService
-              .getCoRideSessionWithParticipants(sessionId);
-          setState(() => _activeSession = detailRes['data']);
-        } else {
-          setState(() => _activeSession = sessionData);
-        }
 
-        if (_activeSession?['is_started'] == true) {
-          await _startLiveLocationUpdates();
-        }
-      } else {
-        setState(() => _activeSession = null);
+    } catch (e) {
+      debugPrint('Failed to load active CoRide session: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to load the active CoRide: $e')),
+        );
       }
-    } catch (_) {}
+    }
     if (mounted) setState(() => _isLoadingActiveSession = false);
   }
 
@@ -117,16 +108,34 @@ class _SharingCaringPageState extends State<SharingCaringPage> {
     if (_activeSession == null || _isCancellingSession) return;
     setState(() => _isCancellingSession = true);
     try {
-      await _authApiService.cancelCoRideSession(
+      double? lat;
+      double? lng;
+      try {
+        final pos = await Geolocator.getCurrentPosition(
+          desiredAccuracy: LocationAccuracy.high,
+        );
+        lat = pos.latitude;
+        lng = pos.longitude;
+      } catch (_) {
+        // GPS না পেলেও ক্লোজ করা চালিয়ে যাবে; backend তখন সরাসরি Cancelled ধরবে
+      }
+
+      final result = await _authApiService.cancelCoRideSession(
         _activeSession!['session_id'].toString(),
+        currentLat: lat,
+        currentLng: lng,
       );
+
       if (!mounted) return;
+      final newStatus = (result['data']?['status'] ?? 'Cancelled').toString();
       setState(() => _activeSession = null);
       _locationTimer?.cancel();
       _positionSubscription?.cancel();
-      super.dispose();
+
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('CoRide cancelled.')),
+        SnackBar(content: Text(
+          newStatus == 'Completed' ? 'Your CoRide has been marked as completed.' : 'Your CoRide has been canceled.',
+        )),
       );
     } catch (e) {
       if (!mounted) return;
@@ -722,8 +731,20 @@ class _SharingCaringPageState extends State<SharingCaringPage> {
             if (_activeSession != null)
               _buildActiveSessionBanner(),
 
+
             Expanded(
-              child: SingleChildScrollView(
+              child: _activeSession != null
+                  ? Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Text(
+                    'You already have an active CoRide. Please close or cancel it before posting a new one.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: Colors.grey.shade600, height: 1.5),
+                  ),
+                ),
+              )
+                  : SingleChildScrollView(
                 physics: const BouncingScrollPhysics(),
                 padding: const EdgeInsets.all(16),
                 child: Form(

@@ -65,6 +65,8 @@ class CoRidePost {
   final int confirmedSeats;
   final double farePerPerson;
   final String note;
+  final String status; // 'Active' | 'Completed' | 'Cancelled'
+
 
   // Members
   final List<CoRideMember> confirmedMembers;
@@ -86,6 +88,7 @@ class CoRidePost {
     required this.confirmedSeats,
     required this.farePerPerson,
     required this.note,
+    this.status = 'Active',
     required this.confirmedMembers,
   });
 
@@ -101,6 +104,7 @@ class CoRidePost {
   }
 
   bool get isFull => seatsLeft <= 0;
+  bool get isActive => status == 'Active';
 
   CoRidePost copyWith({
     String? id,
@@ -119,6 +123,7 @@ class CoRidePost {
     int? confirmedSeats,
     double? farePerPerson,
     String? note,
+    String? status,
     List<CoRideMember>? confirmedMembers,
   }) {
     return CoRidePost(
@@ -138,6 +143,7 @@ class CoRidePost {
       confirmedSeats: confirmedSeats ?? this.confirmedSeats,
       farePerPerson: farePerPerson ?? this.farePerPerson,
       note: note ?? this.note,
+      status: status ?? this.status,
       confirmedMembers: confirmedMembers ?? this.confirmedMembers,
     );
   }
@@ -213,6 +219,7 @@ class CoRidePost {
         0,
       ),
       note: (json['note'] ?? '').toString(),
+      status: (json['status'] ?? 'Active').toString(),
       confirmedMembers: members,
     );
   }
@@ -265,6 +272,9 @@ class CoRideMessage {
   final String text;
   final String time;
   final bool isMine;
+  final String? status; // 'sent' | 'delivered' | 'seen'
+  final String statusTime;
+
 
   const CoRideMessage({
     required this.id,
@@ -273,7 +283,10 @@ class CoRideMessage {
     required this.text,
     required this.time,
     required this.isMine,
+    this.status,
+    this.statusTime = '',
   });
+
 
   factory CoRideMessage.fromJson(Map<String, dynamic> json) {
     return CoRideMessage(
@@ -284,8 +297,11 @@ class CoRideMessage {
       text: (json['text'] ?? json['message_text'] ?? '').toString(),
       time: (json['time'] ?? json['sent_at'] ?? '').toString(),
       isMine: json['isMine'] == true || json['is_mine'] == true,
+      status: json['status']?.toString(),
+      statusTime: (json['statusTime'] ?? json['status_time'] ?? '').toString(),
     );
   }
+
 
   CoRideMessage copyWith({
     String? id,
@@ -294,6 +310,8 @@ class CoRideMessage {
     String? text,
     String? time,
     bool? isMine,
+    String? status,
+    String? statusTime,
   }) {
     return CoRideMessage(
       id: id ?? this.id,
@@ -302,6 +320,8 @@ class CoRideMessage {
       text: text ?? this.text,
       time: time ?? this.time,
       isMine: isMine ?? this.isMine,
+      status: status ?? this.status,
+      statusTime: statusTime ?? this.statusTime,
     );
   }
 }

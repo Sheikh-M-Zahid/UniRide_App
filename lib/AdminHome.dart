@@ -15,6 +15,7 @@ import 'AdminPaymentApproval.dart';
 import 'AdminReportsPage.dart';
 import 'RiderVerifyByAdmin.dart';
 import 'FareManagementPage.dart';
+import 'AdminSafetyReportsPage.dart';
 import 'package:uni_ride/Adminalumnireviewpage.dart';
 
 class AdminDashboard extends StatefulWidget {
@@ -372,6 +373,19 @@ class _AdminDashboardState extends State<AdminDashboard>
                   context,
                   MaterialPageRoute(
                       builder: (context) => const RiderVerifyByAdmin()),
+                );
+              },
+            ),
+
+            ListTile(
+              title: const Text("Admin Safety Reports",
+                  style: TextStyle(color: Colors.white)),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                      builder: (context) => const AdminSafetyReportsPage()),
                 );
               },
             ),

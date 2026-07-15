@@ -4,9 +4,11 @@ import 'UserOffer.dart';
 import 'UserHome.dart';
 import 'UserProfile.dart';
 import 'UserServices.dart';
+import 'package:geolocator/geolocator.dart';
 import 'CoRideChatRoom.dart';
 import 'CoRideModels.dart';
 import 'PassengerLiveMapPage.dart';
+import 'CoRideLiveMapPage.dart';
 
 class AppColors {
   static const Color primary = Color(0xFF14B8A6);
@@ -284,8 +286,13 @@ class _ActivityPageState extends State<ActivityPage> {
   Widget _buildActivityCard(Map<String, dynamic> item) {
     final type = item['item_type']?.toString() ?? 'ride';
     final status = item['status']?.toString() ?? 'Pending';
+    final isCoRideType = type == 'coride' || type == 'coride_creator';
+    final isClosedCoRide = isCoRideType && status.toLowerCase() != 'active';
 
-    return Container(
+
+    return Opacity(
+        opacity: isClosedCoRide ? 0.55 : 1.0,
+        child: Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
@@ -420,6 +427,7 @@ class _ActivityPageState extends State<ActivityPage> {
                               item['fare']?.toString() ?? '0') ??
                               0,
                           note: '',
+                          status: item['status']?.toString() ?? 'Active',
                           confirmedMembers: const [],
                         ),
                         currentUserId: '',
@@ -446,7 +454,9 @@ class _ActivityPageState extends State<ActivityPage> {
             SizedBox(
               width: double.infinity,
               child: OutlinedButton.icon(
-                onPressed: () {
+                onPressed: isClosedCoRide
+                    ? null
+                    : () {
                   final sessionId =
                       item['session_id']?.toString() ?? '';
                   if (sessionId.isEmpty) return;
@@ -465,14 +475,36 @@ class _ActivityPageState extends State<ActivityPage> {
                 icon: const Icon(Icons.map_outlined, size: 16),
                 label: const Text('Live Map'),
                 style: OutlinedButton.styleFrom(
-                  side: const BorderSide(color: Color(0xFF0F766E)),
-                  foregroundColor: const Color(0xFF0F766E),
+                  side: BorderSide(color: isClosedCoRide ? Colors.grey : const Color(0xFF0F766E)),
+                  foregroundColor: isClosedCoRide ? Colors.grey : const Color(0xFF0F766E),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(10),
                   ),
                 ),
               ),
             ),
+
+            if (!isClosedCoRide && item['is_started'] != true) ...[
+              const SizedBox(height: 8),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: () => _leaveCoRideFromActivity(
+                    item['session_id']?.toString() ?? '',
+                  ),
+                  icon: const Icon(Icons.exit_to_app, size: 16),
+                  label: const Text('Leave CoRide'),
+                  style: OutlinedButton.styleFrom(
+                    side: const BorderSide(color: Colors.red),
+                    foregroundColor: Colors.red,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+
 
             // ─────────────────────────────────────
             // CORIDE — CREATOR (MY POST)
@@ -548,6 +580,7 @@ class _ActivityPageState extends State<ActivityPage> {
                               item['fare']?.toString() ?? '0') ??
                               0,
                           note: '',
+                          status: item['status']?.toString() ?? 'Active',
                           confirmedMembers: const [],
                         ),
                         currentUserId: '',
@@ -568,8 +601,100 @@ class _ActivityPageState extends State<ActivityPage> {
                 ),
               ),
             ),
-            // creator এর জন্য Live Map নেই
-            // (creator নিজেই SharingCaringPage থেকে map open করে)
+            if (!isClosedCoRide) ...[
+              const SizedBox(height: 8),
+              if (item['is_started'] != true) ...[
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: () => _startJourneyFromActivity(
+                          item['session_id']?.toString() ?? '',
+                        ),
+                        icon: const Icon(Icons.play_arrow, size: 16),
+                        label: const Text('Start Journey'),
+                        style: OutlinedButton.styleFrom(
+                          side: const BorderSide(color: Color(0xFF16A34A)),
+                          foregroundColor: const Color(0xFF16A34A),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: () => _closeRideFromActivity(
+                          item['session_id']?.toString() ?? '',
+                        ),
+                        icon: const Icon(Icons.close, size: 16),
+                        label: const Text('Cancel Ride'),
+                        style: OutlinedButton.styleFrom(
+                          side: const BorderSide(color: Colors.red),
+                          foregroundColor: Colors.red,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ] else ...[
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: () {
+                          final sessionId =
+                              item['session_id']?.toString() ?? '';
+                          if (sessionId.isEmpty) return;
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => CoRideLiveMapPage(
+                                sessionId: sessionId,
+                                isHost: true,
+                                destination: item['destination'] ?? '',
+                                otherPartyName: 'Co-Riders',
+                              ),
+                            ),
+                          );
+                        },
+                        icon: const Icon(Icons.map_outlined, size: 16),
+                        label: const Text('Live Map'),
+                        style: OutlinedButton.styleFrom(
+                          side: const BorderSide(color: Color(0xFF0F766E)),
+                          foregroundColor: const Color(0xFF0F766E),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: () => _closeRideFromActivity(
+                          item['session_id']?.toString() ?? '',
+                        ),
+                        icon: const Icon(Icons.flag_outlined, size: 16),
+                        label: const Text('Close Ride'),
+                        style: OutlinedButton.styleFrom(
+                          side: const BorderSide(color: Colors.red),
+                          foregroundColor: Colors.red,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ],
+
 
             // ─────────────────────────────────────
             // DEFAULT RIDE
@@ -614,8 +739,10 @@ class _ActivityPageState extends State<ActivityPage> {
           ],
         ],
       ),
+        ),
     );
   }
+
 
   Widget _statusBadge(String status) {
     return Container(
@@ -664,6 +791,87 @@ class _ActivityPageState extends State<ActivityPage> {
         ],
       ),
     );
+  }
+
+  Future<void> _startJourneyFromActivity(String sessionId) async {
+    if (sessionId.isEmpty) return;
+    try {
+      await _authApiService.startCoRideJourney(sessionId);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Journey started!')),
+      );
+      _loadActivityDashboard();
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => CoRideLiveMapPage(
+            sessionId: sessionId,
+            isHost: true,
+            destination: '',
+            otherPartyName: 'Co-Riders',
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
+      );
+    }
+  }
+
+  Future<void> _closeRideFromActivity(String sessionId) async {
+    if (sessionId.isEmpty) return;
+    double? lat;
+    double? lng;
+    try {
+      final pos = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+      );
+      lat = pos.latitude;
+      lng = pos.longitude;
+    } catch (_) {}
+
+    try {
+      final result = await _authApiService.cancelCoRideSession(
+        sessionId,
+        currentLat: lat,
+        currentLng: lng,
+      );
+      if (!mounted) return;
+      final newStatus = (result['data']?['status'] ?? 'Cancelled').toString();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(
+          newStatus == 'Completed'
+              ? 'Your CoRide has been marked as completed.'
+              : 'Your CoRide has been canceled.',
+        )),
+      );
+      _loadActivityDashboard();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
+      );
+    }
+  }
+
+  Future<void> _leaveCoRideFromActivity(String sessionId) async {
+    if (sessionId.isEmpty) return;
+    try {
+      await _authApiService.leaveCoRideSession(sessionId);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('You have left this CoRide.')),
+      );
+      _loadActivityDashboard();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
+      );
+    }
   }
 
   Future<void> _handleCancel(String id) async {

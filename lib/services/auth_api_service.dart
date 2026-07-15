@@ -4673,18 +4673,69 @@ class AuthApiService {
     throw Exception(data['message'] ?? 'Booking failed');
   }
 
-  // CoRide - Cancel My Session
-  Future<Map<String, dynamic>> cancelCoRideSession(String sessionId) async {
+
+  // CoRide - Cancel/Close My Session (GPS পাঠায় যাতে Completed/Cancelled ঠিকমতো ঠিক হয়)
+  Future<Map<String, dynamic>> cancelCoRideSession(
+      String sessionId, {
+        double? currentLat,
+        double? currentLng,
+      }) async {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('token');
     final url = Uri.parse('$baseUrl/company-sharing/$sessionId/cancel');
-    final response = await http.patch(url, headers: {
+    final response = await http.patch(
+      url,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode({'currentLat': currentLat, 'currentLng': currentLng}),
+    );
+    final data = jsonDecode(response.body);
+    if (response.statusCode == 200) return data;
+    throw Exception(data['message'] ?? 'Cancel failed');
+  }
+
+  // Safety-check response
+  Future<Map<String, dynamic>> respondSafetyCheck({
+    required String checkId,
+    required String status,
+    String? message,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+    final url = Uri.parse('$baseUrl/safety-checks/$checkId/respond');
+    final response = await http.patch(
+      url,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode({'status': status, if (message != null) 'message': message}),
+    );
+    final data = jsonDecode(response.body);
+    if (response.statusCode == 200) return data;
+    throw Exception(data['message'] ?? 'Failed to submit response');
+  }
+
+  // Admin - safety check reports
+  Future<Map<String, dynamic>> getAdminSafetyReports({
+    String status = 'all',
+    int page = 1,
+    int limit = 20,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+    final uri = Uri.parse('$baseUrl/admin/safety-checks').replace(
+      queryParameters: {'status': status, 'page': page.toString(), 'limit': limit.toString()},
+    );
+    final response = await http.get(uri, headers: {
       'Content-Type': 'application/json',
       'Authorization': 'Bearer $token',
     });
     final data = jsonDecode(response.body);
     if (response.statusCode == 200) return data;
-    throw Exception(data['message'] ?? 'Cancel failed');
+    throw Exception(data['message'] ?? 'Failed to load safety reports');
   }
 
   // CoRide - Start Journey
@@ -4748,6 +4799,20 @@ class AuthApiService {
     final data = jsonDecode(response.body);
     if (response.statusCode == 200) return data;
     throw Exception(data['message'] ?? 'Failed to load session details');
+  }
+
+  // CoRide - Leave (participant নিজে জার্নি-শুরুর-আগে বের হবে)
+  Future<Map<String, dynamic>> leaveCoRideSession(String sessionId) async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+    final url = Uri.parse('$baseUrl/company-sharing/$sessionId/leave');
+    final response = await http.patch(url, headers: {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer $token',
+    });
+    final data = jsonDecode(response.body);
+    if (response.statusCode == 200) return data;
+    throw Exception(data['message'] ?? 'Failed to leave CoRide');
   }
 
 // CoRide - Remove Participant
