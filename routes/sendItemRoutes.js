@@ -43,4 +43,7 @@ router.patch('/:sId/pickup', authMiddleware, sendItemController.pickupItemReques
 router.patch('/:sId/deliver', authMiddleware, sendItemController.deliverItemRequest);
 router.patch('/:sId/cancel', authMiddleware, sendItemController.cancelItemRequest);
 
+router.get('/:sId/rating-status', authMiddleware, sendItemController.checkSendItemRatingStatus);
+router.post('/:sId/rate-rider', authMiddleware, sendItemController.rateRiderForSendItem);
+
 module.exports = router;
