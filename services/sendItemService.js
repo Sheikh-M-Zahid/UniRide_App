@@ -5,6 +5,7 @@ const {
   canAcceptSendItem,
   canPickupSendItem,
   canDeliverSendItem,
+  canRateSendItem,
   validateReceiverEmailInput,
 } = require('../utils/sendItemHelpers');
 
@@ -560,6 +561,78 @@ const cancelItemRequest = async (sId, userId) => {
   return cancelledItem;
 };
 
+// Sender কি এই delivery-র জন্য rider কে rate করেছে কিনা চেক করা
+const checkSendItemRatingStatus = async (sId, userId) => {
+  const result = await rideDb.query(
+    `SELECT sender_id, sender_comfort_rating
+     FROM send_items
+     WHERE s_id = $1
+     LIMIT 1`,
+    [sId]
+  );
+
+  if (result.rowCount === 0) {
+    throw new Error('Send item request not found.');
+  }
+
+  const item = result.rows[0];
+
+  if (String(item.sender_id) !== String(userId)) {
+    throw new Error('Unauthorized.');
+  }
+
+  return { alreadyRated: item.sender_comfort_rating !== null };
+};
+
+// Sender delivered হওয়ার পর rider কে rate করে — rider কখনো কাউকে rate করে না
+const rateRiderForSendItem = async (sId, senderId, rating, note = null) => {
+  const existing = await rideDb.query(
+    `SELECT * FROM send_items WHERE s_id = $1 LIMIT 1`,
+    [sId]
+  );
+
+  if (existing.rowCount === 0) {
+    throw new Error('Send item request not found.');
+  }
+
+  const item = existing.rows[0];
+
+  if (String(item.sender_id) !== String(senderId)) {
+    throw new Error('Unauthorized to rate this delivery.');
+  }
+
+  if (!canRateSendItem(item.status)) {
+    throw new Error('You can only rate after the item is delivered.');
+  }
+
+  if (!item.rider_id) {
+    throw new Error('No rider assigned to this delivery.');
+  }
+
+  if (item.sender_comfort_rating !== null) {
+    throw new Error('You have already rated this delivery.');
+  }
+
+  const numericRating = Number(rating);
+  if (!numericRating || numericRating < 1 || numericRating > 5) {
+    throw new Error('Rating must be between 1 and 5.');
+  }
+
+  const updated = await rideDb.query(
+    `UPDATE send_items
+     SET sender_comfort_rating = $1,
+         rider_rating_note = $2
+     WHERE s_id = $3
+     RETURNING *`,
+    [numericRating, note, sId]
+  );
+
+  // rider এর overall app rating আপডেট — ride rating এর মতোই একই shared DB function ব্যবহার করা হচ্ছে
+  await rideDb.query(`SELECT update_user_rating($1, $2)`, [item.rider_id, numericRating]);
+
+  return updated.rows[0];
+};
+
 module.exports = {
   validateReceiver,
   createSendItemRequest,
@@ -572,4 +645,6 @@ module.exports = {
   pickupItemRequest,
   deliverItemRequest,
   cancelItemRequest,
+  checkSendItemRatingStatus,
+  rateRiderForSendItem,
 };
