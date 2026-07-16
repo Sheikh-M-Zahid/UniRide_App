@@ -525,6 +525,8 @@ const updateCurrentLocation = async ({ userId, body }) => {
 };
 
 module.exports = {
+  getCurrentActiveRide,
+  cancelCurrentRide,
   getActiveRideSetupData,
   getRouteAlternatives,
   activateRide,
