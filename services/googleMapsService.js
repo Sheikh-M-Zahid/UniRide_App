@@ -137,6 +137,53 @@ const computeRoute = async ({
   };
 };
 
+const computeRouteAlternatives = async ({
+  originLat,
+  originLng,
+  destinationLat,
+  destinationLng,
+  travelMode = 'DRIVE',
+}) => {
+  ensureApiKey();
+
+  const url = `${GOOGLE_ROUTES_API_URL}/directions/v2:computeRoutes`;
+
+  const response = await axios.post(
+    url,
+    {
+      origin: { location: { latLng: { latitude: originLat, longitude: originLng } } },
+      destination: { location: { latLng: { latitude: destinationLat, longitude: destinationLng } } },
+      travelMode,
+      routingPreference: 'TRAFFIC_AWARE',
+      computeAlternativeRoutes: true,
+      languageCode: 'en',
+      units: 'METRIC',
+    },
+    {
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Goog-Api-Key': GOOGLE_MAPS_API_KEY,
+        'X-Goog-FieldMask':
+          'routes.distanceMeters,routes.duration,routes.polyline.encodedPolyline',
+      },
+      timeout: 15000,
+    }
+  );
+
+  const routes = response.data?.routes || [];
+  if (!routes.length) {
+    throw new Error('No routes found.');
+  }
+
+  return routes.map((route, index) => ({
+    routeIndex: index,
+    isDefault: index === 0,
+    distanceKm: Number((route.distanceMeters / 1000).toFixed(2)),
+    durationMinutes: Math.max(1, Math.round(parseDurationSeconds(route.duration) / 60)),
+    polyline: route.polyline?.encodedPolyline || null,
+  }));
+};
+
 const computeRouteMatrix = async ({
   origin,
   destinations,
@@ -210,5 +257,6 @@ module.exports = {
   geocodeAddress,
   reverseGeocode,
   computeRoute,
+  computeRouteAlternatives,
   computeRouteMatrix,
 };
