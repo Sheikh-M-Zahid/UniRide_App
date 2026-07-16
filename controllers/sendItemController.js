@@ -126,6 +126,33 @@ const cancelItemRequest = asyncHandler(async (req, res) => {
   }
 });
 
+const checkSendItemRatingStatus = asyncHandler(async (req, res) => {
+  try {
+    const data = await sendItemService.checkSendItemRatingStatus(
+      req.params.sId,
+      req.user.userId
+    );
+    return successResponse(res, 'Rating status fetched.', data);
+  } catch (error) {
+    return errorResponse(res, error.message, 400);
+  }
+});
+
+const rateRiderForSendItem = asyncHandler(async (req, res) => {
+  try {
+    const { rating, note } = req.body;
+    const data = await sendItemService.rateRiderForSendItem(
+      req.params.sId,
+      req.user.userId,
+      rating,
+      note
+    );
+    return successResponse(res, 'Rider rated successfully.', data);
+  } catch (error) {
+    return errorResponse(res, error.message, 400);
+  }
+});
+
 module.exports = {
   validateReceiver,
   createSendItemRequest,
@@ -138,4 +165,6 @@ module.exports = {
   pickupItemRequest,
   deliverItemRequest,
   cancelItemRequest,
+  checkSendItemRatingStatus,
+  rateRiderForSendItem,
 };
