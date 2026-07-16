@@ -1,4 +1,5 @@
 const rideDb = require('../config/rideDb');
+const { sortOffersByUcb, logOffersShown } = require('../utils/banditUtils');
 
 /**
  * Rider এর জন্য সব offer আনে।
@@ -6,7 +7,7 @@ const rideDb = require('../config/rideDb');
  * Active + Expired দুটোই return করে।
  * Frontend এ active/expired badge দিয়ে আলাদা করা হয়।
  */
-const getOffersForRider = async () => {
+const getOffersForRider = async (userId = null) => {
   const result = await rideDb.query(
     `SELECT
         offer_id,
@@ -27,7 +28,14 @@ const getOffersForRider = async () => {
         created_at DESC`
   );
 
-  return result.rows;
+  // rider আলাদা arm_type ('promo_rider') — passenger থেকে আলাদা audience
+  const sorted = await sortOffersByUcb(result.rows, 'promo_rider');
+
+  logOffersShown(userId, sorted, 'promo_rider').catch((err) =>
+    console.error('shown logging failed:', err.message)
+  );
+
+  return sorted;
 };
 
 module.exports = {
