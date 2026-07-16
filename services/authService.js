@@ -218,15 +218,15 @@ const login = async (email, password) => {
 
   const user = result.rows[0];
 
-  if (user.account_status === 'Suspended') {
-    throw new Error('Your account is suspended.');
-  }
+  // const isMatched = await comparePassword(password, user.password_hash);
 
-  const isMatched = await comparePassword(password, user.password_hash);
+  // if (!isMatched) {
+  //   throw new Error('Invalid email or password.');
+  // }
 
-  if (!isMatched) {
-    throw new Error('Invalid email or password.');
-  }
+  // const adminCheck = await checkAdminStatus(normalizedEmail, user.user_id);
+
+  const user = userResult.rows[0];
 
   const adminCheck = await checkAdminStatus(normalizedEmail, user.user_id);
 
