@@ -66,6 +66,7 @@ const savedPlaceRoutes = require('./routes/savedPlacesRoutes');
 const rideHistoryRoutes = require('./routes/rideHistoryRoutes');
 const fareRoutes = require('./routes/fareRoutes');
 const errorMiddleware = require('./middlewares/errorMiddleware');
+const checkSuspension = require('./middlewares/checkSuspension');
 
 const app = express();
 
@@ -112,6 +113,8 @@ app.get('/api/track/send-item/:sId', (req, res) => {
     </html>
   `);
 });
+
+app.use(checkSuspension);
 
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
