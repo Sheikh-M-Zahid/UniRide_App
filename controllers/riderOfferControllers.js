@@ -4,7 +4,8 @@ const riderOfferService = require('../services/riderOfferServices');
 
 //GET RIDER OFFERS
 const getRiderOffers = asyncHandler(async (req, res) => {
-  const data = await riderOfferService.getOffersForRider();
+  const userId = req.user?.user_id || req.user?.userId || null;
+  const data = await riderOfferService.getOffersForRider(userId);
 
   const message =
     data.length > 0
