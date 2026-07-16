@@ -105,8 +105,19 @@ const cancelCurrentRide = async (req, res) => {
   }
 };
 
+const getRouteAlternatives = async (req, res) => {
+  try {
+    const data = await service.getRouteAlternatives(req.body);
+    return successResponse(res, 'Route alternatives fetched successfully.', data);
+  } catch (error) {
+    console.error('getRouteAlternatives error:', error);
+    return errorResponse(res, error.message || 'Failed to fetch route alternatives.', 400);
+  }
+};
+
 module.exports = {
   getCurrentActiveRide,
+  getRouteAlternatives,
   getActiveRideSetupData,
   activateRide,
   cancelCurrentRide,
