@@ -1,7 +1,12 @@
 const rideDb = require('../config/rideDb');
 const { createBulkNotifications } = require('./notificationService');
+const {
+  sortOffersByUcb,
+  logOffersShown,
+  logOfferAccepted,
+} = require('../utils/banditUtils');
 
-const getActiveOffers = async () => {
+const getActiveOffers = async (userId = null) => {
   const result = await rideDb.query(
     `SELECT
         offer_id,
@@ -20,7 +25,15 @@ const getActiveOffers = async () => {
      ORDER BY created_at DESC`
   );
 
-  return result.rows;
+  // UCB score অনুযায়ী re-order করা (cold-start offer সবার আগে)
+  const sorted = await sortOffersByUcb(result.rows, 'promo_passenger');
+
+  // "shown" event log করা (userId না থাকলে ভেতরে ভেতরে skip হয়ে যাবে)
+  logOffersShown(userId, sorted, 'promo_passenger').catch((err) =>
+    console.error('shown logging failed:', err.message)
+  );
+
+  return sorted;
 };
 
 const applyOffer = async (promoCode, userId, currentFare = null, rideType = 'ride') => {
@@ -130,6 +143,11 @@ const applyOffer = async (promoCode, userId, currentFare = null, rideType = 'rid
     }
   }
 
+  // ৬. এখানে সব validation পাস হয়ে গেছে — এটাই "accepted" event, reward = +1.0
+  logOfferAccepted(userId, offer.offer_id, 'promo_passenger').catch((err) =>
+    console.error('accepted logging failed:', err.message)
+  );
+
   return offer;
 };
 
@@ -144,9 +162,10 @@ const getActiveOffersCount = async () => {
   return result.rows[0].count;
 };
 
-const getRecentOffers = async () => {
+const getRecentOffers = async (userId = null) => {
   const result = await rideDb.query(
     `SELECT
+        offer_id,
         offer_name,
         offer_type,
         reward_percentage,
@@ -161,7 +180,14 @@ const getRecentOffers = async () => {
         CASE WHEN end_date >= CURRENT_DATE THEN 0 ELSE 1 END,
         end_date ASC`
   );
-  return result.rows;
+
+  const sorted = await sortOffersByUcb(result.rows, 'promo_passenger');
+
+  logOffersShown(userId, sorted, 'promo_passenger').catch((err) =>
+    console.error('shown logging failed:', err.message)
+  );
+
+  return sorted;
 };
 
 const createOffer = async (payload) => {
