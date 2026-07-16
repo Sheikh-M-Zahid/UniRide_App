@@ -22,6 +22,7 @@ const canCancelSendItem = (status) => {
 const canAcceptSendItem = (status) => isPendingStatus(status);
 const canPickupSendItem = (status) => isAcceptedStatus(status);
 const canDeliverSendItem = (status) => isPickedUpStatus(status);
+const canRateSendItem = (status) => String(status || '').toLowerCase() === 'delivered';
 
 const validateReceiverEmailInput = (receiverEmail) => {
   if (!receiverEmail || !String(receiverEmail).trim()) {
@@ -44,5 +45,6 @@ module.exports = {
   canAcceptSendItem,
   canPickupSendItem,
   canDeliverSendItem,
+  canRateSendItem,
   validateReceiverEmailInput,
 };
