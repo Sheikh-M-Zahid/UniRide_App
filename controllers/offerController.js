@@ -4,7 +4,8 @@ const offerService = require('../services/offerService');
 
 //GET ACTIVE OFFERS
 const getActiveOffers = asyncHandler(async (req, res) => {
-  const data = await offerService.getActiveOffers();
+  const userId = req.user?.user_id || req.user?.userId || null;
+  const data = await offerService.getActiveOffers(userId);
   const message =
     data.length > 0
       ? 'Active offers fetched successfully.'
@@ -99,7 +100,8 @@ const getActiveOffersCount = asyncHandler(async (req, res) => {
 
 //GET RECENT OFFERS (active + expired within 30 days)
 const getRecentOffers = asyncHandler(async (req, res) => {
-  const data = await offerService.getRecentOffers();
+  const userId = req.user?.user_id || req.user?.userId || null;
+  const data = await offerService.getRecentOffers(userId);
   const message =
     data.length > 0
       ? 'Recent offers fetched successfully.'
