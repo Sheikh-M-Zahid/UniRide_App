@@ -50,6 +50,18 @@ const markAsRead = async (userId, id) => {
        AND user_id = $2`,
     [id, userId]
   );
+
+  // notification_interactions এ shown -> clicked আপডেট (রিওয়ার্ড ট্র্যাকিং এর জন্য)
+  try {
+    await rideDb.query(
+      `UPDATE notification_interactions
+       SET action = 'clicked', action_timestamp = CURRENT_TIMESTAMP, reward_value = 1.0
+       WHERE user_id = $1 AND notification_id = $2 AND action = 'shown'`,
+      [userId, id]
+    );
+  } catch (err) {
+    console.error('notification_interactions clicked log error:', err?.message);
+  }
 };
 
 const markAllAsRead = async (userId) => {
@@ -110,6 +122,17 @@ const createNotification = async ({
   const notification = mapNotificationRow(result.rows[0]);
 
   emitNotification(userId, notification);
+
+  // notification_interactions এ "shown" log করা (হালকা ভার্সন, শুধু data collection)
+  try {
+    await rideDb.query(
+      `INSERT INTO notification_interactions (user_id, notification_id, notification_type, action)
+       VALUES ($1, $2, $3, 'shown')`,
+      [userId, notification.id, type]
+    );
+  } catch (err) {
+    console.error('notification_interactions shown log error:', err?.message);
+  }
 
   // FCM push notification
   try {
