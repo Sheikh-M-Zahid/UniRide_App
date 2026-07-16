@@ -1,4 +1,5 @@
 const rideDb = require('../config/rideDb');
+const { computeRouteAlternatives } = require('./googleMapsService');
 const { safeDistanceKm, calculateETA } = require('../utils/geo');
 const { emitRideAvailable } = require('../utils/rideAvailabilityEmitter');
 const { notifyUsersForRide } = require('./rideAlertMatcherService');
@@ -214,6 +215,24 @@ const getActiveRideSetupData = async (userId) => {
   };
 };
 
+const getRouteAlternatives = async ({ currentLat, currentLng, destinationLat, destinationLng }) => {
+  if (
+    !isValidNumber(currentLat) ||
+    !isValidNumber(currentLng) ||
+    !isValidNumber(destinationLat) ||
+    !isValidNumber(destinationLng)
+  ) {
+    throw new Error('Valid current and destination coordinates are required.');
+  }
+
+  return computeRouteAlternatives({
+    originLat: currentLat,
+    originLng: currentLng,
+    destinationLat,
+    destinationLng,
+  });
+};
+
 const activateRide = async ({ userId, body }) => {
   const {
     vehicleId,
@@ -227,27 +246,11 @@ const activateRide = async ({ userId, body }) => {
     note = null,
     travelDate = null,
     travelTime = null,
+    routePolyline = null,
+    routeDistanceKm = null,
+    routeDurationMinutes = null,
+    isDefaultRoute = true,
   } = body;
-
-  const existingRideRes = await rideDb.query(
-    `
-    SELECT ride_id, status, start_location, destination
-    FROM rides
-    WHERE rider_id = $1
-      AND status = ANY($2::text[])
-    ORDER BY created_at DESC
-    LIMIT 1
-    `,
-    [userId, BLOCKING_RIDE_STATUSES]
-  );
-
-  if (existingRideRes.rows.length) {
-    const existingRide = existingRideRes.rows[0];
-
-    throw new Error(
-      `You already have an active ride from ${existingRide.start_location || 'your current location'} to ${existingRide.destination || 'your destination'}. Cancel or complete it first.`
-    );
-  }
 
   if (
     !vehicleId ||
@@ -263,19 +266,8 @@ const activateRide = async ({ userId, body }) => {
   }
 
   const vehicleRes = await rideDb.query(
-    `SELECT
-        vehicle_id,
-        user_id,
-        vehicle_type,
-        company,
-        model,
-        number_plate,
-        total_seats,
-        verified
-     FROM vehicles
-     WHERE vehicle_id = $1
-       AND user_id = $2
-     LIMIT 1`,
+    `SELECT vehicle_id, user_id, vehicle_type, company, model, number_plate, total_seats, verified
+     FROM vehicles WHERE vehicle_id = $1 AND user_id = $2 LIMIT 1`,
     [vehicleId, userId]
   );
 
@@ -285,48 +277,30 @@ const activateRide = async ({ userId, body }) => {
 
   const vehicle = vehicleRes.rows[0];
 
-  if (!vehicle.verified) {
-    throw new Error('Only verified vehicles can be used to activate a ride.');
-  }
-
   const riderRes = await rideDb.query(
-    `SELECT
-        first_name,
-        last_name
-     FROM users
-     WHERE user_id = $1
-     LIMIT 1`,
+    `SELECT first_name, last_name FROM users WHERE user_id = $1 LIMIT 1`,
     [userId]
   );
-
   const rider = riderRes.rows[0];
 
   const startLocation =
-    currentLocationText ||
-    `${Number(currentLat).toFixed(5)}, ${Number(currentLng).toFixed(5)}`;
+    currentLocationText || `${Number(currentLat).toFixed(5)}, ${Number(currentLng).toFixed(5)}`;
 
-  const distanceKmRaw = safeDistanceKm(
-    Number(currentLat),
-    Number(currentLng),
-    Number(destinationLat),
-    Number(destinationLng)
-  );
-
-  if (distanceKmRaw === null) {
-    throw new Error('Invalid current or destination coordinates.');
+  // ── এখানে গুরুত্বপূর্ণ পরিবর্তন: straight-line-এর বদলে rider-এর select করা route distance ──
+  let totalDistanceKm;
+  if (isValidNumber(routeDistanceKm) && routeDistanceKm > 0) {
+    totalDistanceKm = Number(Number(routeDistanceKm).toFixed(2));
+  } else {
+    const distanceKmRaw = safeDistanceKm(
+      Number(currentLat), Number(currentLng), Number(destinationLat), Number(destinationLng)
+    );
+    if (distanceKmRaw === null) throw new Error('Invalid current or destination coordinates.');
+    totalDistanceKm = Number(distanceKmRaw.toFixed(2));
   }
 
-  const totalDistanceKm = Number(distanceKmRaw.toFixed(2));
   const perKmRate = await getPerKmRate(vehicle.vehicle_type);
   const totalFare = Number((totalDistanceKm * perKmRate).toFixed(2));
-  const requestedSeats = body.availableSeats ? Number(body.availableSeats) : null;
-  const maxSeats = Number(vehicle.total_seats || 1);
-  const vehicleTypeLower = String(vehicle.vehicle_type || '').trim().toLowerCase();
-  const availableSeats = vehicleTypeLower === 'bike'
-    ? 1
-    : requestedSeats
-      ? Math.min(Math.max(requestedSeats, 1), maxSeats)
-      : maxSeats;
+  const availableSeats = Math.max(Number(vehicle.total_seats || 1), 1);
 
   const client = await rideDb.connect();
 
@@ -335,12 +309,7 @@ const activateRide = async ({ userId, body }) => {
 
     await client.query(
       `INSERT INTO rider_availability (
-        rider_id,
-        is_active,
-        current_latitude,
-        current_longitude,
-        last_activated_at,
-        updated_at
+        rider_id, is_active, current_latitude, current_longitude, last_activated_at, updated_at
       )
       VALUES ($1, TRUE, $2, $3, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
       ON CONFLICT (rider_id)
@@ -355,29 +324,18 @@ const activateRide = async ({ userId, body }) => {
 
     const rideInsertRes = await client.query(
       `INSERT INTO rides (
-        rider_id,
-        vehicle_id,
-        start_location,
-        destination,
-        total_distance_km,
-        per_km_rate,
-        total_fare,
-        available_seats,
-        status,
-        travel_date,
-        travel_time,
-        vehicle_type,
-        gender_preference,
-        note,
-        pickup_latitude,
-        pickup_longitude,
-        destination_latitude,
-        destination_longitude,
-        start_latitude,
-        start_longitude
+        rider_id, vehicle_id, start_location, destination,
+        total_distance_km, per_km_rate, total_fare,
+        available_seats, status, travel_date, travel_time,
+        vehicle_type, gender_preference, note,
+        pickup_latitude, pickup_longitude,
+        destination_latitude, destination_longitude,
+        start_latitude, start_longitude,
+        route_polyline, route_distance_km, route_duration_minutes, is_default_route
       )
-       VALUES (
-        $1,$2,$3,$4,$5,$6,$7,$8,'assigned',$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19
+      VALUES (
+        $1,$2,$3,$4,$5,$6,$7,$8,'assigned',$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,
+        $20,$21,$22,$23
       )
       RETURNING *`,
       [
@@ -400,20 +358,20 @@ const activateRide = async ({ userId, body }) => {
         destinationLng,
         currentLat,
         currentLng,
+        routePolyline,
+        isValidNumber(routeDistanceKm) ? routeDistanceKm : totalDistanceKm,
+        isValidNumber(routeDurationMinutes) ? routeDurationMinutes : null,
+        isDefaultRoute !== false,
       ]
     );
 
     const createdRide = rideInsertRes.rows[0];
 
     await client.query(
-      `INSERT INTO live_locations (
-        user_id,
-        ride_id,
-        latitude,
-        longitude,
-        updated_at
-      )
-      VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP)`,
+      `INSERT INTO live_locations (user_id, ride_id, latitude, longitude, updated_at)
+       VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP)
+       ON CONFLICT (user_id, ride_id)
+       DO UPDATE SET latitude = EXCLUDED.latitude, longitude = EXCLUDED.longitude, updated_at = CURRENT_TIMESTAMP`,
       [userId, createdRide.ride_id, currentLat, currentLng]
     );
 
@@ -442,12 +400,12 @@ const activateRide = async ({ userId, body }) => {
       currentLocation: startLocation,
       destination: createdRide.destination,
       totalDistanceKm,
-      estimatedTravelMinutes: calculateETA(totalDistanceKm, 25),
+      estimatedTravelMinutes: isValidNumber(routeDurationMinutes)
+        ? routeDurationMinutes
+        : calculateETA(totalDistanceKm, 25),
       totalFare,
       availableSeats: Number(createdRide.available_seats || 0),
       status: createdRide.status,
-      destinationLatitude: Number(createdRide.destination_latitude),
-      destinationLongitude: Number(createdRide.destination_longitude),
     };
   } catch (error) {
     await client.query('ROLLBACK');
@@ -567,9 +525,8 @@ const updateCurrentLocation = async ({ userId, body }) => {
 };
 
 module.exports = {
-  getCurrentActiveRide,
   getActiveRideSetupData,
+  getRouteAlternatives,
   activateRide,
-  cancelCurrentRide,
   updateCurrentLocation,
 };
