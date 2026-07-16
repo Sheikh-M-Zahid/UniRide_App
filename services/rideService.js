@@ -1,6 +1,8 @@
 const rideDb = require('../config/rideDb');
 const cbfService = require('./cbfService');
 const { safeDistanceKm } = require('../utils/geo');
+const { decodePolyline } = require('../utils/polyline');
+const { nearestPointOnRoute, cumulativeDistanceKm } = require('../utils/routeCorridor');
 
 const createRide = async (userId, payload) => {
   const {
@@ -190,14 +192,12 @@ const changeRideStatus = async (rideId, riderId, status) => {
       const passengerDueRef = `ride_due_${rideId}_${participant.passenger_id}`;
       const riderEarnRef = `ride_earn_${rideId}_${participant.passenger_id}`;
 
-      // Duplicate check — একই ride এর জন্য দুইবার যেন না হয়
       const alreadyDone = await rideDb.query(
         `SELECT 1 FROM transactions WHERE reference_id = $1 LIMIT 1`,
         [riderEarnRef]
       );
       if (alreadyDone.rowCount > 0) continue;
 
-      // Passenger এর due বাড়াও
       await rideDb.query(
         `UPDATE users SET due_balance = due_balance + $1 WHERE user_id = $2`,
         [fare, participant.passenger_id]
@@ -209,7 +209,6 @@ const changeRideStatus = async (rideId, riderId, status) => {
         [participant.passenger_id, fare, passengerDueRef]
       );
 
-      // Rider এর earning add করো
       await rideDb.query(
         `INSERT INTO transactions (user_id, amount, type, method, reference_id, status)
          VALUES ($1, $2, 'credit', 'ride_income', $3, 'completed')`,
@@ -220,6 +219,7 @@ const changeRideStatus = async (rideId, riderId, status) => {
 
   return ride;
 };
+
 const listMyCreatedRides = async (riderId) => {
   const result = await rideDb.query(
     `SELECT *
@@ -251,7 +251,7 @@ const searchRides = async (payload, passengerId) => {
 
   const apiKey = process.env.GOOGLE_MAPS_API_KEY;
 
-  //  Passenger এর route distance (ক → খ) 
+  //  Passenger এর route distance (ক → খ)
   const url = `https://maps.googleapis.com/maps/api/distancematrix/json` +
     `?destinations=${destination_lat},${destination_lng}` +
     `&origins=${pickup_lat},${pickup_lng}` +
@@ -277,7 +277,7 @@ const searchRides = async (payload, passengerId) => {
     throw new Error('Failed to fetch dynamic distance from map.');
   }
 
-  // Vehicle rates DB থেকে নাও 
+  // Vehicle rates DB থেকে নাও
   const ratesRes = await rideDb.query(`
     SELECT DISTINCT ON (vehicle_type)
       vehicle_type, per_km_rate, base_fare
@@ -298,7 +298,7 @@ const searchRides = async (payload, passengerId) => {
     };
   }
 
-  //Active rides + rider info fetch 
+  // Active rides + rider info fetch
   const result = await rideDb.query(
     `SELECT
        r.ride_id,
@@ -313,6 +313,7 @@ const searchRides = async (payload, passengerId) => {
        r.start_location,
        r.destination_latitude,
        r.destination_longitude,
+       r.route_polyline,
        u.first_name,
        u.last_name,
        u.phone,
@@ -347,13 +348,12 @@ const searchRides = async (payload, passengerId) => {
     };
   }
 
-  // Rider থেকে Passenger পর্যন্ত দূরত্ব batch এ নাও 
+  // Rider থেকে Passenger পর্যন্ত দূরত্ব batch এ নাও
   const validRiders = rides
     .map((r, i) => ({ i, lat: r.rider_lat, lng: r.rider_lng }))
     .filter(r => r.lat !== null && r.lng !== null);
 
-  // Google Distance Matrix — একটাই call, সব rider এর জন্য
-  let riderDistances = {}; // index → { distanceKm, withinRoute }
+  let riderDistances = {};
 
   if (validRiders.length) {
     const destinations = validRiders
@@ -381,7 +381,6 @@ const searchRides = async (payload, passengerId) => {
     } catch (_) { /* fallback: haversine */ }
   }
 
-  // Haversine fallback 
   const haversine = (lat1, lng1, lat2, lng2) => {
     const R = 6371;
     const dLat = (lat2 - lat1) * Math.PI / 180;
@@ -394,77 +393,79 @@ const searchRides = async (payload, passengerId) => {
     return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   };
 
-  //  প্রতিটা ride এর fare calculate 
-  /*
-   *Fare logic:
-    base_fare = শুধু তখনই add হবে যখন (distance_km * per_km_rate) < base_fare
-    অর্থাৎ: fare = max(base_fare, distance_km * per_km_rate)
-   
-   * Rider surcharge logic:
-    Rider যদি passenger এর পথে থাকে (rider_dist ≤ 2km) → অতিরিক্ত ০ টাকা
-    Rider যদি উল্টো দিক থেকে আসে (rider_dist > 2km) → +৫ টাকা প্রতি km
-   */
+  const CORRIDOR_BUFFER_KM = 0.3; // ৩০০ মিটার
 
-  const DETOUR_THRESHOLD_KM = 2;
-  const DETOUR_RATE_PER_KM  = 5;
-  const DESTINATION_MATCH_RADIUS_KM = 0.3;
+  const availableRides = rides
+    .map((ride, i) => {
+      const vType = String(ride.vehicle_type || '').trim().toLowerCase();
+      const rate  = rateMap[vType] ?? rateMap.car;
 
-  const availableRides = rides.map((ride, i) => {
-    const vType = String(ride.vehicle_type || '').trim().toLowerCase();
-    const rate  = rateMap[vType] ?? rateMap.car;
+      let riderDistKm = riderDistances[i] ?? null;
+      if (riderDistKm === null && ride.rider_lat !== null) {
+        riderDistKm = haversine(
+          pickup_lat, pickup_lng,
+          Number(ride.rider_lat), Number(ride.rider_lng)
+        );
+      }
 
-    // Main route fare
-    const routeFare = distance_km * rate.per_km_rate;
-    const baseFare  = routeFare < rate.base_fare ? rate.base_fare : routeFare;
+      const routePoints = ride.route_polyline ? decodePolyline(ride.route_polyline) : [];
 
-    // Rider distance থেকে surcharge
-    let riderDistKm = riderDistances[i] ?? null;
-    if (riderDistKm === null && ride.rider_lat !== null) {
-      riderDistKm = haversine(
-        pickup_lat, pickup_lng,
-        Number(ride.rider_lat), Number(ride.rider_lng)
-      );
-    }
+      let onRoute = false;
+      let destDistanceKm = null;
+      let segmentDistanceKm = null;
 
-    let surcharge = 0;
-    if (riderDistKm !== null && riderDistKm > DETOUR_THRESHOLD_KM) {
-      surcharge = Math.round(riderDistKm * DETOUR_RATE_PER_KM);
-    }
+      if (routePoints.length) {
+        const pickupMatch = nearestPointOnRoute(routePoints, pickup_lat, pickup_lng);
+        const destMatch = nearestPointOnRoute(routePoints, destination_lat, destination_lng);
+        destDistanceKm = destMatch.distanceKm;
 
-    const estimatedFare = Math.round(baseFare) + surcharge;
+        if (
+          pickupMatch.distanceKm <= CORRIDOR_BUFFER_KM &&
+          destMatch.distanceKm <= CORRIDOR_BUFFER_KM &&
+          destMatch.index >= pickupMatch.index
+        ) {
+          onRoute = true;
+          segmentDistanceKm = cumulativeDistanceKm(routePoints, pickupMatch.index, destMatch.index);
+        }
+      } else {
+        destDistanceKm = safeDistanceKm(
+          destination_lat, destination_lng,
+          ride.destination_latitude !== null ? Number(ride.destination_latitude) : null,
+          ride.destination_longitude !== null ? Number(ride.destination_longitude) : null
+        );
+        onRoute = destDistanceKm !== null && destDistanceKm <= CORRIDOR_BUFFER_KM;
+        segmentDistanceKm = distance_km;
+      }
 
-    return {
-      ride_id:          ride.ride_id,
-      rider_id:         ride.rider_id,
-      vehicle_type:     vType === 'bike' ? 'Bike' : vType === 'car' ? 'Car' : 'Vehicle',
-      available_seats:  Number(ride.available_seats || 0),
-      travel_time:      ride.travel_time || '',
-      gender_preference: ride.gender_preference || 'any',
-      company:          ride.company || '',
-      model:            ride.model   || '',
-      number_plate:     ride.number_plate || '',
-      total_distance_km: parseFloat(distance_km.toFixed(2)),
-      estimatedFare,
-      riderDistanceKm:  riderDistKm !== null
-                          ? parseFloat(riderDistKm.toFixed(2))
-                          : null,
-      destDistanceKm: safeDistanceKm(
-        destination_lat, destination_lng,
-        ride.destination_latitude !== null ? Number(ride.destination_latitude) : null,
-        ride.destination_longitude !== null ? Number(ride.destination_longitude) : null
-      ),
-      //Rider info flat করে দিলাম 
-      rider: {
-        name:   `${ride.first_name || ''} ${ride.last_name || ''}`.trim(),
-        phone:  ride.phone || '',
-        rating: Number(ride.rating || 5),
-      },
-    };
-  })
-  // ── destination মিলছে না এমন ride hard-filter করে বাদ ──
-  .filter((ride) =>
-    ride.destDistanceKm !== null && ride.destDistanceKm <= DESTINATION_MATCH_RADIUS_KM
-  );
+      const effectiveDistanceKm = segmentDistanceKm ?? distance_km;
+      const routeFare = effectiveDistanceKm * rate.per_km_rate;
+      const baseFare  = routeFare < rate.base_fare ? rate.base_fare : routeFare;
+      const estimatedFare = Math.round(baseFare);
+
+      return {
+        ride_id:          ride.ride_id,
+        rider_id:         ride.rider_id,
+        vehicle_type:     vType === 'bike' ? 'Bike' : vType === 'car' ? 'Car' : 'Vehicle',
+        available_seats:  Number(ride.available_seats || 0),
+        travel_time:      ride.travel_time || '',
+        gender_preference: ride.gender_preference || 'any',
+        company:          ride.company || '',
+        model:            ride.model   || '',
+        number_plate:     ride.number_plate || '',
+        total_distance_km: parseFloat(effectiveDistanceKm.toFixed(2)),
+        estimatedFare,
+        riderDistanceKm:  riderDistKm !== null ? parseFloat(riderDistKm.toFixed(2)) : null,
+        destDistanceKm:   destDistanceKm !== null ? Number(destDistanceKm.toFixed(2)) : null,
+        _onRoute: onRoute,
+        rider: {
+          name:   `${ride.first_name || ''} ${ride.last_name || ''}`.trim(),
+          phone:  ride.phone || '',
+          rating: Number(ride.rating || 5),
+        },
+      };
+    })
+    .filter((ride) => ride._onRoute)
+    .map(({ _onRoute, ...rest }) => rest);
 
   // Route summary fare (car rate দিয়ে)
   const carRate = rateMap.car;
@@ -486,7 +487,7 @@ const searchRides = async (payload, passengerId) => {
   // ── Destination-proximity + CBF মিলিয়ে recommend tier বসাও ──
   const tieredRides = rankedRides.map((ride) => {
     const proximityScore = ride.destDistanceKm != null
-      ? Math.max(0, 1 - ride.destDistanceKm / DESTINATION_MATCH_RADIUS_KM)
+      ? Math.max(0, 1 - ride.destDistanceKm / CORRIDOR_BUFFER_KM)
       : 0;
     const combinedScore = (ride.cbfScore || 0) * 0.6 + proximityScore * 0.4;
 
@@ -517,5 +518,5 @@ module.exports = {
   changeRideStatus,
   listMyCreatedRides,
   listJoinedRides,
-  searchRides, 
+  searchRides,
 };
