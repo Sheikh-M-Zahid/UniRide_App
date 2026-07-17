@@ -107,7 +107,10 @@ const cancelCurrentRide = async (req, res) => {
 
 const getRouteAlternatives = async (req, res) => {
   try {
-    const data = await service.getRouteAlternatives(req.body);
+    const data = await service.getRouteAlternatives({
+      riderId: req.user.userId,
+      ...req.body,
+    });
     return successResponse(res, 'Route alternatives fetched successfully.', data);
   } catch (error) {
     console.error('getRouteAlternatives error:', error);
@@ -115,9 +118,19 @@ const getRouteAlternatives = async (req, res) => {
   }
 };
 
+const getRouteReconnect = async (req, res) => {
+  try {
+    const data = await service.getRouteReconnect(req.body);
+    return successResponse(res, 'Route reconnect check completed.', data);
+  } catch (error) {
+    return errorResponse(res, error.message || 'Failed to check route reconnect.', 400);
+  }
+};
+
 module.exports = {
   getCurrentActiveRide,
   getRouteAlternatives,
+  getRouteReconnect,
   getActiveRideSetupData,
   activateRide,
   cancelCurrentRide,
