@@ -683,4 +683,6 @@ module.exports = {
   getRouteReconnect,
   activateRide,
   updateCurrentLocation,
+  getCurrentActiveRide,
+  cancelCurrentRide,
 };
