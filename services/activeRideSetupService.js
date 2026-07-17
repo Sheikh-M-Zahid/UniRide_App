@@ -1,4 +1,7 @@
 const rideDb = require('../config/rideDb');
+const { computeRouteAlternativesWithSteps, computeRoute } = require('./googleMapsService');
+const { decodePolyline } = require('../utils/polyline');
+const { nearestPointOnRoute } = require('../utils/routeCorridor');
 const { computeRouteAlternatives } = require('./googleMapsService');
 const { safeDistanceKm, calculateETA } = require('../utils/geo');
 const { emitRideAvailable } = require('../utils/rideAvailabilityEmitter');
@@ -9,6 +12,7 @@ const {
 
 const DEFAULT_BIKE_RATE = 20;
 const DEFAULT_CAR_RATE = 35;
+const PREFERENCE_MATCH_RADIUS_KM = 0.3;
 
 const BLOCKING_RIDE_STATUSES = ['assigned', 'ongoing'];
 
@@ -215,7 +219,27 @@ const getActiveRideSetupData = async (userId) => {
   };
 };
 
-const getRouteAlternatives = async ({ currentLat, currentLng, destinationLat, destinationLng }) => {
+const findMatchingPreference = async ({ riderId, currentLat, currentLng, destinationLat, destinationLng }) => {
+  const res = await rideDb.query(
+    `SELECT * FROM rider_route_preferences WHERE rider_id = $1`,
+    [riderId]
+  );
+
+  for (const pref of res.rows) {
+    const pickupDist = safeDistanceKm(currentLat, currentLng, Number(pref.pickup_lat), Number(pref.pickup_lng));
+    const destDist = safeDistanceKm(destinationLat, destinationLng, Number(pref.destination_lat), Number(pref.destination_lng));
+    if (
+      pickupDist !== null && destDist !== null &&
+      pickupDist <= PREFERENCE_MATCH_RADIUS_KM &&
+      destDist <= PREFERENCE_MATCH_RADIUS_KM
+    ) {
+      return pref;
+    }
+  }
+  return null;
+};
+
+const getRouteAlternatives = async ({ riderId, currentLat, currentLng, destinationLat, destinationLng }) => {
   if (
     !isValidNumber(currentLat) ||
     !isValidNumber(currentLng) ||
@@ -225,12 +249,96 @@ const getRouteAlternatives = async ({ currentLat, currentLng, destinationLat, de
     throw new Error('Valid current and destination coordinates are required.');
   }
 
-  return computeRouteAlternatives({
+  const alternatives = await computeRouteAlternativesWithSteps({
     originLat: currentLat,
     originLng: currentLng,
     destinationLat,
     destinationLng,
   });
+
+  const matchedPreference = riderId
+    ? await findMatchingPreference({ riderId, currentLat, currentLng, destinationLat, destinationLng })
+    : null;
+
+  let defaultIndex = 0;
+
+  if (matchedPreference) {
+    let bestMatchIndex = -1;
+    let bestDiff = Infinity;
+
+    alternatives.forEach((alt, idx) => {
+      const diff = Math.abs(alt.distanceKm - Number(matchedPreference.route_distance_km || 0));
+      if (diff < bestDiff) {
+        bestDiff = diff;
+        bestMatchIndex = idx;
+      }
+    });
+
+    const tolerance = Number(matchedPreference.route_distance_km || 0) * 0.15;
+
+    if (bestMatchIndex !== -1 && bestDiff <= tolerance) {
+      defaultIndex = bestMatchIndex;
+    } else {
+      let landmarks = [];
+      try { landmarks = JSON.parse(matchedPreference.route_landmarks || '[]'); } catch (_) {}
+
+      alternatives.unshift({
+        routeIndex: -1,
+        distanceKm: Number(matchedPreference.route_distance_km || 0),
+        durationMinutes: Number(matchedPreference.route_duration_minutes || 0),
+        polyline: matchedPreference.route_polyline,
+        landmarks,
+      });
+      defaultIndex = 0;
+    }
+  }
+
+  return alternatives.map((alt, idx) => ({
+    ...alt,
+    isDefault: idx === defaultIndex,
+    isPreviouslyUsed: !!matchedPreference && idx === defaultIndex,
+  }));
+};
+
+const getRouteReconnect = async ({ rideId, currentLat, currentLng }) => {
+  if (!isValidNumber(currentLat) || !isValidNumber(currentLng)) {
+    throw new Error('Valid current coordinates are required.');
+  }
+
+  const rideRes = await rideDb.query(
+    `SELECT route_polyline FROM rides WHERE ride_id = $1`,
+    [rideId]
+  );
+  if (!rideRes.rows.length) throw new Error('Ride not found.');
+
+  const ride = rideRes.rows[0];
+  if (!ride.route_polyline) return { deviated: false };
+
+  const routePoints = decodePolyline(ride.route_polyline);
+  const nearest = nearestPointOnRoute(routePoints, currentLat, currentLng);
+
+  const DEVIATION_THRESHOLD_KM = 0.08; // ~৮০ মিটার
+
+  if (nearest.distanceKm <= DEVIATION_THRESHOLD_KM) {
+    return { deviated: false };
+  }
+
+  const rejoinIndex = Math.min(nearest.index + 15, routePoints.length - 1);
+  const rejoinPoint = routePoints[rejoinIndex];
+
+  const reconnectRoute = await computeRoute({
+    originLat: currentLat,
+    originLng: currentLng,
+    destinationLat: rejoinPoint.lat,
+    destinationLng: rejoinPoint.lng,
+  });
+
+  return {
+    deviated: true,
+    reconnectPolyline: reconnectRoute.polyline,
+    rejoinLat: rejoinPoint.lat,
+    rejoinLng: rejoinPoint.lng,
+  };
 };
 
 const activateRide = async ({ userId, body }) => {
@@ -247,6 +355,10 @@ const activateRide = async ({ userId, body }) => {
     travelDate = null,
     travelTime = null,
     routePolyline = null,
+    routeDistanceKm = null,
+    routeDurationMinutes = null,
+    isDefaultRoute = true,
+    routeLandmarks = [],
     routeDistanceKm = null,
     routeDurationMinutes = null,
     isDefaultRoute = true,
@@ -374,6 +486,50 @@ const activateRide = async ({ userId, body }) => {
        DO UPDATE SET latitude = EXCLUDED.latitude, longitude = EXCLUDED.longitude, updated_at = CURRENT_TIMESTAMP`,
       [userId, createdRide.ride_id, currentLat, currentLng]
     );
+
+    if (routePolyline) {
+      try {
+        const existingPrefRes = await client.query(
+          `SELECT preference_id, pickup_lat, pickup_lng, destination_lat, destination_lng
+           FROM rider_route_preferences WHERE rider_id = $1`,
+          [userId]
+        );
+
+        let matchedPrefId = null;
+        for (const row of existingPrefRes.rows) {
+          const pickupDist = safeDistanceKm(currentLat, currentLng, Number(row.pickup_lat), Number(row.pickup_lng));
+          const destDist = safeDistanceKm(destinationLat, destinationLng, Number(row.destination_lat), Number(row.destination_lng));
+          if (pickupDist !== null && destDist !== null && pickupDist <= 0.3 && destDist <= 0.3) {
+            matchedPrefId = row.preference_id;
+            break;
+          }
+        }
+
+        const landmarksJson = JSON.stringify(routeLandmarks || []);
+
+        if (matchedPrefId) {
+          await client.query(
+            `UPDATE rider_route_preferences
+             SET route_polyline = $1, route_distance_km = $2, route_duration_minutes = $3,
+                 route_landmarks = $4, last_used_at = CURRENT_TIMESTAMP
+             WHERE preference_id = $5`,
+            [routePolyline, totalDistanceKm, routeDurationMinutes, landmarksJson, matchedPrefId]
+          );
+        } else {
+          await client.query(
+            `INSERT INTO rider_route_preferences (
+              rider_id, pickup_lat, pickup_lng, destination_lat, destination_lng,
+              route_polyline, route_distance_km, route_duration_minutes, route_landmarks
+            )
+            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+            [userId, currentLat, currentLng, destinationLat, destinationLng,
+              routePolyline, totalDistanceKm, routeDurationMinutes, landmarksJson]
+          );
+        }
+      } catch (prefErr) {
+        console.error('Route preference save failed:', prefErr.message);
+      }
+    }
 
     await client.query('COMMIT');
 
@@ -525,10 +681,9 @@ const updateCurrentLocation = async ({ userId, body }) => {
 };
 
 module.exports = {
-  getCurrentActiveRide,
-  cancelCurrentRide,
   getActiveRideSetupData,
   getRouteAlternatives,
+  getRouteReconnect,
   activateRide,
   updateCurrentLocation,
 };
