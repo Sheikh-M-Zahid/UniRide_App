@@ -128,11 +128,11 @@ const getRouteReconnect = async (req, res) => {
 };
 
 module.exports = {
-  getCurrentActiveRide,
+  getActiveRideSetupData,
   getRouteAlternatives,
   getRouteReconnect,
-  getActiveRideSetupData,
   activateRide,
-  cancelCurrentRide,
   updateCurrentLocation,
+  getCurrentActiveRide,
+  cancelCurrentRide,
 };
