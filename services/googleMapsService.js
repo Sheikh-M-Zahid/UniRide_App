@@ -1,4 +1,5 @@
 const axios = require('axios');
+const GOOGLE_DIRECTIONS_LEGACY_URL = 'https://maps.googleapis.com/maps/api/directions/json';
 
 const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY;
 const GOOGLE_ROUTES_API_URL =
@@ -184,6 +185,66 @@ const computeRouteAlternatives = async ({
   }));
 };
 
+const stripHtml = (html) => {
+  return String(html || '').replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
+};
+
+const extractLandmarks = (legs) => {
+  const steps = [];
+  legs.forEach((leg) => {
+    (leg.steps || []).forEach((step) => {
+      steps.push({
+        instruction: stripHtml(step.html_instructions),
+        distanceMeters: step.distance?.value || 0,
+      });
+    });
+  });
+
+  const sorted = [...steps].sort((a, b) => b.distanceMeters - a.distanceMeters);
+  const topSteps = sorted.slice(0, 5);
+  const ordered = steps.filter((s) => topSteps.includes(s));
+
+  return ordered
+    .map((s) => s.instruction)
+    .filter((text, idx, arr) => text && arr.indexOf(text) === idx)
+    .map((text) => (text.length > 28 ? `${text.slice(0, 28)}…` : text));
+};
+
+const computeRouteAlternativesWithSteps = async ({
+  originLat,
+  originLng,
+  destinationLat,
+  destinationLng,
+}) => {
+  ensureApiKey();
+
+  const response = await axios.get(GOOGLE_DIRECTIONS_LEGACY_URL, {
+    params: {
+      origin: `${originLat},${originLng}`,
+      destination: `${destinationLat},${destinationLng}`,
+      alternatives: true,
+      key: GOOGLE_MAPS_API_KEY,
+    },
+    timeout: 15000,
+  });
+
+  const data = response.data;
+  if (data.status !== 'OK' || !data.routes?.length) {
+    throw new Error('No routes found.');
+  }
+
+  return data.routes.map((route, index) => {
+    const leg = route.legs?.[0] || {};
+    return {
+      routeIndex: index,
+      distanceKm: Number(((leg.distance?.value || 0) / 1000).toFixed(2)),
+      durationMinutes: Math.max(1, Math.round((leg.duration?.value || 0) / 60)),
+      polyline: route.overview_polyline?.points || null,
+      landmarks: extractLandmarks(route.legs || []),
+    };
+  });
+};
+
 const computeRouteMatrix = async ({
   origin,
   destinations,
@@ -258,5 +319,6 @@ module.exports = {
   reverseGeocode,
   computeRoute,
   computeRouteAlternatives,
+  computeRouteAlternativesWithSteps,
   computeRouteMatrix,
 };
