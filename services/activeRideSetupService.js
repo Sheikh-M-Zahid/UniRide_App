@@ -359,9 +359,6 @@ const activateRide = async ({ userId, body }) => {
     routeDurationMinutes = null,
     isDefaultRoute = true,
     routeLandmarks = [],
-    routeDistanceKm = null,
-    routeDurationMinutes = null,
-    isDefaultRoute = true,
   } = body;
 
   if (
