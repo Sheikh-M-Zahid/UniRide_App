@@ -12,6 +12,7 @@ router.get('/current', controller.getCurrentActiveRide);
 // page load data
 router.get('/setup', controller.getActiveRideSetupData);
 router.post('/route-alternatives', controller.getRouteAlternatives);
+router.post('/route-reconnect', controller.getRouteReconnect);
 
 // confirm / activate ride
 router.post('/activate', controller.activateRide);
