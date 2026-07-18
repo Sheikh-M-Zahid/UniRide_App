@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:flutter_polyline_points/flutter_polyline_points.dart';
@@ -20,6 +21,9 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
   LatLng riderLocation = const LatLng(23.8103, 90.4125);
   Map<String, dynamic>? currentRide;
   List<Map<String, dynamic>> nearbyRideRequests = [];
+  Timer? _reconnectCheckTimer;
+  String? _reconnectPolyline;
+  bool _isDeviated = false;
 
   bool isLoading = true;
   bool isActionLoading = false;
@@ -48,6 +52,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
   @override
   void dispose() {
     _panelAnimController.dispose();
+    _reconnectCheckTimer?.cancel();
     super.dispose();
   }
 
@@ -145,6 +150,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
       });
 
       await _syncCurrentLocation();
+      _startReconnectMonitor();
     } catch (e) {
       if (!mounted) return;
       setState(() => isLoading = false);
@@ -212,33 +218,42 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
   Set<Polyline> get _polylines {
     if (currentRide == null) return {};
 
+    final Set<Polyline> polylines = {};
     final String? encoded = currentRide!["encodedPolyline"];
 
     if (encoded != null && encoded.isNotEmpty) {
-      // Real road polyline from Google
       final points = _decodePolyline(encoded);
-      return {
-        Polyline(
-          polylineId: const PolylineId("ride_route"),
-          points: points,
-          width: 5,
-          color: const Color(0xFF14B8A6),
-          patterns: [],
-        ),
-      };
-    }
-
-    // Fallback: straight line
-    final LatLng pickup = currentRide!["pickupLatLng"];
-    final LatLng destination = currentRide!["destinationLatLng"];
-    return {
-      Polyline(
+      polylines.add(Polyline(
+        polylineId: const PolylineId("ride_route"),
+        points: points,
+        width: 5,
+        color: const Color(0xFF14B8A6),
+        patterns: [],
+      ));
+    } else {
+      final LatLng pickup = currentRide!["pickupLatLng"];
+      final LatLng destination = currentRide!["destinationLatLng"];
+      polylines.add(Polyline(
         polylineId: const PolylineId("ride_route"),
         points: [riderLocation, pickup, destination],
         width: 5,
         color: const Color(0xFF14B8A6),
-      ),
-    };
+      ));
+    }
+
+    // ── রাইডার route থেকে সরে গেলে reconnect segment আলাদা রঙে দেখাও ──
+    if (_isDeviated && _reconnectPolyline != null && _reconnectPolyline!.isNotEmpty) {
+      final reconnectPoints = _decodePolyline(_reconnectPolyline!);
+      polylines.add(Polyline(
+        polylineId: const PolylineId("reconnect_route"),
+        points: reconnectPoints,
+        width: 5,
+        color: const Color(0xFFF59E0B),
+        patterns: [PatternItem.dash(15), PatternItem.gap(8)],
+      ));
+    }
+
+    return polylines;
   }
 
   void _onMapCreated(GoogleMapController controller) {
@@ -260,6 +275,35 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
         lng: riderLocation.longitude,
       );
     } catch (_) {}
+  }
+
+  void _startReconnectMonitor() {
+    _reconnectCheckTimer?.cancel();
+
+    if (currentRide == null) return;
+
+    _reconnectCheckTimer = Timer.periodic(const Duration(seconds: 15), (_) async {
+      final rideId = (currentRide?['rideId'] ?? '').toString();
+      if (rideId.isEmpty) return;
+
+      try {
+        final response = await _authApiService.checkRouteReconnect(
+          rideId: rideId,
+          currentLat: riderLocation.latitude,
+          currentLng: riderLocation.longitude,
+        );
+
+        final data = response['data'] ?? {};
+        final deviated = data['deviated'] == true;
+
+        if (!mounted) return;
+
+        setState(() {
+          _isDeviated = deviated;
+          _reconnectPolyline = deviated ? data['reconnectPolyline']?.toString() : null;
+        });
+      } catch (_) {}
+    });
   }
 
   void _focusPickupLocation() {
@@ -817,6 +861,29 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
             Icon(vehicleIcon, size: 20, color: const Color(0xFF14B8A6)),
           ],
         ),
+        if (_isDeviated) ...[
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFFFBEB),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: const Color(0xFFFDE68A)),
+            ),
+            child: const Row(
+              children: [
+                Icon(Icons.alt_route, size: 16, color: Color(0xFFB45309)),
+                SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    "You've moved off your chosen route. Follow the orange path to rejoin it.",
+                    style: TextStyle(fontSize: 11.5, color: Color(0xFFB45309)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
         const SizedBox(height: 12),
         _infoRow("Passenger", currentRide!["passengerName"]),
         _infoRow("Phone", currentRide!["phoneNumber"]),

@@ -169,8 +169,7 @@ class _AlumniRegisterPageState extends State<AlumniRegisterPage> {
   }
 
   Future<File?> _showImageSourceSheet() async {
-    File? result;
-    await showModalBottomSheet(
+    final ImageSource? source = await showModalBottomSheet<ImageSource>(
       context: context,
       backgroundColor: Colors.transparent,
       builder: (ctx) => Container(
@@ -211,10 +210,7 @@ class _AlumniRegisterPageState extends State<AlumniRegisterPage> {
                   style: TextStyle(
                       fontWeight: FontWeight.w600,
                       color: AppColors.text)),
-              onTap: () async {
-                Navigator.pop(ctx);
-                result = await _pickImage(source: ImageSource.gallery);
-              },
+              onTap: () => Navigator.pop(ctx, ImageSource.gallery),
             ),
             ListTile(
               leading: Container(
@@ -230,17 +226,15 @@ class _AlumniRegisterPageState extends State<AlumniRegisterPage> {
                   style: TextStyle(
                       fontWeight: FontWeight.w600,
                       color: AppColors.text)),
-              onTap: () async {
-                Navigator.pop(ctx);
-                result = await _pickImage(source: ImageSource.camera);
-              },
+              onTap: () => Navigator.pop(ctx, ImageSource.camera),
             ),
             const SizedBox(height: 16),
           ],
         ),
       ),
     );
-    return result;
+    if (source == null) return null;
+    return await _pickImage(source: source);
   }
 
   // WORKS

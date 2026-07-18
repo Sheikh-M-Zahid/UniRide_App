@@ -10,6 +10,7 @@ import 'GmailConfirm.dart';
 import 'FindAccount.dart';
 import 'AdminHome.dart';
 import 'RiderDashboard.dart';
+import 'AccountSuspendedPage.dart';
 import 'services/auth_api_service.dart';
 
 void main() {
@@ -197,6 +198,8 @@ class _UniRideLoginState extends State<UniRideLogin> {
       }
 
       final bool isAdmin = loginResponse['data']?['isAdmin'] == true;
+      final String accountStatus =
+      (loginResponse['data']?['user']?['account_status'] ?? 'active').toString();
 
       if (!mounted) return;
 
@@ -214,6 +217,17 @@ class _UniRideLoginState extends State<UniRideLogin> {
 
       final prefs2 = await SharedPreferences.getInstance();
       await prefs2.setString('active_role', isAdmin ? 'admin' : 'passenger');
+      await prefs2.setString('account_status', accountStatus);
+
+      if (accountStatus == 'suspended') {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => const AccountSuspendedPage(isRider: false),
+          ),
+        );
+        return;
+      }
 
       if (isAdmin) {
         Navigator.pushReplacement(
@@ -309,6 +323,8 @@ class _UniRideLoginState extends State<UniRideLogin> {
       }
 
       final bool isAdmin = loginResponse['data']?['isAdmin'] == true;
+      final String accountStatus =
+      (loginResponse['data']?['user']?['account_status'] ?? 'active').toString();
 
       if (!mounted) return;
 
@@ -319,6 +335,17 @@ class _UniRideLoginState extends State<UniRideLogin> {
 
       final prefs2 = await SharedPreferences.getInstance();
       await prefs2.setString('active_role', isAdmin ? 'admin' : 'passenger');
+      await prefs2.setString('account_status', accountStatus);
+
+      if (accountStatus == 'suspended') {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => const AccountSuspendedPage(isRider: false),
+          ),
+        );
+        return;
+      }
 
       if (isAdmin) {
         Navigator.pushReplacement(

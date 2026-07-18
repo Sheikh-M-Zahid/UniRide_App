@@ -29,6 +29,7 @@ class _CoRideLiveMapPageState extends State<CoRideLiveMapPage> {
   GoogleMapController? _mapController;
   IO.Socket? _socket;
   Timer? _locationTimer;
+  Timer? _refreshTimer;
 
   LatLng? _myLocation;
   LatLng? _otherPartyLocation;
@@ -49,6 +50,7 @@ class _CoRideLiveMapPageState extends State<CoRideLiveMapPage> {
     await _fetchInitialOtherPartyLocation();
     await _connectSocket();
     _startLocationBroadcast();
+    _startAutoRefreshPolling();
     if (mounted) setState(() => _isLoading = false);
   }
 
@@ -73,13 +75,21 @@ class _CoRideLiveMapPageState extends State<CoRideLiveMapPage> {
     } catch (_) {}
   }
 
+  // ✅ প্রতি ২ সেকেন্ডে fallback হিসেবে API থেকে অন্য পার্টির লোকেশন রিফ্রেশ করে (socket miss হলেও কাজ করবে)
+  void _startAutoRefreshPolling() {
+    _refreshTimer?.cancel();
+    _refreshTimer = Timer.periodic(const Duration(seconds: 2), (_) async {
+      await _fetchInitialOtherPartyLocation();
+    });
+  }
+
   // ── Socket Connect ──
   Future<void> _connectSocket() async {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('token') ?? '';
 
     _socket = IO.io(
-      'https://uniride-app-rm20.onrender.com',
+      'https://uniride-e831415d105a.herokuapp.com',
       IO.OptionBuilder()
           .setTransports(['websocket'])
           .setAuth({'token': token})
@@ -242,6 +252,7 @@ class _CoRideLiveMapPageState extends State<CoRideLiveMapPage> {
   @override
   void dispose() {
     _locationTimer?.cancel();
+    _refreshTimer?.cancel();
     _socket?.emit('coride:leave_room', {'sessionId': widget.sessionId});
     _socket?.disconnect();
     _mapController?.dispose();
@@ -280,11 +291,27 @@ class _CoRideLiveMapPageState extends State<CoRideLiveMapPage> {
           onPressed: () => Navigator.pop(context),
         ),
       ),
-      body: Stack(
-        children: [
+        body: RefreshIndicator(
+            color: const Color(0xFF14B8A6),
+            onRefresh: () async {
+              await _fetchInitialOtherPartyLocation();
+              if (_myLocation != null && _mapController != null) {
+                _mapController!.animateCamera(
+                  CameraUpdate.newLatLng(_otherPartyLocation ?? _myLocation!),
+                );
+              }
+            },
+            child: SingleChildScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                child: SizedBox(
+                  height: MediaQuery.of(context).size.height -
+                      AppBar().preferredSize.height -
+                      MediaQuery.of(context).padding.top,
+                  child: Stack(
+                    children: [
 
-          // ── Map ──
-          _isLoading
+                      // ── Map ──
+                      _isLoading
               ? const Center(
             child: CircularProgressIndicator(
               color: Color(0xFF14B8A6),
@@ -299,7 +326,7 @@ class _CoRideLiveMapPageState extends State<CoRideLiveMapPage> {
                     size: 48, color: Color(0xFF6B7280)),
                 SizedBox(height: 12),
                 Text(
-                  'Location পাওয়া যাচ্ছে না...\nWaiting for location data.',
+                  'Unable to get your location...\nWaiting for location data.',
                   textAlign: TextAlign.center,
                   style: TextStyle(
                       color: Color(0xFF6B7280), fontSize: 14),
@@ -417,8 +444,11 @@ class _CoRideLiveMapPageState extends State<CoRideLiveMapPage> {
               ),
             ),
           ),
-        ],
-      ),
+                    ],
+                  ),
+                ),
+            ),
+        ),
     );
   }
 }

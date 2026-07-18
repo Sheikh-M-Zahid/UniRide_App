@@ -13,6 +13,7 @@ import 'RiderDelivery.dart';
 import 'EarningsPage.dart';
 import 'NotificationsPage.dart';
 import 'RiderOffers.dart';
+import 'AccountSuspendedPage.dart';
 import 'services/auth_api_service.dart';
 
 class RiderDashboard extends StatefulWidget {
@@ -95,13 +96,26 @@ class _RiderDashboardState extends State<RiderDashboard> {
     } catch (e) {
       if (!mounted) return;
 
+      final errorText = e.toString();
+
+      if (errorText.contains('suspended')) {
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(
+            builder: (_) => const AccountSuspendedPage(isRider: true),
+          ),
+              (route) => false,
+        );
+        return;
+      }
+
       setState(() {
         _isLoading = false;
       });
 
       if (showLoader) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e.toString())),
+          SnackBar(content: Text(errorText)),
         );
       }
     }

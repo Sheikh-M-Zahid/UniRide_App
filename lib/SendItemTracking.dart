@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'services/auth_api_service.dart';
+import 'RideRating.dart';
 
 class SendItemTrackingPage extends StatefulWidget {
   final String sId;
@@ -35,6 +37,8 @@ class _SendItemTrackingPageState extends State<SendItemTrackingPage> {
         itemData = data != null ? Map<String, dynamic>.from(data) : null;
         isLoading = false;
       });
+
+      _maybeShowRatingSheet();
     } catch (e) {
       if (!mounted) return;
       setState(() => isLoading = false);
@@ -42,6 +46,38 @@ class _SendItemTrackingPageState extends State<SendItemTrackingPage> {
         SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
       );
     }
+  }
+
+  // Delivered হলে sender কে rider rate করার sheet দেখানো
+  Future<void> _maybeShowRatingSheet() async {
+    if (itemData == null) return;
+
+    final status = (itemData!['status'] ?? '').toString().toLowerCase();
+    if (status != 'delivered') return;
+
+    final riderId = (itemData!['rider_id'] ?? '').toString();
+    if (riderId.isEmpty) return;
+
+    final prefs = await SharedPreferences.getInstance();
+    final currentUserId = prefs.getString('user_id') ?? '';
+    final currentUserName = prefs.getString('user_name') ?? 'You';
+
+    if (!mounted || currentUserId.isEmpty) return;
+
+    await showRideRatingSheet(
+      context,
+      request: RideRatingRequest(
+        rideId: widget.sId,
+        fromUserId: currentUserId,
+        fromUserName: currentUserName,
+        toUserId: riderId,
+        toUserName: (itemData!['rider_name'] ?? 'Rider').toString(),
+        fromRole: 'passenger',
+        toRole: 'rider',
+        rideTitle: 'Send Item Delivery',
+        isSendItem: true,
+      ),
+    );
   }
 
   Future<void> _cancelItem() async {

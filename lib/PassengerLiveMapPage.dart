@@ -31,6 +31,7 @@ class _PassengerLiveMapPageState extends State<PassengerLiveMapPage> {
   GoogleMapController? _mapController;
   IO.Socket? _socket;
   Timer? _locationTimer;
+  Timer? _refreshTimer;
 
   LatLng? _hostLocation;      // Host/Rider এর location
   LatLng? _myLocation;        // আমার location
@@ -46,6 +47,15 @@ class _PassengerLiveMapPageState extends State<PassengerLiveMapPage> {
     _initMyLocation();
     _connectSocket();
     _fetchInitialHostLocation();
+    _startAutoRefreshPolling();
+  }
+
+  // ✅ প্রতি ২ সেকেন্ডে fallback হিসেবে API থেকে host এর লোকেশন রিফ্রেশ করে (socket miss হলেও কাজ করবে)
+  void _startAutoRefreshPolling() {
+    _refreshTimer?.cancel();
+    _refreshTimer = Timer.periodic(const Duration(seconds: 2), (_) async {
+      await _fetchInitialHostLocation();
+    });
   }
 
   // ── আমার location get করা ──
@@ -91,7 +101,7 @@ class _PassengerLiveMapPageState extends State<PassengerLiveMapPage> {
     final token = prefs.getString('token') ?? '';
 
     _socket = IO.io(
-      'https://uniride-app-rm20.onrender.com',
+      'https://uniride-e831415d105a.herokuapp.com',
       IO.OptionBuilder()
           .setTransports(['websocket'])
           .setAuth({'token': token})
@@ -239,6 +249,7 @@ class _PassengerLiveMapPageState extends State<PassengerLiveMapPage> {
   @override
   void dispose() {
     _locationTimer?.cancel();
+    _refreshTimer?.cancel();
     _socket?.emit('coride:leave_room', {'sessionId': widget.sessionId});
     _socket?.disconnect();
     _mapController?.dispose();
@@ -271,10 +282,26 @@ class _PassengerLiveMapPageState extends State<PassengerLiveMapPage> {
           onPressed: () => Navigator.pop(context),
         ),
       ),
-      body: Stack(
-        children: [
-          // ── Map ──
-          _isLoading
+        body: RefreshIndicator(
+            color: const Color(0xFF14B8A6),
+            onRefresh: () async {
+              await _fetchInitialHostLocation();
+              if (_hostLocation != null && _mapController != null) {
+                _mapController!.animateCamera(
+                  CameraUpdate.newLatLng(_hostLocation!),
+                );
+              }
+            },
+            child: SingleChildScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                child: SizedBox(
+                  height: MediaQuery.of(context).size.height -
+                      AppBar().preferredSize.height -
+                      MediaQuery.of(context).padding.top,
+                  child: Stack(
+                    children: [
+                      // ── Map ──
+                      _isLoading
               ? const Center(
             child: CircularProgressIndicator(
                 color: Color(0xFF14B8A6)),
@@ -398,8 +425,11 @@ class _PassengerLiveMapPageState extends State<PassengerLiveMapPage> {
               ),
             ),
           ),
-        ],
-      ),
+                    ],
+                  ),
+                ),
+            ),
+        ),
     );
   }
 }

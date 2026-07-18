@@ -529,6 +529,7 @@ class _DuePaymentPageState extends State<DuePaymentPage> {
       await widget.authApiService.payDue(
         method: selectedMethod,
         referenceId: transactionId,
+        amount: widget.dueAmount,
       );
 
       if (!mounted) return;

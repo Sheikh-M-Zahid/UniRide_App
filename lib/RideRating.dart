@@ -24,6 +24,7 @@ class RideRatingRequest {
   final String toRole; // rider / passenger
   final String rideTitle;
   final bool alreadyRated;
+  final bool isSendItem; // true হলে rideId আসলে send item এর s_id
 
   const RideRatingRequest({
     required this.rideId,
@@ -35,6 +36,7 @@ class RideRatingRequest {
     required this.toRole,
     required this.rideTitle,
     this.alreadyRated = false,
+    this.isSendItem = false,
   });
 }
 
@@ -48,8 +50,11 @@ class RideRatingService {
     required String rideId,
     required String fromUserId,
     required String toUserId,
+    bool isSendItem = false,
   }) async {
-    final response = await _api.checkRatingStatus(
+    final response = isSendItem
+        ? await _api.checkSendItemRatingStatus(sId: rideId)
+        : await _api.checkRatingStatus(
       rideId: rideId,
       toUserId: toUserId,
     );
@@ -63,6 +68,15 @@ class RideRatingService {
     required int rating,
     String? note,
   }) async {
+    if (request.isSendItem) {
+      await _api.rateRiderForSendItem(
+        sId: request.rideId,
+        rating: rating,
+        note: note,
+      );
+      return;
+    }
+
     if (request.fromRole == 'passenger' && request.toRole == 'rider') {
       await _api.passengerRatesRider(
         rideId: request.rideId,
@@ -150,6 +164,7 @@ Future<void> showRideRatingSheet(
       rideId: request.rideId,
       fromUserId: request.fromUserId,
       toUserId: request.toUserId,
+      isSendItem: request.isSendItem,
     );
   } catch (_) {
     alreadyRated = request.alreadyRated;

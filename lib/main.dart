@@ -12,6 +12,7 @@ import 'RiderDashboard.dart';
 import 'AdminHome.dart';
 import 'RideRequestService.dart';
 import 'firebase_options.dart';
+import 'AccountSuspendedPage.dart';
 import 'services/auth_api_service.dart';
 
 final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
@@ -271,13 +272,18 @@ class _SplashScreenState extends State<SplashScreen>
     final updatedToken = prefs.getString('token');
     final updatedIsLoggedIn = prefs.getBool('is_logged_in') ?? false;
     final updatedLastRole = prefs.getString('last_role') ?? '';
+    final updatedAccountStatus = prefs.getString('account_status') ?? 'active';
 
     Widget nextPage = const UniRideLogin();
 
     if (updatedIsLoggedIn &&
         updatedToken != null &&
         updatedToken.isNotEmpty) {
-      if (updatedLastRole == 'passenger') {
+      if (updatedAccountStatus == 'suspended') {
+        nextPage = AccountSuspendedPage(
+          isRider: updatedLastRole == 'rider',
+        );
+      } else if (updatedLastRole == 'passenger') {
         nextPage = const UniRideHomePage();
       } else if (updatedLastRole == 'rider') {
         nextPage = const RiderDashboard();

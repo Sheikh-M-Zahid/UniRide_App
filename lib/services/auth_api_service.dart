@@ -1028,11 +1028,12 @@ class AuthApiService {
   Future<Map<String, dynamic>> payDue({
     required String method,
     required String referenceId,
+    required double amount,
   }) async {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('token');
 
-    final url = Uri.parse('$baseUrl/wallet/pay-due');
+    final url = Uri.parse('$baseUrl/wallet/pay');
 
     final response = await http.post(
       url,
@@ -1042,9 +1043,17 @@ class AuthApiService {
       },
       body: jsonEncode({
         'method': method,
-        'reference_id': referenceId,
+        'transactionId': referenceId,
+        'amount': amount,
       }),
     );
+
+    final contentType = response.headers['content-type'] ?? '';
+    if (!contentType.contains('application/json')) {
+      throw Exception(
+        'Server error (${response.statusCode}). Pay-due route not found.',
+      );
+    }
 
     final data = jsonDecode(response.body);
 
@@ -3745,6 +3754,68 @@ class AuthApiService {
     }
   }
 
+  Future<Map<String, dynamic>> getRouteAlternatives({
+    required double currentLat,
+    required double currentLng,
+    required double destinationLat,
+    required double destinationLng,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+
+    final url = Uri.parse('$baseUrl/active-ride/route-alternatives');
+
+    final response = await http.post(
+      url,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode({
+        'currentLat': currentLat,
+        'currentLng': currentLng,
+        'destinationLat': destinationLat,
+        'destinationLng': destinationLng,
+      }),
+    );
+
+    final data = jsonDecode(response.body);
+
+    if (response.statusCode == 200) {
+      return data;
+    } else {
+      throw Exception(data['message'] ?? 'Failed to load route alternatives');
+    }
+  }
+
+  Future<Map<String, dynamic>> checkRouteReconnect({
+    required String rideId,
+    required double currentLat,
+    required double currentLng,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+
+    final url = Uri.parse('$baseUrl/active-ride/route-reconnect');
+
+    final response = await http.post(
+      url,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode({
+        'rideId': rideId,
+        'currentLat': currentLat,
+        'currentLng': currentLng,
+      }),
+    );
+
+    final data = jsonDecode(response.body);
+    if (response.statusCode == 200) return data;
+    throw Exception(data['message'] ?? 'Failed to check route reconnect');
+  }
+
   Future<Map<String, dynamic>> activateActiveRide({
     required String vehicleId,
     required String destination,
@@ -3758,6 +3829,11 @@ class AuthApiService {
     String? travelDate,
     String? travelTime,
     int availableSeats = 1,
+    String? routePolyline,
+    double? routeDistanceKm,
+    int? routeDurationMinutes,
+    bool isDefaultRoute = true,
+    List<String>? routeLandmarks,
   }) async {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('token');
@@ -3783,6 +3859,11 @@ class AuthApiService {
         'travelDate': travelDate,
         'travelTime': travelTime,
         'availableSeats': availableSeats,
+        'routePolyline': routePolyline,
+        'routeDistanceKm': routeDistanceKm,
+        'routeDurationMinutes': routeDurationMinutes,
+        'isDefaultRoute': isDefaultRoute,
+        'routeLandmarks': routeLandmarks,
       }),
     );
 
@@ -3947,6 +4028,64 @@ class AuthApiService {
       return data;
     } else {
       throw Exception(data['message'] ?? 'Failed to load rating summary');
+    }
+  }
+
+  // Send Item - Rating status check
+  Future<Map<String, dynamic>> checkSendItemRatingStatus({
+    required String sId,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+
+    final url = Uri.parse('$baseUrl/send-items/$sId/rating-status');
+
+    final response = await http.get(
+      url,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    );
+
+    final data = jsonDecode(response.body);
+
+    if (response.statusCode == 200) {
+      return data;
+    } else {
+      throw Exception(data['message'] ?? 'Failed to check rating status');
+    }
+  }
+
+  // Send Item - Sender rates the rider
+  Future<Map<String, dynamic>> rateRiderForSendItem({
+    required String sId,
+    required int rating,
+    String? note,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+
+    final url = Uri.parse('$baseUrl/send-items/$sId/rate-rider');
+
+    final response = await http.post(
+      url,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode({
+        'rating': rating,
+        if (note != null) 'note': note,
+      }),
+    );
+
+    final data = jsonDecode(response.body);
+
+    if (response.statusCode == 200) {
+      return data;
+    } else {
+      throw Exception(data['message'] ?? 'Failed to submit rating');
     }
   }
 
