@@ -32,6 +32,9 @@ const getMapDashboard = async ({ riderId }) => {
         r.pickup_longitude,
         r.destination_latitude,
         r.destination_longitude,
+        r.route_polyline,
+        r.route_distance_km,
+        r.route_duration_minutes,
         v.vehicle_type
      FROM rides r
      JOIN ride_participants rp ON rp.ride_id = r.ride_id
@@ -48,17 +51,26 @@ const getMapDashboard = async ({ riderId }) => {
   if (rideRes.rows.length) {
     const row = rideRes.rows[0];
 
-    // Real route from Google Maps
-    let routeData = null;
-    try {
-      routeData = await googleMapsService.computeRoute({
-        originLat: Number(row.pickup_latitude),
-        originLng: Number(row.pickup_longitude),
-        destinationLat: Number(row.destination_latitude),
-        destinationLng: Number(row.destination_longitude),
-        travelMode: 'DRIVE',
-      });
-    } catch (_) {}
+    // ── রাইডার নিজে যেই route select করেছিল, সেটাই ব্যবহার করো — fresh recompute না ──
+    let encodedPolyline = row.route_polyline || null;
+    let distanceKm = row.route_distance_km != null ? Number(row.route_distance_km) : Number(row.total_distance_km);
+    let durationMinutes = row.route_duration_minutes != null ? Number(row.route_duration_minutes) : 0;
+
+    // পুরনো ride যাদের route_polyline সেভ নেই (এই ফিচারের আগে তৈরি হওয়া ride), তাদের জন্য fallback
+    if (!encodedPolyline) {
+      try {
+        const routeData = await googleMapsService.computeRoute({
+          originLat: Number(row.pickup_latitude),
+          originLng: Number(row.pickup_longitude),
+          destinationLat: Number(row.destination_latitude),
+          destinationLng: Number(row.destination_longitude),
+          travelMode: 'DRIVE',
+        });
+        encodedPolyline = routeData?.polyline ?? null;
+        distanceKm = routeData?.distanceKm ?? distanceKm;
+        durationMinutes = routeData?.durationMinutes ?? durationMinutes;
+      } catch (_) {}
+    }
 
     currentRide = {
       rideId: row.ride_id,
@@ -70,12 +82,12 @@ const getMapDashboard = async ({ riderId }) => {
       pickupLng: row.pickup_longitude,
       destinationLat: row.destination_latitude,
       destinationLng: row.destination_longitude,
-      distanceKm: routeData?.distanceKm ?? Number(row.total_distance_km),
-      estimatedMinutes: routeData?.durationMinutes ?? 0,
+      distanceKm,
+      estimatedMinutes: durationMinutes,
       fare: Number(row.total_fare),
       status: row.status,
       vehicleType: row.vehicle_type ?? 'bike',
-      encodedPolyline: routeData?.polyline ?? null,
+      encodedPolyline,
     };
   }
 
