@@ -9,15 +9,18 @@ const emitToRider = (riderId, payload) => {
   const io = getIO();
   io.to(`rider_${riderId}`).emit('new_ride_request', payload);
 };
-
+const emitToRiderEvent = (riderId, eventName, payload) => {
+  const io = getIO();
+  io.to(`rider_${riderId}`).emit(eventName, payload);
+};
 const emitToPassenger = (passengerId, payload) => {
   const io = getIO();
   // user room এ emit (যদি user socket join করে)
   io.to(`user_${passengerId}`).emit('ride_request_passenger_update', payload);
 };
-
 module.exports = {
   emitRideRequestStatusUpdate,
   emitToRider,
+  emitToRiderEvent,
   emitToPassenger,
 };
