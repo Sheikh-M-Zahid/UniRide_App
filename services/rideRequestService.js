@@ -585,6 +585,253 @@ const getRiderLiveLocation = async (passengerId, requestId) => {
   };
 };
 
+const { scoreRequest } = require('./rideRequestScoringService');
+const { calculateCancelFine } = require('./cancelFineService');
+
+const ACTIVE_RIDE_STATUSES = ['assigned', 'ongoing'];
+
+// রাইডারের বর্তমান active ride (multi-seat) খুঁজে বের করে
+const getRiderActiveRide = async (riderId) => {
+  const res = await rideDb.query(
+    `SELECT *
+     FROM rides
+     WHERE rider_id = $1
+       AND status = ANY($2::text[])
+     ORDER BY created_at DESC
+     LIMIT 1`,
+    [riderId, ACTIVE_RIDE_STATUSES]
+  );
+  return res.rows[0] || null;
+};
+
+// রাইডারের ড্যাশবোর্ড — active ride, confirmed passengers (একাধিক হতে পারে), ও
+// score-সহ pending requests একসাথে রিটার্ন করে
+const getRiderDashboard = async (riderId) => {
+  const ride = await getRiderActiveRide(riderId);
+
+  if (!ride) {
+    return {
+      hasActiveRide: false,
+      ride: null,
+      confirmedPassengers: [],
+      pendingRequests: [],
+    };
+  }
+
+  const confirmedRes = await rideDb.query(
+    `SELECT
+        rp.participant_id,
+        rp.passenger_id,
+        rp.fare,
+        rp.confirmed,
+        rp.created_at,
+        rr.request_id,
+        rr.pickup_location,
+        rr.destination,
+        rr.free_cancel_until,
+        rr.confirmed_at,
+        u.first_name,
+        u.last_name,
+        u.phone
+     FROM ride_participants rp
+     JOIN users u ON u.user_id = rp.passenger_id
+     LEFT JOIN ride_requests rr
+        ON rr.ride_id = rp.ride_id
+       AND rr.passenger_id = rp.passenger_id
+       AND rr.status = 'accepted'
+     WHERE rp.ride_id = $1
+       AND rp.confirmed = TRUE
+     ORDER BY rp.created_at ASC`,
+    [ride.ride_id]
+  );
+
+  const confirmedPassengers = confirmedRes.rows.map((row) => {
+    const remainingFreeCancelSeconds = row.free_cancel_until
+      ? Math.max(0, Math.floor((new Date(row.free_cancel_until).getTime() - Date.now()) / 1000))
+      : 0;
+
+    return {
+      requestId: row.request_id,
+      participantId: row.participant_id,
+      passengerId: row.passenger_id,
+      passengerName: `${row.first_name || ''} ${row.last_name || ''}`.trim(),
+      phoneNumber: row.phone,
+      pickupLocation: row.pickup_location,
+      destination: row.destination,
+      fare: Number(row.fare || 0),
+      confirmedAt: row.confirmed_at,
+      remainingFreeCancelSeconds,
+      isFreeCancelAvailable: remainingFreeCancelSeconds > 0,
+    };
+  });
+
+  const pendingRes = await rideDb.query(
+    `SELECT rr.*, u.first_name, u.last_name, u.phone
+     FROM ride_requests rr
+     JOIN users u ON u.user_id = rr.passenger_id
+     WHERE rr.ride_id = $1
+       AND rr.status = 'pending'
+       AND rr.expires_at > CURRENT_TIMESTAMP
+     ORDER BY rr.requested_at ASC`,
+    [ride.ride_id]
+  );
+
+  const scoredPending = await Promise.all(
+    pendingRes.rows.map(async (row) => {
+      const scoring = await scoreRequest({ ride, request: row });
+      return {
+        requestId: row.request_id,
+        passengerName: `${row.first_name || ''} ${row.last_name || ''}`.trim(),
+        phoneNumber: row.phone,
+        pickupAddress: row.pickup_location,
+        destinationAddress: row.destination,
+        distanceKm: Number(row.distance_km || 0),
+        fare: Number(row.estimated_fare || 0),
+        estimatedMinutes: Number(row.estimated_minutes || 0),
+        requestedAt: row.requested_at,
+        expiresAt: row.expires_at,
+        ...scoring,
+      };
+    })
+  );
+
+  scoredPending.sort((a, b) => b.score - a.score);
+
+  return {
+    hasActiveRide: true,
+    ride: {
+      rideId: ride.ride_id,
+      startLocation: ride.start_location,
+      destination: ride.destination,
+      vehicleType: ride.vehicle_type,
+      availableSeats: Number(ride.available_seats || 0),
+      status: ride.status,
+      totalFare: Number(ride.total_fare || 0),
+    },
+    confirmedPassengers,
+    pendingRequests: scoredPending,
+  };
+};
+
+// শুধু scored pending list চাই (dashboard এর বাকি অংশ ছাড়া) — পোলিং হালকা রাখতে
+const getScoredPendingRequestsForRider = async (riderId) => {
+  const ride = await getRiderActiveRide(riderId);
+  if (!ride) return [];
+
+  const dashboard = await getRiderDashboard(riderId);
+  return dashboard.pendingRequests;
+};
+
+// Rider একটা confirmed (accepted) passenger বাতিল করে — সিট ফেরত আসে, fine লজিক প্রযোজ্য
+const cancelAcceptedParticipant = async (riderId, requestId, cancelReason = null) => {
+  const client = await rideDb.connect();
+
+  try {
+    await client.query('BEGIN');
+
+    const requestRes = await client.query(
+      `SELECT * FROM ride_requests WHERE request_id = $1 FOR UPDATE`,
+      [requestId]
+    );
+
+    if (!requestRes.rows.length) throw new Error('Ride request not found.');
+    const request = requestRes.rows[0];
+
+    if (request.rider_id !== riderId) throw new Error('Unauthorized cancellation.');
+    if (request.status !== 'accepted') throw new Error('This request is not in accepted state.');
+
+    const rideRes = await client.query(
+      `SELECT * FROM rides WHERE ride_id = $1 FOR UPDATE`,
+      [request.ride_id]
+    );
+    if (!rideRes.rows.length) throw new Error('Ride not found.');
+    const ride = rideRes.rows[0];
+
+    const fineResult = await calculateCancelFine({
+      client,
+      riderId,
+      confirmedAt: request.confirmed_at,
+      freeCancelUntil: request.free_cancel_until,
+    });
+
+    await client.query(
+      `UPDATE ride_requests
+       SET status = 'cancelled',
+           cancel_reason = $2,
+           cancelled_by = $3,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE request_id = $1`,
+      [requestId, cancelReason || fineResult.fineType, riderId]
+    );
+
+    await client.query(
+      `UPDATE ride_participants
+       SET confirmed = FALSE
+       WHERE ride_id = $1 AND passenger_id = $2`,
+      [request.ride_id, request.passenger_id]
+    );
+
+    if (['assigned', 'ongoing'].includes(ride.status)) {
+      await client.query(
+        `UPDATE rides SET available_seats = available_seats + 1 WHERE ride_id = $1`,
+        [request.ride_id]
+      );
+    }
+
+    let updatedDueBalance = null;
+    if (fineResult.fineAmount > 0) {
+      const dueRes = await client.query(
+        `UPDATE users SET due_balance = due_balance + $2 WHERE user_id = $1 RETURNING due_balance`,
+        [riderId, fineResult.fineAmount]
+      );
+      updatedDueBalance = Number(dueRes.rows[0].due_balance);
+
+      await client.query(
+        `INSERT INTO transactions (user_id, amount, type, method, reference_id, status)
+         VALUES ($1, $2, 'debit', 'cancel_fine', $3, 'completed')`,
+        [riderId, fineResult.fineAmount, `CANCEL-FINE-${requestId}`]
+      );
+    }
+
+    await client.query('COMMIT');
+
+    const { createNotification } = require('./notificationService');
+    await createNotification({
+      userId: request.passenger_id,
+      title: 'Ride Cancelled',
+      message: 'The rider has cancelled your confirmed ride. Please book another ride.',
+      type: 'booking',
+      isImportant: true,
+      targetRole: 'passenger',
+      relatedId: String(request.request_id),
+    });
+
+    const payload = {
+      requestId: request.request_id,
+      rideId: request.ride_id,
+      status: 'cancelled',
+      fineAmount: fineResult.fineAmount,
+      fineType: fineResult.fineType,
+    };
+
+    emitRideRequestStatusUpdate(request.request_id, payload);
+    emitToPassenger(request.passenger_id, payload);
+    emitToRider(riderId, { ...payload, dueBalance: updatedDueBalance });
+
+    return {
+      ...mapRequestResponse({ ...request, status: 'cancelled' }),
+      fineAmount: fineResult.fineAmount,
+      fineType: fineResult.fineType,
+      dueBalance: updatedDueBalance,
+    };
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+};
+
 module.exports = {
   createRequest,
   getRequestStatus,
@@ -594,4 +841,7 @@ module.exports = {
   expireRequestIfPending,
   getPassengerActiveRequest,
   getRiderLiveLocation,
+  getRiderDashboard,
+  getScoredPendingRequestsForRider,
+  cancelAcceptedParticipant,
 };
