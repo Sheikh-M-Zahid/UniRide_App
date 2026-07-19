@@ -92,6 +92,37 @@ const getRiderLiveLocation = asyncHandler(async (req, res) => {
   }
 });
 
+const getRiderDashboard = asyncHandler(async (req, res) => {
+  try {
+    const data = await rideRequestService.getRiderDashboard(req.user.userId);
+    return successResponse(res, 'Rider dashboard fetched successfully.', data);
+  } catch (error) {
+    return errorResponse(res, error.message || 'Failed to fetch dashboard.', 400);
+  }
+});
+
+const getScoredPendingRequests = asyncHandler(async (req, res) => {
+  try {
+    const data = await rideRequestService.getScoredPendingRequestsForRider(req.user.userId);
+    return successResponse(res, 'Pending requests fetched successfully.', data);
+  } catch (error) {
+    return errorResponse(res, error.message || 'Failed to fetch pending requests.', 400);
+  }
+});
+
+const cancelAcceptedParticipant = asyncHandler(async (req, res) => {
+  try {
+    const data = await rideRequestService.cancelAcceptedParticipant(
+      req.user.userId,
+      req.params.requestId,
+      req.body.cancelReason || null
+    );
+    return successResponse(res, 'Confirmed ride cancelled successfully.', data);
+  } catch (error) {
+    return errorResponse(res, error.message || 'Failed to cancel confirmed ride.', 400);
+  }
+});
+
 module.exports = {
   createRequest,
   getRequestStatus,
@@ -100,4 +131,7 @@ module.exports = {
   rejectRequest,
   getPassengerActiveRequest,
   getRiderLiveLocation,
+  getRiderDashboard,
+  getScoredPendingRequests,
+  cancelAcceptedParticipant,
 };
