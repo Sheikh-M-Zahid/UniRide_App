@@ -2,6 +2,7 @@ const rideDb = require('../config/rideDb');
 const {
   emitRideRequestStatusUpdate,
   emitToRider,
+  emitToRiderEvent,
   emitToPassenger,
 } = require('../utils/rideRequestEmitter');
 
@@ -403,6 +404,13 @@ const acceptRequest = async (riderId, requestId) => {
     emitRideRequestStatusUpdate(acceptedRequest.request_id, payload);
     // ✅ user room এ emit (backup channel)
     emitToPassenger(acceptedRequest.passenger_id, payload);
+    // ✅ rider-এর অন্য device/ট্যাব sync রাখতে — RideRequestService.dart এর
+    // 'ride-request:accepted' listener এই payload shape-ই আশা করে
+    emitToRiderEvent(acceptedRequest.rider_id, 'ride-request:accepted', {
+      requestId: acceptedRequest.request_id,
+      confirmedRideId: acceptedRequest.ride_id,
+      confirmedAt: acceptedRequest.confirmed_at,
+    });
 
     return mapRequestResponse(acceptedRequest);
 
@@ -816,7 +824,11 @@ const cancelAcceptedParticipant = async (riderId, requestId, cancelReason = null
 
     emitRideRequestStatusUpdate(request.request_id, payload);
     emitToPassenger(request.passenger_id, payload);
-    emitToRider(riderId, { ...payload, dueBalance: updatedDueBalance });
+    // RideRequestService.dart এর 'confirmed-ride:cancelled' listener এই event নামেই শোনে
+    emitToRiderEvent(riderId, 'confirmed-ride:cancelled', {
+      ...payload,
+      dueBalance: updatedDueBalance,
+    });
 
     return {
       ...mapRequestResponse({ ...request, status: 'cancelled' }),
