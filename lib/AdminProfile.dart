@@ -222,13 +222,15 @@ class _AdminProfilePageState extends State<AdminProfilePage> {
                         onPressed: () async {
                           final prefs = await SharedPreferences.getInstance();
                           await prefs.setString('active_role', 'passenger');
+                          await prefs.setString('last_role', 'passenger');
                           if (!mounted) return;
                           Navigator.pop(dialogContext);
-                          Navigator.push(
+                          Navigator.pushAndRemoveUntil(
                             context,
                             MaterialPageRoute(
                               builder: (context) => const UniRideProfilePage(),
                             ),
+                                (route) => false,
                           );
                         },
                         style: ElevatedButton.styleFrom(
@@ -372,13 +374,15 @@ class _AdminProfilePageState extends State<AdminProfilePage> {
                         onPressed: () async {
                           final prefs = await SharedPreferences.getInstance();
                           await prefs.setString('active_role', 'rider');
+                          await prefs.setString('last_role', 'rider');
                           if (!mounted) return;
                           Navigator.pop(dialogContext);
-                          Navigator.push(
+                          Navigator.pushAndRemoveUntil(
                             context,
                             MaterialPageRoute(
                               builder: (context) => const RiderProfile(),
                             ),
+                                (route) => false,
                           );
                         },
                         style: ElevatedButton.styleFrom(

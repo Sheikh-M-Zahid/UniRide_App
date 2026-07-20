@@ -130,7 +130,7 @@ class RideRequestService {
 
   static Future<void> loadPendingRequests() async {
     try {
-      final response = await _api.getPendingRideRequests();
+      final response = await _api.getScoredPendingRideRequests();
       final List rawList = (response['data'] ?? []) as List;
 
       for (final item in rawList) {
@@ -148,7 +148,7 @@ class RideRequestService {
 
   static Future<CancelRideResult> rejectConfirmedRide(String requestId) async {
     try {
-      final response = await _api.cancelConfirmedRide(
+      final response = await _api.cancelAcceptedRideRequest(
         requestId: requestId,
         cancelReason: 'cancelled_by_rider',
       );
@@ -209,21 +209,19 @@ class RideRequestService {
       );
 
       final data = response['data'] ?? {};
-      final confirmedRide =
-          data['confirmedRide'] ?? data['dashboard']?['confirmedRide'];
 
       _pendingRequests.removeWhere((r) => r.requestId == request.requestId);
 
-      if (confirmedRide != null) {
+      if (data['status']?.toString().toLowerCase() == 'accepted') {
         _confirmedRides.removeWhere((ride) => ride.requestId == request.requestId);
 
         _confirmedRides.add(
           ConfirmedRideData(
-            confirmedRideId: confirmedRide['confirmedRideId']?.toString() ?? '',
-            requestId: confirmedRide['requestId']?.toString() ?? request.requestId,
+            confirmedRideId: (data['rideId'] ?? '').toString(),
+            requestId: (data['requestId'] ?? request.requestId).toString(),
             request: request,
             confirmedAt: DateTime.tryParse(
-              confirmedRide['confirmedAt']?.toString() ?? '',
+              data['confirmedAt']?.toString() ?? '',
             ) ??
                 DateTime.now(),
           ),

@@ -15,6 +15,7 @@ import 'NotificationsPage.dart';
 import 'RiderOffers.dart';
 import 'AccountSuspendedPage.dart';
 import 'services/auth_api_service.dart';
+import 'RideRequestsPage.dart';
 
 class RiderDashboard extends StatefulWidget {
   const RiderDashboard({super.key});
@@ -450,26 +451,24 @@ class _RiderDashboardState extends State<RiderDashboard> {
                     SizedBox(
                       width: double.infinity,
                       child: OutlinedButton.icon(
-                        onPressed: _isCancellingRide ? null : _cancelActiveRide,
-                        icon: _isCancellingRide
-                            ? const SizedBox(
-                          height: 16,
-                          width: 16,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Color(0xFFDC2626),
-                          ),
-                        )
-                            : const Icon(Icons.cancel, color: Color(0xFFDC2626), size: 18),
-                        label: Text(
-                          _isCancellingRide ? 'Cancelling...' : 'Cancel Ride',
-                          style: const TextStyle(
-                            color: Color(0xFFDC2626),
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const RideRequestsPage(),
+                            ),
+                          ).then((_) => _loadDashboard(showLoader: false));
+                        },
+                        icon: const Icon(Icons.event_seat_rounded, color: Color(0xFF14B8A6), size: 18),
+                        label: const Text(
+                          'Manage Passengers',
+                          style: TextStyle(
+                            color: Color(0xFF14B8A6),
                             fontWeight: FontWeight.w600,
                           ),
                         ),
                         style: OutlinedButton.styleFrom(
-                          side: const BorderSide(color: Color(0xFFDC2626)),
+                          side: const BorderSide(color: Color(0xFF14B8A6)),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),
                           ),
@@ -639,6 +638,25 @@ class _RiderDashboardState extends State<RiderDashboard> {
                                 builder: (_) => const RiderDeliveryPage(),
                               ),
                             );
+                          },
+                        ),
+                      ),
+                    ),
+                    SizedBox(
+                      width: itemWidth,
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.center,
+                        child: _DashboardBox(
+                          icon: Icons.event_seat_rounded,
+                          title: "Ride Requests",
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const RideRequestsPage(),
+                              ),
+                            ).then((_) => _loadDashboard(showLoader: false));
                           },
                         ),
                       ),

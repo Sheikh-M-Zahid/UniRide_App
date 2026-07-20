@@ -4,7 +4,9 @@ import 'CoRideDetailsPopup.dart';
 import 'package:flutter/material.dart';
 import 'services/auth_api_service.dart';
 import 'RideRequestPopup.dart';
+import 'package:flutter/material.dart';
 import 'UserOffer.dart';
+import 'RideRequestsPage.dart';
 import 'RiderOffers.dart';
 import 'SafetyCheckResponsePopup.dart';
 
@@ -418,6 +420,25 @@ class _NotificationsPageState extends State<NotificationsPage> {
       }
       return;
     }
+
+    if (item.type == NotificationType.booking &&
+        widget.userRole == UserRole.rider) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => const RideRequestsPage(),
+        ),
+      );
+      return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text("${item.title} opened"),
+        backgroundColor: AppColors.secondary,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
 
     if (widget.userRole == UserRole.rider &&
         item.type == NotificationType.reserveRequest &&

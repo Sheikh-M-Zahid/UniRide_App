@@ -2240,6 +2240,87 @@ class AuthApiService {
     }
   }
 
+  // RideRequestsPage.dart — multi-seat rider dashboard (System A)
+  Future<Map<String, dynamic>> getRiderRideRequestDashboard() async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+
+    final url = Uri.parse('$baseUrl/ride-requests/rider/dashboard');
+
+    final response = await http.get(
+      url,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    );
+
+    final contentType = response.headers['content-type'] ?? '';
+    if (!contentType.contains('application/json')) {
+      throw Exception('Server error (${response.statusCode}). Route not found.');
+    }
+
+    final data = jsonDecode(response.body);
+
+    if (response.statusCode == 200) {
+      return data;
+    } else {
+      throw Exception(data['message'] ?? 'Failed to load ride request dashboard');
+    }
+  }
+
+  Future<Map<String, dynamic>> getScoredPendingRideRequests() async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+
+    final url = Uri.parse('$baseUrl/ride-requests/rider/pending');
+
+    final response = await http.get(
+      url,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    );
+
+    final data = jsonDecode(response.body);
+
+    if (response.statusCode == 200) {
+      return data;
+    } else {
+      throw Exception(data['message'] ?? 'Failed to load pending requests');
+    }
+  }
+
+  Future<Map<String, dynamic>> cancelAcceptedRideRequest({
+    required String requestId,
+    String? cancelReason,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+
+    final url = Uri.parse('$baseUrl/ride-requests/$requestId/cancel-confirmed');
+
+    final response = await http.patch(
+      url,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode({
+        if (cancelReason != null) 'cancelReason': cancelReason,
+      }),
+    );
+
+    final data = jsonDecode(response.body);
+
+    if (response.statusCode == 200) {
+      return data;
+    } else {
+      throw Exception(data['message'] ?? 'Failed to cancel confirmed ride');
+    }
+  }
+
   Future<Map<String, dynamic>> cancelConfirmedRide({
     required String requestId,
     String cancelReason = '',
