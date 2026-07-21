@@ -64,6 +64,7 @@ const profileRoutes = require('./routes/profileRoutes');
 const savedPlaceRoutes = require('./routes/savedPlacesRoutes');
 const rideHistoryRoutes = require('./routes/rideHistoryRoutes');
 const fareRoutes = require('./routes/fareRoutes');
+const alumniRoutes = require('./routes/alumni.route');
 const errorMiddleware = require('./middlewares/errorMiddleware');
 const checkSuspension = require('./middlewares/checkSuspension');
 
@@ -177,6 +178,7 @@ app.use('/api', savedPlaceRoutes);
 app.use('/api', rideHistoryRoutes);
 app.use('/api/admin', fareRoutes);
 app.use('/api/fare', fareRoutes);
+app.use('/api/alumni', alumniRoutes);
 
 app.use(errorMiddleware);
 
