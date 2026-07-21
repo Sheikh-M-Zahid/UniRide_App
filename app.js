@@ -64,7 +64,7 @@ const profileRoutes = require('./routes/profileRoutes');
 const savedPlaceRoutes = require('./routes/savedPlacesRoutes');
 const rideHistoryRoutes = require('./routes/rideHistoryRoutes');
 const fareRoutes = require('./routes/fareRoutes');
-const alumniRoutes = require('./routes/alumni.route');
+const alumniRoutes = require('./routes/alumni.routes');
 const errorMiddleware = require('./middlewares/errorMiddleware');
 const checkSuspension = require('./middlewares/checkSuspension');
 
