@@ -80,6 +80,22 @@ const getRoutePolyline = async (req, res) => {
   }
 };
 
+// ✅ Passenger tracking map এ rider এর confirm করা exact route দেখানোর জন্য
+const getSavedRoutePolyline = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+
+    const data = await riderMapService.getSavedRoutePolyline({
+      userId,
+      rideId: req.params.rideId,
+    });
+
+    return successResponse(res, 'Saved route fetched', data);
+  } catch (err) {
+    return errorResponse(res, err.message, 400);
+  }
+};
+
 const completeRideFromMap = async (req, res) => {
   try {
     const riderId = req.user.userId;
@@ -101,5 +117,6 @@ module.exports = {
   acceptRequest,
   startNavigation,
   getRoutePolyline,
+  getSavedRoutePolyline,
   completeRideFromMap,
 };
