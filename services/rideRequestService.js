@@ -498,10 +498,11 @@ const expireRequestIfPending = async (requestId) => {
   return request;
 };
 
-// ফাইলের একদম শেষে module.exports এর আগে যোগ করো
-
 const getPassengerActiveRequest = async (passengerId) => {
-  const result = await rideDb.query(
+  // ✅ শুধু ride_requests.status='accepted' চেক করলেই হবে না — rides.status ও চেক করা
+  // হচ্ছে, যাতে অন্য কোনো cancel/complete flow ride_requests sync করতে ভুলে গেলেও
+  // Home page-এ zombie/stale "Ride in progress" কার্ড আর না দেখায়।
+  const activeResult = await rideDb.query(
     `SELECT 
         rr.request_id,
         rr.ride_id,
@@ -511,7 +512,7 @@ const getPassengerActiveRequest = async (passengerId) => {
         rr.estimated_fare,
         rr.distance_km,
         rr.estimated_minutes,
-        rr.status,
+        rr.status AS request_status,
         rr.pickup_latitude,
         rr.pickup_longitude,
         rr.destination_latitude,
@@ -521,9 +522,11 @@ const getPassengerActiveRequest = async (passengerId) => {
         u.phone      AS rider_phone,
         u.profile_picture AS rider_photo,
         ll.latitude  AS rider_lat,
-        ll.longitude AS rider_lng
+        ll.longitude AS rider_lng,
+        r.status AS ride_status
      FROM ride_requests rr
      JOIN users u ON rr.rider_id = u.user_id
+     JOIN rides r ON r.ride_id = rr.ride_id
      LEFT JOIN LATERAL (
        SELECT latitude, longitude
        FROM live_locations
@@ -533,14 +536,67 @@ const getPassengerActiveRequest = async (passengerId) => {
      ) ll ON TRUE
      WHERE rr.passenger_id = $1
        AND rr.status = 'accepted'
+       AND r.status IN ('assigned', 'ongoing')
      ORDER BY rr.confirmed_at DESC
      LIMIT 1`,
     [passengerId]
   );
 
-  if (!result.rows.length) return null;
+  if (activeResult.rows.length) {
+    return mapActiveRequestRow(activeResult.rows[0], false);
+  }
 
-  const row = result.rows[0];
+  // ✅ Ride সম্পূর্ণ হওয়ার ২ মিনিট পর্যন্ত কার্ড দেখাতে থাকা (rider drop confirm করার পর)
+  const recentlyCompletedResult = await rideDb.query(
+    `SELECT 
+        rr.request_id,
+        rr.ride_id,
+        rr.rider_id,
+        rr.pickup_location,
+        rr.destination,
+        rr.estimated_fare,
+        rr.distance_km,
+        rr.estimated_minutes,
+        rr.status AS request_status,
+        rr.pickup_latitude,
+        rr.pickup_longitude,
+        rr.destination_latitude,
+        rr.destination_longitude,
+        u.first_name AS rider_first_name,
+        u.last_name  AS rider_last_name,
+        u.phone      AS rider_phone,
+        u.profile_picture AS rider_photo,
+        NULL AS rider_lat,
+        NULL AS rider_lng,
+        r.status AS ride_status
+     FROM ride_requests rr
+     JOIN users u ON rr.rider_id = u.user_id
+     JOIN rides r ON r.ride_id = rr.ride_id
+     WHERE rr.passenger_id = $1
+       AND r.status = 'completed'
+       AND r.completed_at > NOW() - INTERVAL '2 minutes'
+     ORDER BY r.completed_at DESC
+     LIMIT 1`,
+    [passengerId]
+  );
+
+  if (recentlyCompletedResult.rows.length) {
+    return mapActiveRequestRow(recentlyCompletedResult.rows[0], true);
+  }
+
+  return null;
+};
+
+const mapActiveRequestRow = (row, isCompleted) => {
+  // ✅ Pickup হয়েছে কিনা rides.status দিয়ে বোঝা হচ্ছে — rider "Start Navigation" চাপলেই
+  // status 'assigned' থেকে 'ongoing' হয়, যেটাকেই pickup হিসেবে ধরা হচ্ছে।
+  let rideStage = 'waiting_for_pickup';
+  if (isCompleted) {
+    rideStage = 'completed';
+  } else if (row.ride_status === 'ongoing') {
+    rideStage = 'ongoing';
+  }
+
   return {
     requestId: row.request_id,
     rideId: row.ride_id,
@@ -553,7 +609,8 @@ const getPassengerActiveRequest = async (passengerId) => {
     fare: Number(row.estimated_fare || 0),
     distanceKm: Number(row.distance_km || 0),
     estimatedMinutes: Number(row.estimated_minutes || 0),
-    status: row.status,
+    rideStage,
+    canCancel: rideStage === 'waiting_for_pickup',
     pickupLat: row.pickup_latitude ? Number(row.pickup_latitude) : null,
     pickupLng: row.pickup_longitude ? Number(row.pickup_longitude) : null,
     destinationLat: row.destination_latitude ? Number(row.destination_latitude) : null,
@@ -844,6 +901,92 @@ const cancelAcceptedParticipant = async (riderId, requestId, cancelReason = null
   }
 };
 
+// ✅ Passenger নিজে confirmed ride cancel করবে — শুধু pickup হওয়ার আগ পর্যন্ত
+// (অর্থাৎ rides.status এখনও 'assigned', rider এখনও Start Navigation চাপেনি)
+const cancelActiveRideByPassenger = async (passengerId, requestId) => {
+  const client = await rideDb.connect();
+
+  try {
+    await client.query('BEGIN');
+
+    const requestRes = await client.query(
+      `SELECT * FROM ride_requests WHERE request_id = $1 AND passenger_id = $2 FOR UPDATE`,
+      [requestId, passengerId]
+    );
+
+    if (!requestRes.rows.length) throw new Error('Ride request not found.');
+    const request = requestRes.rows[0];
+
+    if (request.status !== 'accepted') {
+      throw new Error('This ride cannot be cancelled at this stage.');
+    }
+
+    const rideRes = await client.query(
+      `SELECT * FROM rides WHERE ride_id = $1 FOR UPDATE`,
+      [request.ride_id]
+    );
+
+    if (!rideRes.rows.length) throw new Error('Ride not found.');
+    const ride = rideRes.rows[0];
+
+    if (ride.status !== 'assigned') {
+      throw new Error('You can no longer cancel — pickup has already happened.');
+    }
+
+    await client.query(
+      `UPDATE ride_requests
+       SET status = 'cancelled',
+           cancel_reason = 'Cancelled by passenger before pickup',
+           cancelled_by = $2,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE request_id = $1`,
+      [requestId, passengerId]
+    );
+
+    await client.query(
+      `UPDATE ride_participants
+       SET confirmed = FALSE
+       WHERE ride_id = $1 AND passenger_id = $2`,
+      [request.ride_id, passengerId]
+    );
+
+    await client.query(
+      `UPDATE rides SET available_seats = available_seats + 1 WHERE ride_id = $1`,
+      [request.ride_id]
+    );
+
+    await client.query('COMMIT');
+
+    const { createNotification } = require('./notificationService');
+    await createNotification({
+      userId: request.rider_id,
+      title: 'Passenger Cancelled Ride',
+      message: 'The passenger has cancelled their confirmed ride before pickup.',
+      type: 'booking',
+      isImportant: true,
+      targetRole: 'rider',
+      relatedId: String(request.request_id),
+    });
+
+    const payload = {
+      requestId: request.request_id,
+      rideId: request.ride_id,
+      status: 'cancelled',
+      message: 'Passenger cancelled the ride',
+    };
+
+    emitRideRequestStatusUpdate(request.request_id, payload);
+    emitToRiderEvent(request.rider_id, 'confirmed-ride:cancelled', payload);
+
+    return { requestId: request.request_id, status: 'cancelled' };
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+};
+
 module.exports = {
   createRequest,
   getRequestStatus,
@@ -856,4 +999,5 @@ module.exports = {
   getRiderDashboard,
   getScoredPendingRequestsForRider,
   cancelAcceptedParticipant,
+  cancelActiveRideByPassenger,
 };
