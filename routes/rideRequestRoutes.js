@@ -16,6 +16,7 @@ router.get('/passenger/active', rideRequestController.getPassengerActiveRequest)
 router.post('/', rideRequestController.createRequest);
 router.get('/:requestId', rideRequestController.getRequestStatus);
 router.patch('/:requestId/cancel', rideRequestController.cancelRequest);
+router.patch('/:requestId/cancel-active', rideRequestController.cancelActiveRideByPassenger);
 
 // rider — accept/reject (already existed)
 router.patch('/:requestId/accept', rideRequestController.acceptRequest);
