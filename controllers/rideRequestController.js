@@ -123,6 +123,19 @@ const cancelAcceptedParticipant = asyncHandler(async (req, res) => {
   }
 });
 
+// ✅ Passenger নিজে pickup হওয়ার আগে confirmed ride cancel করে (Home page কার্ড থেকে)
+const cancelActiveRideByPassenger = asyncHandler(async (req, res) => {
+  try {
+    const data = await rideRequestService.cancelActiveRideByPassenger(
+      req.user.userId,
+      req.params.requestId
+    );
+    return successResponse(res, 'Ride cancelled successfully.', data);
+  } catch (error) {
+    return errorResponse(res, error.message || 'Failed to cancel ride.', 400);
+  }
+});
+
 module.exports = {
   createRequest,
   getRequestStatus,
@@ -134,4 +147,5 @@ module.exports = {
   getRiderDashboard,
   getScoredPendingRequests,
   cancelAcceptedParticipant,
+  cancelActiveRideByPassenger,
 };
