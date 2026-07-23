@@ -13,6 +13,7 @@ import 'CoRideSearchPage.dart';
 import 'SharingCaringPage.dart';
 import 'NotificationsPage.dart';
 import 'ActiveRideTrackingPage.dart';
+import 'package:geolocator/geolocator.dart';
 
 class AppColors {
   static const Color primary = Color(0xFF14B8A6);
@@ -51,6 +52,8 @@ class _UniRideHomePageState extends State<UniRideHomePage> {
   int unreadNotificationCount = 0;
   bool isLoadingHome = true;
   Map<String, dynamic>? _activeRideRequest;
+  double? _activeRideDistanceKm;
+  Timer? _activeRideRefreshTimer;
 
   static const String _googleApiKey =
       'AIzaSyCF5mVtZ2woOu8P1Jwf-7IfzRw_QoPilCI';
@@ -60,13 +63,109 @@ class _UniRideHomePageState extends State<UniRideHomePage> {
     super.initState();
     _loadHomeSummary();
     _startAdAutoSlide();
+    _startActiveRideAutoRefresh();
   }
 
   @override
   void dispose() {
     _adTimer?.cancel();
     _adPageController.dispose();
+    _activeRideRefreshTimer?.cancel();
     super.dispose();
+  }
+
+  // ✅ প্রতি ৫ সেকেন্ডে active ride card রিফ্রেশ করা (status/location আপডেট রাখতে)
+  void _startActiveRideAutoRefresh() {
+    _activeRideRefreshTimer?.cancel();
+    _activeRideRefreshTimer =
+        Timer.periodic(const Duration(seconds: 5), (_) async {
+          if (!mounted) return;
+          try {
+            final activeRideRes =
+            await _authApiService.getPassengerActiveRideRequest();
+            final rideData = activeRideRes['data'];
+            if (!mounted) return;
+            setState(() {
+              _activeRideRequest = (rideData != null && rideData is Map)
+                  ? Map<String, dynamic>.from(rideData)
+                  : null;
+            });
+            _computeActiveRideDistance();
+          } catch (_) {}
+        });
+  }
+
+  void _computeActiveRideDistance() {
+    final d = _activeRideRequest;
+    if (d == null) {
+      _activeRideDistanceKm = null;
+      return;
+    }
+    final riderLat = d['riderLat'];
+    final riderLng = d['riderLng'];
+    final destLat = d['destinationLat'];
+    final destLng = d['destinationLng'];
+    if (riderLat != null && riderLng != null && destLat != null && destLng != null) {
+      final meters = Geolocator.distanceBetween(
+        double.tryParse('$riderLat') ?? 0,
+        double.tryParse('$riderLng') ?? 0,
+        double.tryParse('$destLat') ?? 0,
+        double.tryParse('$destLng') ?? 0,
+      );
+      _activeRideDistanceKm = meters / 1000;
+    } else {
+      _activeRideDistanceKm = null;
+    }
+  }
+
+  Future<void> _cancelActiveRide() async {
+    final d = _activeRideRequest;
+    if (d == null) return;
+    final requestId = (d['requestId'] ?? '').toString();
+    if (requestId.isEmpty) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Cancel Ride?'),
+        content: const Text(
+            'Are you sure you want to cancel this ride? The rider will be notified immediately.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('No'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Yes, Cancel', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    try {
+      await _authApiService.cancelActiveRideAsPassenger(requestId: requestId);
+      if (!mounted) return;
+      setState(() {
+        _activeRideRequest = null;
+        _activeRideDistanceKm = null;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Ride cancelled successfully.'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
+      );
+    }
   }
 
   Future<void> _loadHomeSummary() async {
@@ -131,6 +230,7 @@ class _UniRideHomePageState extends State<UniRideHomePage> {
               ? Map<String, dynamic>.from(rideData)
               : null;
         });
+        _computeActiveRideDistance();
       }
     } catch (_) {
       if (mounted) setState(() => _activeRideRequest = null);
@@ -446,122 +546,53 @@ class _UniRideHomePageState extends State<UniRideHomePage> {
                         onClose: _closeAds,
                       ),
 
-                    // Active ride bubble এর জন্য নিচে padding
-                    if (!isLoadingHome && _activeRideRequest != null)
-                      const SizedBox(height: 80),
+                    // ✅ Active Ride Card — শুধু active ride থাকলেই দেখাবে
+                    if (!isLoadingHome && _activeRideRequest != null) ...[
+                      const SizedBox(height: 20),
+                      _ActiveRideCard(
+                        rideData: _activeRideRequest!,
+                        distanceKm: _activeRideDistanceKm,
+                        onCancel: _cancelActiveRide,
+                        onTrack: () {
+                          final d = _activeRideRequest!;
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => ActiveRideTrackingPage(
+                                requestId: (d['requestId'] ?? '').toString(),
+                                riderName: (d['riderName'] ?? 'Rider').toString(),
+                                riderPhone: (d['riderPhone'] ?? '').toString(),
+                                riderPhoto: d['riderPhoto']?.toString(),
+                                destination: (d['destination'] ?? '').toString(),
+                                initialRiderLat: d['riderLat'] != null
+                                    ? double.tryParse('${d['riderLat']}')
+                                    : null,
+                                initialRiderLng: d['riderLng'] != null
+                                    ? double.tryParse('${d['riderLng']}')
+                                    : null,
+                                pickupLat: d['pickupLat'] != null
+                                    ? double.tryParse('${d['pickupLat']}')
+                                    : null,
+                                pickupLng: d['pickupLng'] != null
+                                    ? double.tryParse('${d['pickupLng']}')
+                                    : null,
+                                destinationLat: d['destinationLat'] != null
+                                    ? double.tryParse('${d['destinationLat']}')
+                                    : null,
+                                destinationLng: d['destinationLng'] != null
+                                    ? double.tryParse('${d['destinationLng']}')
+                                    : null,
+                              ),
+                            ),
+                          ).then((_) => _loadHomeSummary());
+                        },
+                      ),
+                    ],
                   ],
                 ),
               ),
             ),
           ),
-
-          // ── Active Ride Floating Bubble ──
-          if (!isLoadingHome && _activeRideRequest != null)
-            Positioned(
-              bottom: 16,
-              left: 0,
-              right: 0,
-              child: Center(
-                child: GestureDetector(
-                  onTap: () {
-                    final d = _activeRideRequest!;
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => ActiveRideTrackingPage(
-                          requestId:
-                          (d['requestId'] ?? '').toString(),
-                          riderName:
-                          (d['riderName'] ?? 'Rider').toString(),
-                          riderPhone:
-                          (d['riderPhone'] ?? '').toString(),
-                          riderPhoto: d['riderPhoto']?.toString(),
-                          destination:
-                          (d['destination'] ?? '').toString(),
-                          initialRiderLat: d['riderLat'] != null
-                              ? double.tryParse('${d['riderLat']}')
-                              : null,
-                          initialRiderLng: d['riderLng'] != null
-                              ? double.tryParse('${d['riderLng']}')
-                              : null,
-                          pickupLat: d['pickupLat'] != null
-                              ? double.tryParse('${d['pickupLat']}')
-                              : null,
-                          pickupLng: d['pickupLng'] != null
-                              ? double.tryParse('${d['pickupLng']}')
-                              : null,
-                          destinationLat: d['destinationLat'] != null
-                              ? double.tryParse(
-                              '${d['destinationLat']}')
-                              : null,
-                          destinationLng: d['destinationLng'] != null
-                              ? double.tryParse(
-                              '${d['destinationLng']}')
-                              : null,
-                        ),
-                      ),
-                    ).then((_) => _loadHomeSummary());
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 20, vertical: 13),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF14B8A6),
-                      borderRadius: BorderRadius.circular(30),
-                      boxShadow: [
-                        BoxShadow(
-                          color: const Color(0xFF14B8A6)
-                              .withOpacity(0.45),
-                          blurRadius: 16,
-                          spreadRadius: 2,
-                          offset: const Offset(0, 5),
-                        ),
-                      ],
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(
-                          Icons.directions_car_rounded,
-                          color: Colors.white,
-                          size: 22,
-                        ),
-                        const SizedBox(width: 10),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Text(
-                              'Ride in progress',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 14,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            Text(
-                              (_activeRideRequest!['riderName'] ??
-                                  'Rider')
-                                  .toString(),
-                              style: const TextStyle(
-                                color: Colors.white70,
-                                fontSize: 11,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(width: 10),
-                        const Icon(
-                          Icons.my_location_rounded,
-                          color: Colors.white70,
-                          size: 18,
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ),
         ],
       ),
 
@@ -704,6 +735,165 @@ class _HomeAdsSlider extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+// ── Active Ride Card (Suggestions ব্লকের নিচে) ──
+class _ActiveRideCard extends StatelessWidget {
+  final Map<String, dynamic> rideData;
+  final double? distanceKm;
+  final VoidCallback onCancel;
+  final VoidCallback onTrack;
+
+  const _ActiveRideCard({
+    required this.rideData,
+    required this.distanceKm,
+    required this.onCancel,
+    required this.onTrack,
+  });
+
+  String _statusLabel(String stage) {
+    switch (stage) {
+      case 'ongoing':
+        return 'On the way';
+      case 'completed':
+        return 'Completed';
+      case 'waiting_for_pickup':
+      default:
+        return 'Waiting for pickup';
+    }
+  }
+
+  Color _statusColor(String stage) {
+    switch (stage) {
+      case 'ongoing':
+        return const Color(0xFF14B8A6);
+      case 'completed':
+        return const Color(0xFF6B7280);
+      case 'waiting_for_pickup':
+      default:
+        return const Color(0xFFF59E0B);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final riderName = (rideData['riderName'] ?? 'Rider').toString();
+    final destination = (rideData['destination'] ?? '').toString();
+    final stage = (rideData['rideStage'] ?? 'waiting_for_pickup').toString();
+    final canCancel = rideData['canCancel'] == true;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppColors.border),
+        boxShadow: const [
+          BoxShadow(color: Colors.black12, blurRadius: 8, offset: Offset(0, 3)),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.directions_car_rounded,
+                  color: AppColors.primary, size: 22),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  riderName,
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.text,
+                  ),
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: _statusColor(stage).withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  _statusLabel(stage),
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                    color: _statusColor(stage),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              const Icon(Icons.flag_rounded, size: 16, color: AppColors.mutedText),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  destination,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 13, color: AppColors.mutedText),
+                ),
+              ),
+            ],
+          ),
+          if (distanceKm != null) ...[
+            const SizedBox(height: 4),
+            Row(
+              children: [
+                const Icon(Icons.social_distance_rounded,
+                    size: 16, color: AppColors.mutedText),
+                const SizedBox(width: 6),
+                Text(
+                  '${distanceKm!.toStringAsFixed(1)} km away from destination',
+                  style: const TextStyle(fontSize: 12, color: AppColors.mutedText),
+                ),
+              ],
+            ),
+          ],
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              if (canCancel) ...[
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: onCancel,
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.red,
+                      side: const BorderSide(color: Colors.red),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12)),
+                    ),
+                    child: const Text('Cancel Ride'),
+                  ),
+                ),
+                const SizedBox(width: 10),
+              ],
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: onTrack,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                  ),
+                  child: const Text('Track Ride'),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }

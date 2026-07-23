@@ -1,17 +1,18 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:flutter_polyline_points/flutter_polyline_points.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:socket_io_client/socket_io_client.dart' as IO;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'services/auth_api_service.dart';
 
 class PassengerLiveMapPage extends StatefulWidget {
-  final String sessionId;       // CoRide session id
-  final String hostName;        // Host এর নাম
+  final String sessionId;
+  final String hostName;
   final String destination;
-  final bool isCoRide;          // true = CoRide, false = regular ride
-  final String? rideId;         // Regular ride এর জন্য
+  final bool isCoRide;
+  final String? rideId;
 
   const PassengerLiveMapPage({
     super.key,
@@ -40,6 +41,8 @@ class _PassengerLiveMapPageState extends State<PassengerLiveMapPage> {
   String _statusText = 'Connecting...';
 
   final Set<Marker> _markers = {};
+  Set<Polyline> _polylines = {};
+
 
   @override
   void initState() {
@@ -48,6 +51,39 @@ class _PassengerLiveMapPageState extends State<PassengerLiveMapPage> {
     _connectSocket();
     _fetchInitialHostLocation();
     _startAutoRefreshPolling();
+    if (!widget.isCoRide) {
+      _fetchRiderSavedRoute();
+    }
+  }
+
+  // ✅ Rider যেই route confirm করে ride শুরু করেছে, সেই exact polyline fetch করা
+  List<LatLng> _decodePolyline(String encoded) {
+    final polylinePoints = PolylinePoints();
+    final result = polylinePoints.decodePolyline(encoded);
+    return result.map((p) => LatLng(p.latitude, p.longitude)).toList();
+  }
+
+  Future<void> _fetchRiderSavedRoute() async {
+    if (widget.rideId == null || widget.rideId!.isEmpty) return;
+    try {
+      final res = await _api.getSavedRidePolyline(rideId: widget.rideId!);
+      final data = res['data'];
+      final encoded = data?['encodedPolyline']?.toString();
+
+      if (encoded != null && encoded.isNotEmpty && mounted) {
+        final points = _decodePolyline(encoded);
+        setState(() {
+          _polylines = {
+            Polyline(
+              polylineId: const PolylineId('rider_route'),
+              points: points,
+              width: 5,
+              color: const Color(0xFF14B8A6),
+            ),
+          };
+        });
+      }
+    } catch (_) {}
   }
 
   // ✅ প্রতি ২ সেকেন্ডে fallback হিসেবে API থেকে host এর লোকেশন রিফ্রেশ করে (socket miss হলেও কাজ করবে)
@@ -323,17 +359,18 @@ class _PassengerLiveMapPageState extends State<PassengerLiveMapPage> {
               ],
             ),
           )
-              : GoogleMap(
-            initialCameraPosition: CameraPosition(
-              target: _hostLocation!,
-              zoom: 15,
-            ),
-            onMapCreated: (c) => _mapController = c,
-            markers: _markers,
-            myLocationEnabled: true,
-            myLocationButtonEnabled: false,
-            zoomControlsEnabled: true,
-          ),
+                          : GoogleMap(
+                        initialCameraPosition: CameraPosition(
+                          target: _hostLocation!,
+                          zoom: 15,
+                        ),
+                        onMapCreated: (c) => _mapController = c,
+                        markers: _markers,
+                        polylines: _polylines,
+                        myLocationEnabled: true,
+                        myLocationButtonEnabled: false,
+                        zoomControlsEnabled: true,
+                      ),
 
           // ── Status bar ──
           Positioned(

@@ -5462,6 +5462,31 @@ class AuthApiService {
     }
   }
 
+  Future<Map<String, dynamic>> cancelActiveRideAsPassenger({
+    required String requestId,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+
+    final url = Uri.parse('$baseUrl/ride-requests/$requestId/cancel-active');
+
+    final response = await http.patch(
+      url,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    );
+
+    final data = jsonDecode(response.body);
+
+    if (response.statusCode == 200) {
+      return data;
+    } else {
+      throw Exception(data['message'] ?? 'Failed to cancel ride');
+    }
+  }
+
   // ActiveRideTrackingPage.dart
   Future<Map<String, dynamic>> getPassengerActiveRideRequest() async {
     final prefs = await SharedPreferences.getInstance();
@@ -5508,6 +5533,31 @@ class AuthApiService {
       return data;
     } else {
       throw Exception(data['message'] ?? 'Failed to load rider location');
+    }
+  }
+
+  Future<Map<String, dynamic>> getSavedRidePolyline({
+    required String rideId,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+
+    final url = Uri.parse('$baseUrl/rider/map/ride/$rideId/saved-route');
+
+    final response = await http.get(
+      url,
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+    );
+
+    final data = jsonDecode(response.body);
+
+    if (response.statusCode == 200) {
+      return data;
+    } else {
+      throw Exception(data['message'] ?? 'Failed to get saved route');
     }
   }
 
