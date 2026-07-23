@@ -210,6 +210,54 @@ const getRoutePolyline = async ({ originLat, originLng, destinationLat, destinat
   }
 };
 
+// ✅ Rider যেই route select করে ride confirm করেছিল, সেই exact saved polyline
+// রাইডার এবং passenger — দুইজনের জন্যই একই route (rides.route_polyline থেকে)
+const getSavedRoutePolyline = async ({ userId, rideId }) => {
+  const result = await rideDb.query(
+    `SELECT r.route_polyline, r.route_distance_km, r.route_duration_minutes,
+            r.pickup_latitude, r.pickup_longitude,
+            r.destination_latitude, r.destination_longitude
+     FROM rides r
+     WHERE r.ride_id = $1
+       AND (
+         r.rider_id = $2
+         OR EXISTS (
+           SELECT 1 FROM ride_participants rp
+           WHERE rp.ride_id = r.ride_id AND rp.passenger_id = $2
+         )
+       )
+     LIMIT 1`,
+    [rideId, userId]
+  );
+
+  if (result.rows.length === 0) {
+    throw new Error('Ride not found or unauthorized.');
+  }
+
+  const row = result.rows[0];
+  let encodedPolyline = row.route_polyline || null;
+  let distanceKm = row.route_distance_km != null ? Number(row.route_distance_km) : null;
+  let durationMinutes = row.route_duration_minutes != null ? Number(row.route_duration_minutes) : null;
+
+  // পুরনো ride যাদের route_polyline সেভ নেই, তাদের জন্য fallback (rider সাইডের মতোই)
+  if (!encodedPolyline) {
+    try {
+      const routeData = await googleMapsService.computeRoute({
+        originLat: Number(row.pickup_latitude),
+        originLng: Number(row.pickup_longitude),
+        destinationLat: Number(row.destination_latitude),
+        destinationLng: Number(row.destination_longitude),
+        travelMode: 'DRIVE',
+      });
+      encodedPolyline = routeData?.polyline ?? null;
+      distanceKm = routeData?.distanceKm ?? distanceKm;
+      durationMinutes = routeData?.durationMinutes ?? durationMinutes;
+    } catch (_) {}
+  }
+
+  return { encodedPolyline, distanceKm, durationMinutes };
+};
+
 const completeRideFromMap = async ({ riderId, rideId }) => {
   // Ride complete করো
   const rideRes = await rideDb.query(
@@ -284,5 +332,6 @@ module.exports = {
   acceptRequest,
   startNavigation,
   getRoutePolyline,
+  getSavedRoutePolyline,
   completeRideFromMap,
 };
