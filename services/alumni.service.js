@@ -1,4 +1,4 @@
-const pool = require('../db');
+const pool = require('../config/rideDb');
 
 const getImageUrl = (req, filePath) => {
   if (!filePath) return null;
