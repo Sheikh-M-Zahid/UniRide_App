@@ -571,7 +571,9 @@ class _UniRideProfilePageState extends State<UniRideProfilePage> {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (context) => const HelpSupportPage(),
+                            builder: (context) => const HelpSupportPage(
+                              userRole: 'passenger',
+                            ),
                           ),
                         );
                       },

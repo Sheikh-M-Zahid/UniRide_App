@@ -427,7 +427,9 @@ class _RiderProfileState extends State<RiderProfile> {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (context) => const HelpSupportPage(),
+                            builder: (context) => const HelpSupportPage(
+                              userRole: 'rider',
+                            ),
                           ),
                         );
                       },
