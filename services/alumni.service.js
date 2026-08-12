@@ -23,7 +23,31 @@ exports.registerAlumni = async (req) => {
     await pool.query('DELETE FROM alumni_profiles WHERE user_id = $1', [userId]);
   }
 
-  if (!req.body.degree_type) throw { status: 400, message: 'degree_type required' };
+  const {
+    degree_type,
+    department,
+    major_subject,
+    graduation_year,
+    current_workplace,
+    current_position,
+    lives_abroad,
+    country,
+    graduation_university,
+    graduation_department,
+    graduation_major,
+    graduation_year_actual,
+    masters_status,
+    masters_university,
+    masters_subject,
+    masters_completion_year,
+    works,
+  } = req.body;
+
+  // Required field checks
+  if (!degree_type) throw { status: 400, message: 'degree_type required' };
+  if (!department) throw { status: 400, message: 'department required' };
+  if (!major_subject) throw { status: 400, message: 'major_subject required' };
+  if (!graduation_year) throw { status: 400, message: 'graduation_year required' };
 
   if (!req.files?.alumni_card_photo || !req.files?.transcript_photo) {
     throw { status: 400, message: 'Images required' };
@@ -32,16 +56,70 @@ exports.registerAlumni = async (req) => {
   const alumniCard = req.files.alumni_card_photo[0].path;
   const transcript = req.files.transcript_photo[0].path;
 
+  // lives_abroad আসে string হিসেবে ('true'/'false') multipart form থেকে
+  const livesAbroadBool = lives_abroad === 'true' || lives_abroad === true;
+
   const insert = await pool.query(
-    `INSERT INTO alumni_profiles (user_id, degree_type, alumni_card_photo, transcript_photo)
-     VALUES ($1,$2,$3,$4) RETURNING alumni_id`,
-    [userId, req.body.degree_type, alumniCard, transcript]
+    `INSERT INTO alumni_profiles (
+       user_id, degree_type, department, major_subject, graduation_year,
+       current_workplace, current_position, lives_abroad, country,
+       alumni_card_photo, transcript_photo,
+       graduation_university, graduation_department, graduation_major, graduation_year_actual,
+       masters_status, masters_university, masters_subject, masters_completion_year
+     )
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
+     RETURNING alumni_id`,
+    [
+      userId,
+      degree_type,
+      department,
+      major_subject,
+      parseInt(graduation_year, 10),
+      current_workplace || null,
+      current_position || null,
+      livesAbroadBool,
+      country || 'Bangladesh',
+      alumniCard,
+      transcript,
+      graduation_university || null,
+      graduation_department || null,
+      graduation_major || null,
+      graduation_year_actual ? parseInt(graduation_year_actual, 10) : null,
+      masters_status || null,
+      masters_university || null,
+      masters_subject || null,
+      masters_completion_year ? parseInt(masters_completion_year, 10) : null,
+    ]
   );
+
+  const alumniId = insert.rows[0].alumni_id;
+
+  // WORKS ইনসার্ট করা (যদি থাকে)
+  if (works) {
+    try {
+      const worksArray = JSON.parse(works);
+      if (Array.isArray(worksArray) && worksArray.length > 0) {
+        for (let i = 0; i < worksArray.length; i++) {
+          const w = worksArray[i];
+          if (w.work_title) {
+            await pool.query(
+              `INSERT INTO alumni_works (alumni_id, work_title, work_link, display_order)
+               VALUES ($1,$2,$3,$4)`,
+              [alumniId, w.work_title, w.work_link || null, i]
+            );
+          }
+        }
+      }
+    } catch (e) {
+      // works parse ব্যর্থ হলেও রেজিস্ট্রেশন আটকাবে না
+      console.error('Failed to parse/insert works:', e.message);
+    }
+  }
 
   return {
     success: true,
     message: 'Submitted successfully',
-    data: insert.rows[0]
+    data: { alumni_id: alumniId }
   };
 };
 
