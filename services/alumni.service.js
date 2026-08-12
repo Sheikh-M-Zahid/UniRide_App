@@ -8,7 +8,7 @@ const getImageUrl = (req, filePath) => {
 
 // REGISTER
 exports.registerAlumni = async (req) => {
-  const userId = req.user.user_id;
+  const userId = req.user.userId;
 
   const existing = await pool.query(
     'SELECT alumni_id, verification_status FROM alumni_profiles WHERE user_id = $1',
@@ -47,7 +47,7 @@ exports.registerAlumni = async (req) => {
 
 // STATUS
 exports.getMyStatus = async (req) => {
-  const userId = req.user.user_id;
+  const userId = req.user.userId;
 
   const result = await pool.query(
     `SELECT ap.*, u.first_name, u.last_name, u.profile_picture
@@ -67,7 +67,7 @@ exports.getMyStatus = async (req) => {
 
 // UPDATE
 exports.updateProfile = async (req) => {
-  const userId = req.user.user_id;
+  const userId = req.user.userId;
 
   const check = await pool.query(
     `SELECT alumni_id FROM alumni_profiles
@@ -110,7 +110,7 @@ exports.getDepartments = async () => {
 // CONTACT REQUEST
 exports.sendContactRequest = async (req) => {
   const { alumni_id, message } = req.body;
-  const requesterId = req.user.user_id;
+  const requesterId = req.user.userId;
 
   if (!alumni_id) throw { status: 400, message: 'alumni_id required' };
 
@@ -125,7 +125,7 @@ exports.sendContactRequest = async (req) => {
 
 // REQUESTS
 exports.getRequests = async (req) => {
-  const userId = req.user.user_id;
+  const userId = req.user.userId;
 
   const result = await pool.query(
     `SELECT * FROM alumni_contact_requests WHERE requester_id=$1`,
@@ -161,7 +161,7 @@ exports.getMessages = async (req) => {
 };
 
 exports.getMyChats = async (req) => {
-  const userId = req.user.user_id;
+  const userId = req.user.userId;
 
   const result = await pool.query(
     `SELECT * FROM alumni_chat_sessions WHERE requester_id=$1`,
