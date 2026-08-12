@@ -5225,7 +5225,7 @@ class AuthApiService {
       ..fields['degree_type'] = degreeType
       ..fields['department'] = department
       ..fields['major_subject'] = majorSubject
-      ..fields['graduation_year'] = graduationYear.toString()
+      ..fields['graduation_year'] = legacyGraduationYear.toString()
       ..fields['current_workplace'] = currentWorkplace
       ..fields['current_position'] = currentPosition
       ..fields['lives_abroad'] = livesAbroad.toString()
