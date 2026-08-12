@@ -1,11 +1,12 @@
 const multer = require('multer');
-const path = require('path');
-const { v4: uuidv4 } = require('uuid');
+const { CloudinaryStorage } = require('multer-storage-cloudinary');
+const cloudinary = require('../config/cloudinary');
 
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, 'uploads/alumni/'),
-  filename: (req, file, cb) => {
-    cb(null, uuidv4() + path.extname(file.originalname));
+const storage = new CloudinaryStorage({
+  cloudinary: cloudinary,
+  params: {
+    folder: 'uniride/alumni',
+    allowed_formats: ['jpg', 'jpeg', 'png'],
   },
 });
 
