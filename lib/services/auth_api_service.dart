@@ -5263,7 +5263,7 @@ class AuthApiService {
     final res = await http.Response.fromStream(streamed);
     final data = jsonDecode(res.body);
 
-    if (res.statusCode == 201) return data;
+    if (res.statusCode == 200 || res.statusCode == 201) return data;
     throw Exception(data['message'] ?? 'Failed to submit alumni application.');
   }
 
