@@ -15,6 +15,7 @@ router.get('/requests', authenticate, alumniController.getRequests);
 router.patch('/requests/:requestId/respond', authenticate, alumniController.respondRequest);
 
 router.get('/chat/:sessionId/messages', authenticate, alumniController.getMessages);
+router.post('/chat/:sessionId/messages', authenticate, alumniController.sendMessage);
 router.get('/my-chats', authenticate, alumniController.getMyChats);
 
 // Public alumni profile view — এটা সব লিটারেল রুটের (list, departments, requests, my-chats ইত্যাদি)
