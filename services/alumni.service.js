@@ -395,6 +395,76 @@ exports.respondRequest = async (req) => {
   return { success: true, message: `Request ${action}` };
 };
 
+// SEND MESSAGE — REST দিয়ে পাঠানো হয়, DB তে সেভ হয়, তারপর Socket.IO দিয়ে অন্য পাশে push হয়
+exports.sendMessage = async (req) => {
+  const { sessionId } = req.params;
+  const { message_text } = req.body;
+  const userId = req.user.userId;
+
+  if (!message_text || !message_text.trim()) {
+    throw { status: 400, message: 'message_text required' };
+  }
+
+  const sessionCheck = await pool.query(
+    `SELECT acs.session_id, acs.scheduled_at, acs.requester_id,
+            ap.user_id AS alumni_user_id
+     FROM alumni_chat_sessions acs
+     JOIN alumni_profiles ap ON ap.alumni_id = acs.alumni_id
+     WHERE acs.session_id = $1`,
+    [sessionId]
+  );
+
+  if (!sessionCheck.rows.length) {
+    throw { status: 404, message: 'Chat session not found' };
+  }
+
+  const session = sessionCheck.rows[0];
+  if (session.alumni_user_id !== userId && session.requester_id !== userId) {
+    throw { status: 403, message: 'Not allowed' };
+  }
+
+  // ৭ দিনের window শেষ হয়ে গেলে আর মেসেজ পাঠানো যাবে না
+  const scheduledAt = new Date(session.scheduled_at);
+  const expiresAt = new Date(scheduledAt.getTime() + 7 * 24 * 60 * 60 * 1000);
+  if (new Date() > expiresAt) {
+    throw {
+      status: 410,
+      message: 'This chat session has expired. Please send a new connection request.',
+    };
+  }
+
+  const insertResult = await pool.query(
+    `INSERT INTO alumni_chat_messages (session_id, sender_id, message_text)
+     VALUES ($1,$2,$3)
+     RETURNING message_id, session_id, sender_id, message_text, is_read, sent_at`,
+    [sessionId, userId, message_text.trim()]
+  );
+
+  const senderRow = await pool.query(
+    `SELECT first_name, last_name FROM users WHERE user_id = $1`,
+    [userId]
+  );
+
+  const messageData = {
+    ...insertResult.rows[0],
+    first_name: senderRow.rows[0]?.first_name,
+    last_name: senderRow.rows[0]?.last_name,
+  };
+
+  // recipient এর personal room-এ real-time push — config/socket.js এ সবাই connect হওয়ার সময়
+  // user_${userId} room এ join করে, তাই সেই একই room ব্যবহার করছি
+  const recipientId =
+    session.alumni_user_id === userId ? session.requester_id : session.alumni_user_id;
+  try {
+    const { getIO } = require('../config/socket');
+    getIO().to(`user_${recipientId}`).emit('alumni_chat:message', messageData);
+  } catch (e) {
+    console.error('alumni chat socket emit error:', e.message);
+  }
+
+  return { success: true, data: messageData };
+};
+
 // CHAT — sessionId এর session টা এই user-এর (alumni বা requester, দুইজনের যে কেউ) কিনা যাচাই
 exports.getMessages = async (req) => {
   const { sessionId } = req.params;
