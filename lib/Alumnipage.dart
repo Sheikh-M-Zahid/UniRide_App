@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'services/auth_api_service.dart';
 import 'AlumniRegisterPage.dart';
 import 'AlumniProfilePage.dart';
+import 'AlumniProfileViewPage.dart';
+import 'AlumniChatListPage.dart';
 
 class AppColors {
   static const Color primary = Color(0xFF14B8A6);
@@ -128,197 +130,6 @@ class _AlumniPageState extends State<AlumniPage> {
     }
   }
 
-  void _showContactPopup(Map<String, dynamic> alumni) {
-    final msgCtrl = TextEditingController();
-    bool isSending = false;
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) {
-        return StatefulBuilder(
-          builder: (ctx, setSheetState) {
-            final fullName =
-            '${alumni['first_name'] ?? ''} ${alumni['last_name'] ?? ''}'
-                .trim();
-
-            return Container(
-              margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-              padding: EdgeInsets.only(
-                bottom: MediaQuery.of(ctx).viewInsets.bottom + 20,
-                top: 20,
-                left: 20,
-                right: 20,
-              ),
-              decoration: const BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.all(Radius.circular(24)),
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // Handle bar
-                  Container(
-                    width: 40,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: AppColors.border,
-                      borderRadius: BorderRadius.circular(99),
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-
-                  // Profile photo
-                  CircleAvatar(
-                    radius: 40,
-                    backgroundColor: AppColors.inputFill,
-                    backgroundImage: alumni['profile_picture'] != null
-                        ? NetworkImage(alumni['profile_picture'])
-                        : null,
-                    child: alumni['profile_picture'] == null
-                        ? const Icon(Icons.person, size: 44, color: AppColors.mutedText)
-                        : null,
-                  ),
-                  const SizedBox(height: 14),
-
-                  // Name
-                  Text(
-                    fullName,
-                    style: const TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.text,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-
-                  // Major, Department
-                  Text(
-                    '${alumni['major_subject'] ?? ''}, ${alumni['department'] ?? ''}',
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      color: AppColors.mutedText,
-                      fontSize: 13,
-                    ),
-                  ),
-
-                  if ((alumni['current_position'] ?? '').isNotEmpty ||
-                      (alumni['current_workplace'] ?? '').isNotEmpty) ...[
-                    const SizedBox(height: 4),
-                    Text(
-                      [
-                        if ((alumni['current_position'] ?? '').isNotEmpty)
-                          alumni['current_position'],
-                        if ((alumni['current_workplace'] ?? '').isNotEmpty)
-                          alumni['current_workplace'],
-                      ].join(', '),
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        color: AppColors.secondary,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ],
-
-                  const SizedBox(height: 22),
-
-                  // Message field
-                  TextField(
-                    controller: msgCtrl,
-                    maxLines: 3,
-                    maxLength: 300,
-                    decoration: InputDecoration(
-                      hintText: 'Why do you want to connect with them?',
-                      hintStyle: const TextStyle(
-                        color: AppColors.mutedText,
-                        fontSize: 14,
-                      ),
-                      filled: true,
-                      fillColor: AppColors.inputFill,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(14),
-                        borderSide: const BorderSide(color: AppColors.border),
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(14),
-                        borderSide: const BorderSide(color: AppColors.border),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(14),
-                        borderSide: const BorderSide(
-                            color: AppColors.primary, width: 1.5),
-                      ),
-                      contentPadding: const EdgeInsets.all(14),
-                    ),
-                  ),
-
-                  const SizedBox(height: 16),
-
-                  // Send Request Button
-                  SizedBox(
-                    width: double.infinity,
-                    height: 50,
-                    child: ElevatedButton(
-                      onPressed: isSending
-                          ? null
-                          : () async {
-                        setSheetState(() => isSending = true);
-                        try {
-                          await _authApiService.sendAlumniContactRequest(
-                            alumniId: alumni['alumni_id'],
-                            message: msgCtrl.text.trim(),
-                          );
-                          if (!mounted) return;
-                          Navigator.pop(ctx);
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Request sent successfully!'),
-                              backgroundColor: Colors.green,
-                            ),
-                          );
-                        } catch (e) {
-                          setSheetState(() => isSending = false);
-                          ScaffoldMessenger.of(ctx).showSnackBar(
-                            SnackBar(content: Text(e.toString())),
-                          );
-                        }
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.primary,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                      ),
-                      child: isSending
-                          ? const SizedBox(
-                        height: 20,
-                        width: 20,
-                        child: CircularProgressIndicator(
-                          color: Colors.white,
-                          strokeWidth: 2,
-                        ),
-                      )
-                          : const Text(
-                        'Send Connection Request',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 15,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            );
-          },
-        );
-      },
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final bool isAlumni = _myAlumniStatus != null &&
@@ -345,6 +156,18 @@ class _AlumniPageState extends State<AlumniPage> {
         ),
         centerTitle: true,
         actions: [
+          // Chat list — alumni আর requester দুইজনেই এখান থেকে তাদের accepted chats দেখতে পাবে
+          IconButton(
+            icon: const Icon(Icons.chat_bubble_outline,
+                color: AppColors.text),
+            tooltip: 'My Chats',
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const AlumniChatListPage()),
+              );
+            },
+          ),
           if (_isMyStatusLoaded) ...[
             if (isAlumni)
             // Show profile icon → go to alumni profile
@@ -552,8 +375,15 @@ class _AlumniPageState extends State<AlumniPage> {
                 }
                 return _AlumniCard(
                   alumni: _alumniList[i],
-                  onTap: () =>
-                      _showContactPopup(_alumniList[i]),
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => AlumniProfileViewPage(
+                        alumniId: _alumniList[i]['alumni_id'],
+                        previewData: _alumniList[i],
+                      ),
+                    ),
+                  ),
                 );
               },
             ),

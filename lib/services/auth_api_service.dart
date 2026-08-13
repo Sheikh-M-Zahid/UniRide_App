@@ -5290,6 +5290,10 @@ class AuthApiService {
     return await _get('/alumni/departments');
   }
 
+  Future<Map<String, dynamic>> getAlumniProfileDetails(String alumniId) async {
+    return await _get('/alumni/$alumniId');
+  }
+
   Future<Map<String, dynamic>> sendAlumniContactRequest({
     required String alumniId,
     String? message,
@@ -5320,6 +5324,30 @@ class AuthApiService {
 
   Future<Map<String, dynamic>> getAlumniChatMessages(String sessionId) async {
     return await _get('/alumni/chat/$sessionId/messages');
+  }
+
+  Future<Map<String, dynamic>> sendAlumniChatMessage({
+    required String sessionId,
+    required String messageText,
+  }) async {
+    return await _post('/alumni/chat/$sessionId/messages', {
+      'message_text': messageText,
+    });
+  }
+
+  Future<Map<String, dynamic>> requestAlumniCallPermission(String sessionId) async {
+    return await _post('/alumni/chat/$sessionId/call/request', {});
+  }
+
+  Future<Map<String, dynamic>> respondAlumniCallPermission({
+    required String sessionId,
+    required String action, // approved | declined
+  }) async {
+    return await _patch('/alumni/chat/$sessionId/call/respond', {'action': action});
+  }
+
+  Future<Map<String, dynamic>> getAlumniCallPermissionStatus(String sessionId) async {
+    return await _get('/alumni/chat/$sessionId/call/status');
   }
 
   Future<Map<String, dynamic>> getMyAlumniChats() async {

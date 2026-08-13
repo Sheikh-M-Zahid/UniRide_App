@@ -1,12 +1,10 @@
-// AlumniChatPage.dart
 import 'dart:async';
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:web_socket_channel/web_socket_channel.dart';
-import 'package:web_socket_channel/io.dart';
+import 'package:socket_io_client/socket_io_client.dart' as IO;
 import 'services/auth_api_service.dart';
+import 'AlumniCallPage.dart';
 
 class AppColors {
   static const Color primary = Color(0xFF14B8A6);
@@ -20,6 +18,7 @@ class AppColors {
 
 class AlumniChatPage extends StatefulWidget {
   final String sessionId;
+  final String otherUserId;
   final String otherPersonName;
   final String? otherPersonPhone; // Only alumni can see requester's phone
   final bool isAlumni; // Is current user the alumni?
@@ -29,6 +28,7 @@ class AlumniChatPage extends StatefulWidget {
   const AlumniChatPage({
     super.key,
     required this.sessionId,
+    required this.otherUserId,
     required this.otherPersonName,
     this.otherPersonPhone,
     required this.isAlumni,
@@ -50,14 +50,21 @@ class _AlumniChatPageState extends State<AlumniChatPage> {
   bool _isOtherTyping = false;
   Timer? _typingTimer;
 
-  WebSocketChannel? _channel;
+  IO.Socket? _socket;
   String? _myUserId;
   String? _authToken;
 
+  // Call permission state: 'none' | 'pending' | 'approved' | 'declined'
+  String _callPermissionStatus = 'none';
+  bool _showIncomingCallRequestBanner = false;
+  String? _callRequesterName;
+
+  // ৭ দিনের window — scheduled_at থেকে শুরু করে ৭ দিন পর্যন্ত active থাকবে
   bool get _isSessionActive {
     final now = DateTime.now();
-    final diff = now.difference(widget.scheduledAt).inMinutes;
-    return diff >= -5 && diff <= 120;
+    final start = widget.scheduledAt.subtract(const Duration(minutes: 5));
+    final end = widget.scheduledAt.add(const Duration(days: 7));
+    return now.isAfter(start) && now.isBefore(end);
   }
 
   @override
@@ -70,7 +77,7 @@ class _AlumniChatPageState extends State<AlumniChatPage> {
   void dispose() {
     _msgCtrl.dispose();
     _scrollCtrl.dispose();
-    _channel?.sink.close();
+    _socket?.dispose();
     _typingTimer?.cancel();
     super.dispose();
   }
@@ -96,49 +103,250 @@ class _AlumniChatPageState extends State<AlumniChatPage> {
     _myUserId = prefs.getString('user_id');
 
     if (_isSessionActive && _authToken != null) {
-      _connectWebSocket();
+      _connectRealtime();
     }
+
+    await _loadCallPermissionStatus();
   }
 
-  void _connectWebSocket() {
-    final wsBase =
-    AuthApiService.baseUrl.replaceAll('https://', 'wss://').replaceAll(
-        'http://', 'ws://');
-    final uri = Uri.parse(
-        '$wsBase/ws/alumni-chat?token=$_authToken&sessionId=${widget.sessionId}');
-
+  Future<void> _loadCallPermissionStatus() async {
     try {
-      _channel = IOWebSocketChannel.connect(uri);
-      _channel!.stream.listen(
-            (data) {
-          final msg = jsonDecode(data.toString());
-          if (msg['type'] == 'message') {
-            setState(() => _messages.add(msg));
-            _scrollToBottom();
-          } else if (msg['type'] == 'typing') {
-            setState(() => _isOtherTyping = true);
-            _typingTimer?.cancel();
-            _typingTimer = Timer(const Duration(seconds: 2), () {
-              if (mounted) setState(() => _isOtherTyping = false);
-            });
-          }
-        },
-        onError: (_) {},
-        onDone: () {},
-      );
+      final res =
+      await _authApiService.getAlumniCallPermissionStatus(widget.sessionId);
+      final data = res['data'];
+      if (!mounted) return;
+      if (data == null) {
+        setState(() => _callPermissionStatus = 'none');
+      } else {
+        setState(() {
+          _callPermissionStatus = data['status'];
+          _showIncomingCallRequestBanner =
+              data['status'] == 'pending' && data['requested_by'] != _myUserId;
+        });
+      }
     } catch (_) {}
   }
 
-  void _sendMessage() {
-    final text = _msgCtrl.text.trim();
-    if (text.isEmpty || _channel == null) return;
+  void _connectRealtime() {
+    if (_authToken == null) return;
 
-    _channel!.sink.add(jsonEncode({'type': 'message', 'text': text}));
+    final base = AuthApiService.baseUrl.replaceAll('/api', '');
+
+    _socket = IO.io(
+      base,
+      IO.OptionBuilder()
+          .setTransports(['websocket'])
+          .setAuth({'token': _authToken})
+          .disableAutoConnect()
+          .build(),
+    );
+
+    _socket!.connect();
+
+    _socket!.on('alumni_chat:message', (data) {
+      if (!mounted) return;
+      final msg = Map<String, dynamic>.from(data as Map);
+      if (msg['session_id'] != widget.sessionId) return;
+      setState(() => _messages.add(msg));
+      _scrollToBottom();
+    });
+
+    _socket!.on('alumni_call:permission_requested', (data) {
+      if (!mounted) return;
+      final d = Map<String, dynamic>.from(data as Map);
+      if (d['session_id'] != widget.sessionId) return;
+      setState(() {
+        _callPermissionStatus = 'pending';
+        _showIncomingCallRequestBanner = true;
+        _callRequesterName = d['requester_name'];
+      });
+    });
+
+    _socket!.on('alumni_call:permission_responded', (data) {
+      if (!mounted) return;
+      final d = Map<String, dynamic>.from(data as Map);
+      if (d['session_id'] != widget.sessionId) return;
+      setState(() {
+        _callPermissionStatus = d['status'];
+        _showIncomingCallRequestBanner = false;
+      });
+    });
+
+    _socket!.on('alumni_call:offer', (data) {
+      if (!mounted) return;
+      final d = Map<String, dynamic>.from(data as Map);
+      if (d['sessionId'] != widget.sessionId) return;
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => AlumniCallPage(
+            sessionId: widget.sessionId,
+            otherUserId: widget.otherUserId,
+            otherPersonName: widget.otherPersonName,
+            otherPersonPhoto: widget.otherPersonPhoto,
+            authToken: _authToken!,
+            myUserId: _myUserId!,
+            isIncoming: true,
+            incomingOffer: Map<String, dynamic>.from(d['offer']),
+          ),
+        ),
+      );
+    });
+  }
+
+  void _showCallRequestSheet() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Container(
+        margin: const EdgeInsets.all(12),
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+            color: Colors.white, borderRadius: BorderRadius.circular(20)),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Options',
+                style:
+                TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+            const SizedBox(height: 12),
+            ListTile(
+              leading:
+              const Icon(Icons.call_outlined, color: AppColors.primary),
+              title: const Text('Request for Call'),
+              subtitle: Text(
+                _callPermissionStatus == 'pending'
+                    ? 'Request already sent, waiting for response'
+                    : 'Ask ${widget.otherPersonName} to enable audio call',
+              ),
+              enabled: _callPermissionStatus != 'pending' &&
+                  _callPermissionStatus != 'approved',
+              onTap: (_callPermissionStatus == 'pending' ||
+                  _callPermissionStatus == 'approved')
+                  ? null
+                  : () async {
+                Navigator.pop(ctx);
+                await _sendCallPermissionRequest();
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _sendCallPermissionRequest() async {
+    try {
+      await _authApiService.requestAlumniCallPermission(widget.sessionId);
+      if (!mounted) return;
+      setState(() => _callPermissionStatus = 'pending');
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+            content: Text('Call request sent!'),
+            backgroundColor: Colors.green),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+            content:
+            Text(e.toString().replaceFirst('Exception: ', ''))),
+      );
+    }
+  }
+
+  void _showCallPermissionResponseDialog() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Call Request'),
+        content: Text(
+            '${_callRequesterName ?? widget.otherPersonName} wants to enable audio calling for this chat. Allow it?'),
+        actions: [
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              await _respondCallPermission('declined');
+            },
+            child: const Text('Decline', style: TextStyle(color: Colors.red)),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              await _respondCallPermission('approved');
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
+            child: const Text('Allow', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _respondCallPermission(String action) async {
+    try {
+      await _authApiService.respondAlumniCallPermission(
+          sessionId: widget.sessionId, action: action);
+      if (!mounted) return;
+      setState(() {
+        _callPermissionStatus = action;
+        _showIncomingCallRequestBanner = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+            content:
+            Text(e.toString().replaceFirst('Exception: ', ''))),
+      );
+    }
+  }
+
+  void _startCall() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => AlumniCallPage(
+          sessionId: widget.sessionId,
+          otherUserId: widget.otherUserId,
+          otherPersonName: widget.otherPersonName,
+          otherPersonPhoto: widget.otherPersonPhoto,
+          authToken: _authToken!,
+          myUserId: _myUserId!,
+          isIncoming: false,
+        ),
+      ),
+    );
+  }
+
+  void _sendMessage() async {
+    final text = _msgCtrl.text.trim();
+    if (text.isEmpty) return;
+
     _msgCtrl.clear();
+
+    try {
+      final res = await _authApiService.sendAlumniChatMessage(
+        sessionId: widget.sessionId,
+        messageText: text,
+      );
+      if (!mounted) return;
+      setState(() => _messages.add(Map<String, dynamic>.from(res['data'])));
+      _scrollToBottom();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+            content:
+            Text(e.toString().replaceFirst('Exception: ', ''))),
+      );
+    }
   }
 
   void _sendTyping() {
-    _channel?.sink.add(jsonEncode({'type': 'typing'}));
+    // ঐচ্ছিক — typing indicator পরে যোগ করা যাবে, আপাতত মূল মেসেজিং ঠিক করাই priority
   }
 
   void _scrollToBottom() {
@@ -210,16 +418,51 @@ class _AlumniChatPageState extends State<AlumniChatPage> {
           ],
         ),
         actions: [
-          // Alumni can call requester
+          // Alumni can call requester's real phone number (normal carrier call)
           if (widget.isAlumni && widget.otherPersonPhone != null)
             IconButton(
               icon: const Icon(Icons.call, color: AppColors.primary),
               onPressed: _callPhone,
             ),
+          // In-app audio call — শুধু permission approved হলে দেখা যাবে
+          if (_callPermissionStatus == 'approved')
+            IconButton(
+              icon: const Icon(Icons.phone_in_talk, color: AppColors.primary),
+              tooltip: 'Audio Call',
+              onPressed: _startCall,
+            ),
         ],
       ),
       body: Column(
         children: [
+          // Incoming call permission request banner — নামের নিচে দেখাবে
+          if (_showIncomingCallRequestBanner)
+            GestureDetector(
+              onTap: _showCallPermissionResponseDialog,
+              child: Container(
+                width: double.infinity,
+                color: Colors.orange.withOpacity(0.12),
+                padding:
+                const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                child: Row(
+                  children: [
+                    const Icon(Icons.call, color: Colors.orange, size: 18),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        '${_callRequesterName ?? widget.otherPersonName} wants to start an audio call',
+                        style: const TextStyle(
+                            color: Colors.orange,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                    const Icon(Icons.chevron_right,
+                        color: Colors.orange, size: 18),
+                  ],
+                ),
+              ),
+            ),
           // Session time banner
           if (!_isSessionActive)
             Container(
@@ -304,6 +547,21 @@ class _AlumniChatPageState extends State<AlumniChatPage> {
               ),
               child: Row(
                 children: [
+                  // "+" বাটন — call request option এর জন্য
+                  GestureDetector(
+                    onTap: _showCallRequestSheet,
+                    child: Container(
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        color: AppColors.inputFill,
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.add,
+                          color: AppColors.mutedText, size: 22),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
                   Expanded(
                     child: TextField(
                       controller: _msgCtrl,

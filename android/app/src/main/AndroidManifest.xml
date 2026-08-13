@@ -1,6 +1,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.unitedgroup.uni_ride">
 
+
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
     <uses-permission android:name="android.permission.CAMERA"/>
@@ -8,10 +9,15 @@
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
     <uses-permission android:name="android.permission.INTERNET"/>
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+    <uses-permission android:name="android.permission.RECORD_AUDIO"/>
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS"/>
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT"/>
+
 
     <uses-feature
         android:name="android.hardware.camera"
         android:required="false" />
+
 
     <application
         android:label="UniRide"
@@ -21,23 +27,28 @@
         android:fullBackupContent="false"
         android:dataExtractionRules="@xml/data_extraction_rules">
 
+
         <!-- Google Maps API Key -->
         <meta-data
             android:name="com.google.android.geo.API_KEY"
             android:value="AIzaSyCF5mVtZ2woOu8P1Jwf-7IfzRw_QoPilCI" />
+
 
         <!-- FCM Channel & Icon — এগুলো <application> এর ভেতরে থাকতে হবে -->
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_channel_id"
             android:value="uniride_channel" />
 
+
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_icon"
             android:resource="@mipmap/ic_launcher" />
 
+
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_color"
             android:resource="@color/notification_color" />
+
 
         <activity
             android:name=".MainActivity"
@@ -49,9 +60,11 @@
             android:hardwareAccelerated="true"
             android:windowSoftInputMode="adjustResize">
 
+
             <meta-data
                 android:name="io.flutter.embedding.android.NormalTheme"
                 android:resource="@style/NormalTheme" />
+
 
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
@@ -59,9 +72,11 @@
             </intent-filter>
         </activity>
 
+
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
+
 
         <service
             android:name="com.google.firebase.messaging.FirebaseMessagingService"
@@ -71,7 +86,9 @@
             </intent-filter>
         </service>
 
+
     </application>
+
 
     <queries>
         <intent>
@@ -87,5 +104,6 @@
             <data android:scheme="geo" />
         </intent>
     </queries>
+
 
 </manifest>
