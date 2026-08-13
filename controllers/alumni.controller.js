@@ -1,4 +1,5 @@
 const alumniService = require('../services/alumni.service');
+const alumniProfileService = require('../services/alumniProfile.service');
 
 const handle = (res, fn) => fn().then(data => res.json(data)).catch(err => {
   console.error(err);
@@ -13,6 +14,7 @@ exports.getMyStatus = (req, res) => handle(res, () => alumniService.getMyStatus(
 exports.updateProfile = (req, res) => handle(res, () => alumniService.updateProfile(req));
 exports.getAlumniList = (req, res) => handle(res, () => alumniService.getAlumniList(req));
 exports.getDepartments = (req, res) => handle(res, () => alumniService.getDepartments());
+exports.getAlumniProfile = (req, res) => handle(res, () => alumniProfileService.getAlumniProfileById(req));
 
 exports.sendContactRequest = (req, res) => handle(res, () => alumniService.sendContactRequest(req));
 exports.getRequests = (req, res) => handle(res, () => alumniService.getRequests(req));
