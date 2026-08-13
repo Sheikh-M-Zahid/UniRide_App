@@ -17,6 +17,10 @@ router.patch('/requests/:requestId/respond', authenticate, alumniController.resp
 router.get('/chat/:sessionId/messages', authenticate, alumniController.getMessages);
 router.get('/my-chats', authenticate, alumniController.getMyChats);
 
+// Public alumni profile view — এটা সব লিটারেল রুটের (list, departments, requests, my-chats ইত্যাদি)
+// নিচে রাখা বাধ্যতামূলক, নাহলে Express '/alumni/departments' কে alumniId ধরে ফেলবে
+router.get('/:alumniId', authenticate, alumniController.getAlumniProfile);
+
 // ADMIN
 router.get('/admin/pending', authenticate, alumniController.getPending);
 router.get('/admin/count', authenticate, alumniController.getPendingCount);
