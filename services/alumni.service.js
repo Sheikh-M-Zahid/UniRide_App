@@ -168,13 +168,23 @@ exports.updateProfile = async (req) => {
 // LIST
 exports.getAlumniList = async (req) => {
   const result = await pool.query(
-    `SELECT ap.*, u.first_name, u.last_name
+    `SELECT
+       ap.alumni_id, ap.degree_type,
+       ap.department, ap.major_subject, ap.graduation_year,
+       ap.current_workplace, ap.current_position,
+       ap.lives_abroad, ap.country,
+       u.first_name, u.last_name, u.profile_picture
      FROM alumni_profiles ap
      JOIN users u ON u.user_id = ap.user_id
      WHERE ap.verification_status='approved'`
   );
 
-  return { success: true, data: result.rows };
+  const rows = result.rows.map((row) => ({
+    ...row,
+    profile_picture: getImageUrl(req, row.profile_picture),
+  }));
+
+  return { success: true, data: rows };
 };
 
 // DEPARTMENTS
