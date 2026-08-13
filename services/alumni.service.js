@@ -535,6 +535,7 @@ exports.getMyChats = async (req) => {
       closed_at: row.closed_at,
       is_alumni: isAlumni,
       // alumni হলে other person = requester, requester হলে other person = alumni
+      other_person_id: isAlumni ? row.requester_id : row.alumni_user_id,
       other_person_name: isAlumni
         ? `${row.requester_first_name || ''} ${row.requester_last_name || ''}`.trim()
         : `${row.alumni_first_name || ''} ${row.alumni_last_name || ''}`.trim(),
