@@ -1,5 +1,6 @@
 const pool = require('../config/rideDb');
 const { sendAlumniRequestEmail } = require('../utils/alumniMailer');
+const { createNotification } = require('./notificationService');
 
 const getImageUrl = (req, filePath) => {
   if (!filePath) return null;
@@ -247,16 +248,18 @@ exports.sendContactRequest = async (req) => {
   }
 
   // In-app notification — alumni এই ইউজারের নোটিফিকেশন লিস্টে দেখতে পাবে
-  await pool.query(
-    `INSERT INTO notifications (user_id, title, message, type, target_role, related_id)
-     VALUES ($1,$2,$3,'alumni_request','alumni',$4)`,
-    [
-      alumniInfo.alumni_user_id,
-      'New Connection Request',
-      `${requesterName} wants to connect with you.`,
-      insertResult.rows[0].request_id,
-    ]
-  );
+  // target_role: 'general' রাখা হয়েছে যাতে user passenger/rider যেকোনো mode-এ থাকুক,
+  // notification list-এ দেখা যায় (notificationService এর filter: target_role = role OR 'general')
+  // createNotification() নিজেই socket push + FCM push + interaction log — সব করে দেয়
+  await createNotification({
+    userId: alumniInfo.alumni_user_id,
+    title: 'New Connection Request',
+    message: `${requesterName} wants to connect with you.`,
+    type: 'alumni_request',
+    isImportant: true,
+    targetRole: 'general',
+    relatedId: insertResult.rows[0].request_id,
+  });
 
   // Email notification — app না খুললেও alumni জানতে পারবে
   try {
@@ -368,27 +371,25 @@ exports.respondRequest = async (req) => {
       [requestId, request.alumni_id, request.requester_id, chatScheduledAt]
     );
 
-    await pool.query(
-      `INSERT INTO notifications (user_id, title, message, type, target_role, related_id)
-       VALUES ($1,$2,$3,'alumni_response','alumni',$4)`,
-      [
-        request.requester_id,
-        'Connection Request Accepted',
-        `${alumniFullName} accepted your request. You can now chat during the scheduled time.`,
-        requestId,
-      ]
-    );
+    await createNotification({
+      userId: request.requester_id,
+      title: 'Connection Request Accepted',
+      message: `${alumniFullName} accepted your request. You can now chat during the scheduled time.`,
+      type: 'alumni_response',
+      isImportant: true,
+      targetRole: 'general',
+      relatedId: requestId,
+    });
   } else {
-    await pool.query(
-      `INSERT INTO notifications (user_id, title, message, type, target_role, related_id)
-       VALUES ($1,$2,$3,'alumni_response','alumni',$4)`,
-      [
-        request.requester_id,
-        'Connection Request Declined',
-        `${alumniFullName} declined your request.`,
-        requestId,
-      ]
-    );
+    await createNotification({
+      userId: request.requester_id,
+      title: 'Connection Request Declined',
+      message: `${alumniFullName} declined your request.`,
+      type: 'alumni_response',
+      isImportant: false,
+      targetRole: 'general',
+      relatedId: requestId,
+    });
   }
 
   return { success: true, message: `Request ${action}` };
