@@ -1,4 +1,5 @@
 const pool = require('../config/rideDb');
+const { sendAlumniRequestEmail } = require('../utils/alumniMailer');
 
 const getImageUrl = (req, filePath) => {
   if (!filePath) return null;
