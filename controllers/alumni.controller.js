@@ -21,6 +21,7 @@ exports.getRequests = (req, res) => handle(res, () => alumniService.getRequests(
 exports.respondRequest = (req, res) => handle(res, () => alumniService.respondRequest(req));
 
 exports.getMessages = (req, res) => handle(res, () => alumniService.getMessages(req));
+exports.sendMessage = (req, res) => handle(res, () => alumniService.sendMessage(req));
 exports.getMyChats = (req, res) => handle(res, () => alumniService.getMyChats(req));
 
 // ADMIN
