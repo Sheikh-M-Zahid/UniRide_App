@@ -32,6 +32,7 @@ const attachNotificationSocket = require('./sockets/notificationSocket');
 const coRideSocket = require('./socket/coRideSocket');
 const { setCoRideIo } = require('./utils/coRideEmitter');
 const sosSocket = require('./socket/sosSocket');
+const attachAlumniCallSocket = require('./sockets/alumniCallSocket');
 
 const PORT = process.env.PORT || 5000;
 
@@ -55,6 +56,7 @@ coRideSocket(io);
 sosSocket(io);
 setCoRideIo(io);
 setChatIo(io);
+attachAlumniCallSocket(io);
 require('./services/coRideExpiryJob').startCron();
 
 io.on('connection', (socket) => {
