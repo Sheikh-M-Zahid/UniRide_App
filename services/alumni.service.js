@@ -395,27 +395,89 @@ exports.respondRequest = async (req) => {
   return { success: true, message: `Request ${action}` };
 };
 
-// CHAT
+// CHAT — sessionId এর session টা এই user-এর (alumni বা requester, দুইজনের যে কেউ) কিনা যাচাই
 exports.getMessages = async (req) => {
   const { sessionId } = req.params;
+  const userId = req.user.userId;
+
+  const sessionCheck = await pool.query(
+    `SELECT acs.session_id, ap.user_id AS alumni_user_id, acs.requester_id
+     FROM alumni_chat_sessions acs
+     JOIN alumni_profiles ap ON ap.alumni_id = acs.alumni_id
+     WHERE acs.session_id = $1`,
+    [sessionId]
+  );
+
+  if (!sessionCheck.rows.length) {
+    throw { status: 404, message: 'Chat session not found' };
+  }
+
+  const session = sessionCheck.rows[0];
+  if (session.alumni_user_id !== userId && session.requester_id !== userId) {
+    throw { status: 403, message: 'Not allowed' };
+  }
 
   const result = await pool.query(
-    `SELECT * FROM alumni_chat_messages WHERE session_id=$1`,
+    `SELECT
+       acm.message_id, acm.session_id, acm.sender_id,
+       acm.message_text, acm.is_read, acm.sent_at,
+       u.first_name, u.last_name
+     FROM alumni_chat_messages acm
+     JOIN users u ON u.user_id = acm.sender_id
+     WHERE acm.session_id = $1
+     ORDER BY acm.sent_at ASC`,
     [sessionId]
   );
 
   return { success: true, data: result.rows };
 };
 
+// MY CHATS — user যদি alumni হয় (accept করা requests) অথবা requester হয় (নিজের পাঠানো), দুই ক্ষেত্রেই সেশন লিস্ট আসবে
 exports.getMyChats = async (req) => {
   const userId = req.user.userId;
 
   const result = await pool.query(
-    `SELECT * FROM alumni_chat_sessions WHERE requester_id=$1`,
+    `SELECT
+       acs.session_id, acs.request_id, acs.alumni_id, acs.requester_id,
+       acs.scheduled_at, acs.is_active, acs.opened_at, acs.closed_at, acs.created_at,
+       ap.user_id AS alumni_user_id,
+       au.first_name AS alumni_first_name, au.last_name AS alumni_last_name,
+       au.profile_picture AS alumni_profile_picture,
+       ru.first_name AS requester_first_name, ru.last_name AS requester_last_name,
+       ru.profile_picture AS requester_profile_picture,
+       ru.phone AS requester_phone
+     FROM alumni_chat_sessions acs
+     JOIN alumni_profiles ap ON ap.alumni_id = acs.alumni_id
+     JOIN users au ON au.user_id = ap.user_id
+     JOIN users ru ON ru.user_id = acs.requester_id
+     WHERE ap.user_id = $1 OR acs.requester_id = $1
+     ORDER BY acs.scheduled_at DESC`,
     [userId]
   );
 
-  return { success: true, data: result.rows };
+  const rows = result.rows.map((row) => {
+    const isAlumni = row.alumni_user_id === userId;
+    return {
+      session_id: row.session_id,
+      request_id: row.request_id,
+      scheduled_at: row.scheduled_at,
+      is_active: row.is_active,
+      closed_at: row.closed_at,
+      is_alumni: isAlumni,
+      // alumni হলে other person = requester, requester হলে other person = alumni
+      other_person_name: isAlumni
+        ? `${row.requester_first_name || ''} ${row.requester_last_name || ''}`.trim()
+        : `${row.alumni_first_name || ''} ${row.alumni_last_name || ''}`.trim(),
+      other_person_photo: getImageUrl(
+        req,
+        isAlumni ? row.requester_profile_picture : row.alumni_profile_picture
+      ),
+      // requester এর phone শুধু alumni-কে দেখানো হবে, উল্টোটা না
+      other_person_phone: isAlumni ? row.requester_phone : null,
+    };
+  });
+
+  return { success: true, data: rows };
 };
 
 // ADMIN
