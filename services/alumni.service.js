@@ -203,38 +203,195 @@ exports.sendContactRequest = async (req) => {
 
   if (!alumni_id) throw { status: 400, message: 'alumni_id required' };
 
-  await pool.query(
-    `INSERT INTO alumni_contact_requests (alumni_id, requester_id, message)
-     VALUES ($1,$2,$3)`,
-    [alumni_id, requesterId, message || null]
+  // Alumni-এর user info বের করা — notification আর email পাঠানোর জন্য দরকার
+  const alumniRow = await pool.query(
+    `SELECT ap.user_id AS alumni_user_id, u.first_name AS alumni_first_name,
+            u.last_name AS alumni_last_name, u.university_email AS alumni_email
+     FROM alumni_profiles ap
+     JOIN users u ON u.user_id = ap.user_id
+     WHERE ap.alumni_id = $1 AND ap.verification_status = 'approved'`,
+    [alumni_id]
   );
+
+  if (!alumniRow.rows.length) {
+    throw { status: 404, message: 'Alumni not found' };
+  }
+
+  const alumniInfo = alumniRow.rows[0];
+
+  if (alumniInfo.alumni_user_id === requesterId) {
+    throw { status: 400, message: 'You cannot send a request to yourself' };
+  }
+
+  const requesterRow = await pool.query(
+    `SELECT first_name, last_name FROM users WHERE user_id = $1`,
+    [requesterId]
+  );
+  const requesterName = requesterRow.rows.length
+    ? `${requesterRow.rows[0].first_name || ''} ${requesterRow.rows[0].last_name || ''}`.trim()
+    : 'A UniRide user';
+
+  let insertResult;
+  try {
+    insertResult = await pool.query(
+      `INSERT INTO alumni_contact_requests (alumni_id, requester_id, message)
+       VALUES ($1,$2,$3)
+       RETURNING request_id`,
+      [alumni_id, requesterId, message || null]
+    );
+  } catch (err) {
+    if (err.code === '23505') {
+      throw { status: 409, message: 'You have already sent a request to this alumni' };
+    }
+    throw err;
+  }
+
+  // In-app notification — alumni এই ইউজারের নোটিফিকেশন লিস্টে দেখতে পাবে
+  await pool.query(
+    `INSERT INTO notifications (user_id, title, message, type, target_role, related_id)
+     VALUES ($1,$2,$3,'alumni_request','alumni',$4)`,
+    [
+      alumniInfo.alumni_user_id,
+      'New Connection Request',
+      `${requesterName} wants to connect with you.`,
+      insertResult.rows[0].request_id,
+    ]
+  );
+
+  // Email notification — app না খুললেও alumni জানতে পারবে
+  try {
+    await sendAlumniRequestEmail({
+      toEmail: alumniInfo.alumni_email,
+      alumniFirstName: alumniInfo.alumni_first_name,
+      requesterName,
+      requestMessage: message || '',
+    });
+  } catch (emailErr) {
+    // ইমেইল ব্যর্থ হলেও request যেন আটকে না যায়
+    console.error('Failed to send alumni request email:', emailErr.message);
+  }
 
   return { success: true, message: 'Request sent' };
 };
 
-// REQUESTS
+// REQUESTS — যেসব request এই alumni-এর প্রোফাইলে এসেছে, তার লিস্ট
 exports.getRequests = async (req) => {
   const userId = req.user.userId;
 
-  const result = await pool.query(
-    `SELECT * FROM alumni_contact_requests WHERE requester_id=$1`,
+  const alumniRow = await pool.query(
+    `SELECT alumni_id FROM alumni_profiles WHERE user_id=$1 AND verification_status='approved'`,
     [userId]
   );
 
-  return { success: true, data: result.rows };
+  if (!alumniRow.rows.length) {
+    return { success: true, data: [] };
+  }
+
+  const alumniId = alumniRow.rows[0].alumni_id;
+
+  const result = await pool.query(
+    `SELECT
+       acr.request_id, acr.message, acr.status, acr.phone_shared,
+       acr.scheduled_time, acr.created_at,
+       u.first_name, u.last_name, u.profile_picture,
+       u.university_email,
+       up.department AS requester_department
+     FROM alumni_contact_requests acr
+     JOIN users u ON u.user_id = acr.requester_id
+     LEFT JOIN alumni_profiles up ON up.user_id = acr.requester_id
+     WHERE acr.alumni_id = $1
+     ORDER BY acr.created_at DESC`,
+    [alumniId]
+  );
+
+  const rows = result.rows.map((row) => ({
+    ...row,
+    profile_picture: getImageUrl(req, row.profile_picture),
+  }));
+
+  return { success: true, data: rows };
 };
 
 // RESPOND
 exports.respondRequest = async (req) => {
   const { requestId } = req.params;
-  const { action } = req.body;
+  const { action, phone_shared, scheduled_time } = req.body;
+  const userId = req.user.userId;
 
-  await pool.query(
-    `UPDATE alumni_contact_requests SET status=$1 WHERE request_id=$2`,
-    [action, requestId]
+  if (!['accepted', 'rejected'].includes(action)) {
+    throw { status: 400, message: 'Invalid action' };
+  }
+
+  // এই request টা আসলেই এই alumni-এর কাছে এসেছে কিনা যাচাই করা
+  const reqRow = await pool.query(
+    `SELECT acr.request_id, acr.alumni_id, acr.requester_id, acr.status,
+            ap.user_id AS alumni_user_id,
+            au.first_name AS alumni_first_name, au.last_name AS alumni_last_name
+     FROM alumni_contact_requests acr
+     JOIN alumni_profiles ap ON ap.alumni_id = acr.alumni_id
+     JOIN users au ON au.user_id = ap.user_id
+     WHERE acr.request_id = $1`,
+    [requestId]
   );
 
-  return { success: true, message: 'Updated' };
+  if (!reqRow.rows.length) {
+    throw { status: 404, message: 'Request not found' };
+  }
+
+  const request = reqRow.rows[0];
+
+  if (request.alumni_user_id !== userId) {
+    throw { status: 403, message: 'Not allowed' };
+  }
+
+  if (request.status !== 'pending') {
+    throw { status: 409, message: 'This request has already been responded to' };
+  }
+
+  await pool.query(
+    `UPDATE alumni_contact_requests
+     SET status=$1, phone_shared=$2, scheduled_time=$3, responded_at=CURRENT_TIMESTAMP
+     WHERE request_id=$4`,
+    [action, phone_shared === true, scheduled_time || null, requestId]
+  );
+
+  const alumniFullName =
+    `${request.alumni_first_name || ''} ${request.alumni_last_name || ''}`.trim();
+
+  if (action === 'accepted') {
+    // schedule না দিলে সাথে সাথে chat window খুলে যাবে (২ ঘণ্টার জন্য)
+    const chatScheduledAt = scheduled_time || new Date().toISOString();
+
+    await pool.query(
+      `INSERT INTO alumni_chat_sessions (request_id, alumni_id, requester_id, scheduled_at)
+       VALUES ($1,$2,$3,$4)`,
+      [requestId, request.alumni_id, request.requester_id, chatScheduledAt]
+    );
+
+    await pool.query(
+      `INSERT INTO notifications (user_id, title, message, type, target_role, related_id)
+       VALUES ($1,$2,$3,'alumni_response','alumni',$4)`,
+      [
+        request.requester_id,
+        'Connection Request Accepted',
+        `${alumniFullName} accepted your request. You can now chat during the scheduled time.`,
+        requestId,
+      ]
+    );
+  } else {
+    await pool.query(
+      `INSERT INTO notifications (user_id, title, message, type, target_role, related_id)
+       VALUES ($1,$2,$3,'alumni_response','alumni',$4)`,
+      [
+        request.requester_id,
+        'Connection Request Declined',
+        `${alumniFullName} declined your request.`,
+        requestId,
+      ]
+    );
+  }
+
+  return { success: true, message: `Request ${action}` };
 };
 
 // CHAT
