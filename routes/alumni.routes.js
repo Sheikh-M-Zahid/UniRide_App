@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const authenticate = require('../middlewares/authMiddleware');
 const alumniController = require('../controllers/alumni.controller');
+const alumniCallController = require('../controllers/alumniCall.controller');
 const { alumniUpload } = require('../utils/upload');
 
 router.post('/register', authenticate, alumniUpload, alumniController.registerAlumni);
@@ -16,6 +17,10 @@ router.patch('/requests/:requestId/respond', authenticate, alumniController.resp
 
 router.get('/chat/:sessionId/messages', authenticate, alumniController.getMessages);
 router.post('/chat/:sessionId/messages', authenticate, alumniController.sendMessage);
+
+router.post('/chat/:sessionId/call/request', authenticate, alumniCallController.requestCallPermission);
+router.patch('/chat/:sessionId/call/respond', authenticate, alumniCallController.respondCallPermission);
+router.get('/chat/:sessionId/call/status', authenticate, alumniCallController.getCallPermissionStatus);
 router.get('/my-chats', authenticate, alumniController.getMyChats);
 
 // Public alumni profile view — এটা সব লিটারেল রুটের (list, departments, requests, my-chats ইত্যাদি)
