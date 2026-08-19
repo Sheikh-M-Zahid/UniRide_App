@@ -7,7 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 class AuthApiService {
   static String get baseUrl {
-    return 'https://uniride-e831415d105a.herokuapp.com/api';
+    return 'https://uniride-backend-dkbwf8cwdwgubkfa.japanwest-01.azurewebsites.net/api';
   }
 
   Future<Map<String, dynamic>> login({
