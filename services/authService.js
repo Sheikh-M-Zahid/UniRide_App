@@ -389,9 +389,10 @@ const registerWithSignupToken = async (payload) => {
       date_of_birth,
       home_address,
       hostel_address,
-      campus_address
+      campus_address,
+      selected_mode
     )
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
     RETURNING user_id, university_email, first_name, last_name, phone, account_status, created_at`,
     [
       normalizedEmail,
@@ -407,6 +408,7 @@ const registerWithSignupToken = async (payload) => {
       home_address || null,
       hostel_address || null,
       campus_address || null,
+      'passenger',
     ]
   );
 
