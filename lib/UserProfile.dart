@@ -108,14 +108,24 @@ class _UniRideProfilePageState extends State<UniRideProfilePage> {
       final response = await _authApiService.getMyProfile();
       final data = response['data'] ?? {};
 
-      final fullName = (data['fullName'] ?? '').toString().trim();
-      final firstName = (data['firstName'] ?? '').toString().trim();
-      final lastName = (data['lastName'] ?? '').toString().trim();
+      String? _pick(List<String> keys) {
+        for (final k in keys) {
+          final v = data[k];
+          if (v != null && v.toString().trim().isNotEmpty) {
+            return v.toString().trim();
+          }
+        }
+        return null;
+      }
+
+      final fullName = _pick(['fullName', 'full_name']) ?? '';
+      final firstName = _pick(['firstName', 'first_name']) ?? '';
+      final lastName = _pick(['lastName', 'last_name']) ?? '';
       final combinedName = ('$firstName $lastName').trim();
 
       if (!mounted) return;
 
-      final profilePicture = data['profilePicture']?.toString();
+      final profilePicture = _pick(['profilePicture', 'profile_picture']);
       final prefs = await SharedPreferences.getInstance();
 
       String? resolvedImageUrl;
@@ -134,17 +144,21 @@ class _UniRideProfilePageState extends State<UniRideProfilePage> {
             : (combinedName.isNotEmpty ? combinedName : _displayName);
         _displayRating = double.tryParse('${data['rating'] ?? 5}') ?? 5.0;
         _profileImageUrl = resolvedImageUrl;
-        _gender = data['gender']?.toString();
-        _emergencyContactNumber = data['emergencyContactNumber']?.toString();
-        _universityEmail = data['universityEmail']?.toString();
-        _dateOfBirth = data['dateOfBirth']?.toString();
-        _secondaryPhoneNumber = data['secondaryPhoneNumber']?.toString();
-        final completedAtRaw = data['profileCompletedAt']?.toString();
+        _gender = _pick(['gender']);
+        _emergencyContactNumber =
+            _pick(['emergencyContactNumber', 'emergency_phone', 'emergency_contact_number']);
+        _universityEmail = _pick(['universityEmail', 'university_email']);
+        _dateOfBirth = _pick(['dateOfBirth', 'date_of_birth']);
+        _secondaryPhoneNumber =
+            _pick(['secondaryPhoneNumber', 'recovery_phone', 'secondary_phone_number']);
+        final completedAtRaw =
+        _pick(['profileCompletedAt', 'profile_completed_at']);
         _profileCompletedAt =
         (completedAtRaw != null && completedAtRaw.isNotEmpty)
             ? DateTime.tryParse(completedAtRaw)
             : null;
-        _profileCompletion = int.tryParse('${data['profileCompletion'] ?? 0}') ?? 0;
+        _profileCompletion =
+            int.tryParse('${data['profileCompletion'] ?? data['profile_completion'] ?? 0}') ?? 0;
       });
     } catch (e) {
       debugPrint('Failed to load profile from database: $e');

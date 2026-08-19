@@ -2,7 +2,6 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
-import 'dart:convert';
 import 'services/auth_api_service.dart';
 import 'AlumniPage.dart';
 
@@ -35,6 +34,23 @@ class _AlumniRegisterPageState extends State<AlumniRegisterPage> {
   final _gradDepartmentCtrl = TextEditingController();
   final _gradMajorCtrl = TextEditingController();
   final _gradYearCtrl = TextEditingController();
+  String? _gradDepartment;
+
+  static const List<String> _ewuDepartments = [
+    'Computer Science and Engineering (CSE)',
+    'Electronics and Communication Engineering (ECE)',
+    'Electrical and Electronic Engineering (EEE)',
+    'Civil Engineering (CE)',
+    'Genetic Engineering and Biotechnology (GEB)',
+    'Pharmacy',
+    'English',
+    'Economics',
+    'Sociology',
+    'Business Administration (BBA)',
+    'Master of Business Administration (MBA)',
+    'Law',
+    'Media and Mass Communication (MCJ)',
+  ];
 
   // ── External grad university (only when degreeType == 'masters') ──
   final _gradUniversityCtrl = TextEditingController();
@@ -454,11 +470,18 @@ class _AlumniRegisterPageState extends State<AlumniRegisterPage> {
                     label: 'University',
                     value: 'East West University'),
                 const SizedBox(height: 12),
-                _buildField(
-                    ctrl: _gradDepartmentCtrl,
-                    label: 'Department',
-                    hint: 'e.g. Computer Science & Engineering',
-                    required: true),
+                _buildDropdown<String>(
+                  value: _gradDepartment,
+                  label: 'Department',
+                  hint: 'Select your department',
+                  items: _ewuDepartments
+                      .map((d) => DropdownMenuItem(value: d, child: Text(d)))
+                      .toList(),
+                  onChanged: (val) => setState(() {
+                    _gradDepartment = val;
+                    _gradDepartmentCtrl.text = val ?? '';
+                  }),
+                ),
                 const SizedBox(height: 12),
                 _buildField(
                     ctrl: _gradMajorCtrl,
@@ -486,11 +509,18 @@ class _AlumniRegisterPageState extends State<AlumniRegisterPage> {
                     hint: 'e.g. BUET, DU, BRAC University...',
                     required: true),
                 const SizedBox(height: 12),
-                _buildField(
-                    ctrl: _gradDepartmentCtrl,
-                    label: 'Department',
-                    hint: 'e.g. Computer Science & Engineering',
-                    required: true),
+                _buildDropdown<String>(
+                  value: _gradDepartment,
+                  label: 'Department',
+                  hint: 'Select your department',
+                  items: _ewuDepartments
+                      .map((d) => DropdownMenuItem(value: d, child: Text(d)))
+                      .toList(),
+                  onChanged: (val) => setState(() {
+                    _gradDepartment = val;
+                    _gradDepartmentCtrl.text = val ?? '';
+                  }),
+                ),
                 const SizedBox(height: 12),
                 _buildField(
                     ctrl: _gradMajorCtrl,
